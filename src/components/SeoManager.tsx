@@ -1,12 +1,14 @@
+"use client";
+
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { usePathname } from "next/navigation";
 
 const SeoManager = () => {
-  const location = useLocation();
+  const pathname = usePathname();
 
   useEffect(() => {
-    const pageTitle = getTitleByPath(location.pathname);
-    const pageDescription = getDescriptionByPath(location.pathname);
+    const pageTitle = getTitleByPath(pathname);
+    const pageDescription = getDescriptionByPath(pathname);
     
     document.title = pageTitle;
     
@@ -27,7 +29,7 @@ const SeoManager = () => {
     if (ogDescription) {
       ogDescription.setAttribute("content", pageDescription);
     }
-  }, [location.pathname]);
+  }, [pathname]);
 
   return null;
 };

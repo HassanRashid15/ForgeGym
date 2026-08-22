@@ -1,4 +1,7 @@
-import { NavLink, Link } from "react-router-dom";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Dumbbell, Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -11,6 +14,7 @@ const footerLinks = [
 
 const Footer = () => {
   const { theme } = useTheme();
+  const pathname = usePathname();
 
   return (
     <footer className="bg-card border-t border-border">
@@ -18,7 +22,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div>
-            <Link to="/" className="flex items-center gap-2 mb-4">
+            <Link href="/" className="flex items-center gap-2 mb-4">
               
               <img 
                 src={theme === "light" ? "/navlogolight.png" : "/gym.png"} 
@@ -53,19 +57,16 @@ const Footer = () => {
             <ul className="space-y-3">
               {footerLinks.map((link) => (
                 <li key={link.path}>
-                  <NavLink
-                    to={link.path}
-                    end
-                    className={({ isActive }) =>
-                      `text-sm transition-colors ${
-                        isActive
-                          ? "text-primary font-semibold"
-                          : "text-muted-foreground hover:text-primary"
-                      }`
-                    }
+                  <Link
+                    href={link.path}
+                    className={`text-sm transition-colors ${
+                      pathname === link.path
+                        ? "text-primary font-semibold"
+                        : "text-muted-foreground hover:text-primary"
+                    }`}
                   >
                     {link.name}
-                  </NavLink>
+                  </Link>
                 </li>
               ))}
             </ul>

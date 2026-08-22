@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthContextType, UserRole } from '@/types/auth';
 
@@ -28,8 +30,10 @@ const DEMO_PASSWORDS: Record<string, string> = {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     // Check for stored user on mount
     const storedUser = localStorage.getItem('gym_user');
     if (storedUser) {
@@ -51,7 +55,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUser(demoUser);
-    localStorage.setItem('gym_user', JSON.stringify(demoUser));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gym_user', JSON.stringify(demoUser));
+    }
   };
 
   const register = async (email: string, password: string, name: string) => {
@@ -72,12 +78,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUser(newUser);
-    localStorage.setItem('gym_user', JSON.stringify(newUser));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gym_user', JSON.stringify(newUser));
+    }
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('gym_user');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('gym_user');
+    }
   };
 
   const value: AuthContextType = {
@@ -88,6 +98,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin'
   };
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return <AuthContext.Provider value={{ user: null, login, register, logout, isAuthenticated: false, isAdmin: false }}>{children}</AuthContext.Provider>;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

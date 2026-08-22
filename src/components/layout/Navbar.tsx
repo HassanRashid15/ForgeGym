@@ -1,5 +1,8 @@
+"use client";
+
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,7 +31,7 @@ const navLinks = [
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
+  const pathname = usePathname();
   const { user, logout, isAuthenticated } = useAuth();
   const { theme } = useTheme();
 
@@ -51,7 +54,7 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className={`flex items-center justify-between transition-all duration-300 ${scrolled ? "h-16" : "h-20"} relative`}>
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group">
             <img 
               src={theme === "light" ? "/navlogolight.png" : "/gym.png"} 
               alt="FORGE Gym" 
@@ -64,9 +67,9 @@ const Navbar = () => {
             {navLinks.map((link) => (
               <Link
                 key={link.path}
-                to={link.path}
+                href={link.path}
                 className={`nav-link text-sm font-medium transition-colors ${
-                  location.pathname === link.path ? "text-primary" : ""
+                  pathname === link.path ? "text-primary" : ""
                 }`}
               >
                 {link.name}
@@ -97,19 +100,19 @@ const Navbar = () => {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/dashboard" className="cursor-pointer">
+                    <Link href="/dashboard" className="cursor-pointer">
                       <LayoutDashboard className="mr-2 h-4 w-4" />
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/profile" className="cursor-pointer">
+                    <Link href="/profile" className="cursor-pointer">
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" className="cursor-pointer">
+                    <Link href="/settings" className="cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </Link>
@@ -124,10 +127,10 @@ const Navbar = () => {
             ) : (
               <>
                 <Button variant="ghost" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300">
-                  <Link to="/login">Sign In</Link>
+                  <Link href="/login">Sign In</Link>
                 </Button>
                 <Button variant="default" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300">
-                  <Link to="/register">Join Now</Link>
+                  <Link href="/register">Join Now</Link>
                 </Button>
               </>
             )}
@@ -153,9 +156,9 @@ const Navbar = () => {
               {navLinks.map((link) => (
                 <Link
                   key={link.path}
-                  to={link.path}
+                  href={link.path}
                   className={`text-lg font-medium py-2 ${
-                    location.pathname === link.path
+                    pathname === link.path
                       ? "text-primary"
                       : "text-muted-foreground"
                   }`}
@@ -177,19 +180,19 @@ const Navbar = () => {
                     </div>
                   </div>
                   <Button variant="ghost" className="justify-start" asChild onClick={() => setIsOpen(false)}>
-                    <Link to="/dashboard">
+                    <Link href="/dashboard">
                       <LayoutDashboard className="mr-2 h-4 w-4" />
                       Dashboard
                     </Link>
                   </Button>
                   <Button variant="ghost" className="justify-start" asChild onClick={() => setIsOpen(false)}>
-                    <Link to="/profile">
+                    <Link href="/profile">
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </Link>
                   </Button>
                   <Button variant="ghost" className="justify-start" asChild onClick={() => setIsOpen(false)}>
-                    <Link to="/settings">
+                    <Link href="/settings">
                       <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </Link>
@@ -202,10 +205,10 @@ const Navbar = () => {
               ) : (
                 <>
                   <Button variant="ghost" className="mt-4" asChild>
-                    <Link to="/login" onClick={() => setIsOpen(false)}>Sign In</Link>
+                    <Link href="/login" onClick={() => setIsOpen(false)}>Sign In</Link>
                   </Button>
                   <Button variant="default" className="mt-2" asChild>
-                    <Link to="/register" onClick={() => setIsOpen(false)}>Join Now</Link>
+                    <Link href="/register" onClick={() => setIsOpen(false)}>Join Now</Link>
                   </Button>
                 </>
               )}

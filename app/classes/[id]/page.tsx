@@ -54,7 +54,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
       <section className="pt-24 relative">
         <div className="absolute inset-0 h-[50vh]">
           <img
-            src={gymClass.image}
+            src={typeof gymClass.image === 'string' ? gymClass.image : gymClass.image.src}
             alt={gymClass.name}
             className="w-full h-full object-cover"
           />
@@ -235,7 +235,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
                 {relatedClasses.map((rc) => (
                   <div key={rc.id} className="glass-card rounded-xl overflow-hidden hover-lift group flex flex-col">
                     <Link href={`/classes/${rc.id}`} className="block relative h-40 overflow-hidden">
-                      <img src={rc.image} alt={rc.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <img src={typeof rc.image === 'string' ? rc.image : rc.image.src} alt={rc.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                       <span className="absolute top-3 left-3 px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-full">
                         {rc.category}
                       </span>

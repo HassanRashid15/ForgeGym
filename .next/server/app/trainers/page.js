@@ -1,0 +1,13 @@
+var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/trainers/page.js")
+R.c("server/chunks/ssr/_0-xqrjf._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0z5ob0b._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0yu2jwx._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__07-cb6x._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1zexv_a._.js")
+R.c("server/chunks/ssr/_05p5doo._.js")
+R.c("server/chunks/ssr/node_modules_next_dist_client_components_0p8s4lh._.js")
+R.c("server/chunks/ssr/node_modules_next_dist_client_components_builtin_unauthorized_0l_sp0x.js")
+R.c("server/chunks/ssr/node_modules_next_dist_client_components_builtin_global-error_0q-w892.js")
+R.c("server/chunks/ssr/_next-internal_server_app_trainers_page_actions_01hog3b.js")
+R.m(237)
+module.exports=R.m(237).exports

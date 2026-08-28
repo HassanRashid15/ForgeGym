@@ -81,7 +81,7 @@ const Navbar = () => {
           <div className="hidden lg:flex items-center gap-2">
             <ThemeToggle />
             {isAuthenticated ? (
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar className="h-9 w-9">

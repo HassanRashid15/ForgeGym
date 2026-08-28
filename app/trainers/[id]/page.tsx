@@ -40,7 +40,7 @@ export default function TrainerDetailPage({ params }: TrainerDetailPageProps) {
       {/* Hero */}
       <section className="pt-24 relative">
         <div className="absolute inset-0 h-[50vh]">
-          <img src={trainer.image} alt={trainer.name} className="w-full h-full object-cover" />
+          <img src={typeof trainer.image === 'string' ? trainer.image : trainer.image.src} alt={trainer.name} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
         </div>
 
@@ -157,7 +157,7 @@ export default function TrainerDetailPage({ params }: TrainerDetailPageProps) {
                 {related.map((rt) => (
                   <div key={rt.id} className="glass-card rounded-xl overflow-hidden hover-lift group flex flex-col">
                     <Link href={`/trainers/${rt.id}`} className="block relative h-56 overflow-hidden">
-                      <img src={rt.image} alt={rt.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <img src={typeof rt.image === 'string' ? rt.image : rt.image.src} alt={rt.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                     </Link>
                     <div className="p-5 flex flex-col flex-1">
                       <h3 className="font-display text-xl mb-1">{rt.name}</h3>

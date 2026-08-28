@@ -11,11 +11,10 @@ const nextConfig = {
         hostname: 'images.unsplash.com',
       },
     ],
+    domains: [],
   },
-  // Allow importing images from src/assets
-  webpack(config) {
-    return config;
-  },
+  // Use Turbopack (default in Next.js 16)
+  turbopack: {},
 };
 
 module.exports = nextConfig;

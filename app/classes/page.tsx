@@ -105,7 +105,7 @@ export default function ClassesPage() {
                   <div className="glass-card rounded-xl overflow-hidden hover-lift group h-full flex flex-col">
                     <div className="relative h-48 overflow-hidden">
                       <img
-                        src={classItem.image}
+                        src={typeof classItem.image === 'string' ? classItem.image : classItem.image.src}
                         alt={classItem.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />

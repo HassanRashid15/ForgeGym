@@ -2,12 +2,13 @@ import trainer1 from "@/assets/trainer-1.jpg";
 import trainer2 from "@/assets/trainer-2.jpg";
 import trainer3 from "@/assets/trainer-3.jpg";
 import trainer4 from "@/assets/trainer-4.jpg";
+import type { StaticImageData } from "next/image";
 
 export interface Trainer {
   id: string;
   name: string;
   role: string;
-  image: string;
+  image: string | StaticImageData;
   bio: string;
   longBio: string;
   certifications: string[];

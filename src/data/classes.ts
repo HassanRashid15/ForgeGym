@@ -1,12 +1,13 @@
 import classHiit from "@/assets/class-hiit.jpg";
 import classYoga from "@/assets/class-yoga.jpg";
 import classSpin from "@/assets/class-spin.jpg";
+import type { StaticImageData } from "next/image";
 
 export interface GymClass {
   id: string;
   name: string;
   category: string;
-  image: string;
+  image: string | StaticImageData;
   duration: string;
   intensity: "Low" | "Medium" | "High";
   trainer: string;

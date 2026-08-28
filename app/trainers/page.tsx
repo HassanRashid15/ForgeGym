@@ -52,7 +52,7 @@ export default function TrainersPage() {
                     {/* Image */}
                     <Link href={`/trainers/${trainer.id}`} className="relative h-64 lg:h-full overflow-hidden block">
                       <img
-                        src={trainer.image}
+                        src={typeof trainer.image === 'string' ? trainer.image : trainer.image.src}
                         alt={trainer.name}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />

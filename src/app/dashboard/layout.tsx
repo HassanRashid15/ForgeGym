@@ -31,7 +31,6 @@ import {
   BarChart3,
   LogOut,
   Home,
-  User,
   Bell,
   Search,
   ChevronDown,
@@ -75,23 +74,23 @@ const trainItems: NavItem[] = [
 ];
 
 const accountItems: NavItem[] = [
-  { title: "Profile", url: "/profile", icon: User },
+  { title: "Settings", url: "/profile?tab=settings", icon: Settings },
   { title: "Site Home", url: "/", icon: Home },
 ];
 
 const gymOwnerItems: NavItem[] = [
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
+  { title: "Users", url: "/dashboard/users", icon: Users },
 ];
 
 const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 function isActivePath(pathname: string, url: string) {
-  if (url === "/dashboard") return pathname === "/dashboard";
-  if (url === "/") return pathname === "/";
-  return pathname === url || pathname.startsWith(`${url}/`);
+  const pathOnly = url.split("?")[0];
+  if (pathOnly === "/dashboard") return pathname === "/dashboard";
+  if (pathOnly === "/") return pathname === "/";
+  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
 }
 
 function NavGroup({
@@ -132,6 +131,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const pathname = usePathname();
 
+  const gymBrand =
+    user?.gymName?.trim() ||
+    (isSuperAdmin ? "Forge Gym" : isAdmin ? "Your Gym" : "Forge Gym");
+  const gymDetailHref = user?.gymOwnerId
+    ? `/gyms/${user.gymOwnerId}`
+    : user?.id && isAdmin && !isSuperAdmin
+      ? `/gyms/${user.id}`
+      : "/dashboard";
+
   const panelLabel = isSuperAdmin
     ? "Super Admin"
     : isAdmin
@@ -145,7 +153,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       : [];
 
   const pageTitle =
-    [...trainItems, ...accountItems, ...superAdminItems].find((item) =>
+    [...trainItems, ...accountItems, ...gymOwnerItems, ...superAdminItems].find((item) =>
       isActivePath(pathname, item.url),
     )?.title || "Dashboard";
 
@@ -158,15 +166,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <SidebarMenuButton
                 size="lg"
                 asChild
-                tooltip="Forge Gym"
+                tooltip={gymBrand}
                 className="group-data-[collapsible=icon]:justify-center"
               >
-                <Link href="/dashboard">
+                <Link href={gymDetailHref}>
                   <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                     <Dumbbell className="size-4" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                    <span className="truncate font-semibold">Forge Gym</span>
+                    <span className="truncate font-semibold">{gymBrand}</span>
                     <span className="truncate text-xs text-muted-foreground">
                       {panelLabel}
                     </span>
@@ -240,9 +248,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                      <User className="mr-2 size-4" />
-                      Profile
+                    <Link href="/profile?tab=settings">
+                      <Settings className="mr-2 size-4" />
+                      Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -351,9 +359,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile">
-                    <User className="mr-2 size-4" />
-                    Profile
+                  <Link href="/profile?tab=settings">
+                    <Settings className="mr-2 size-4" />
+                    Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

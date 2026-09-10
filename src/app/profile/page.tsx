@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureMyProfile, getMyProfile, updateMyProfile, uploadMyAvatar } from "@/api/profiles";
@@ -29,24 +29,32 @@ import {
   Save, 
   Camera,
   Shield,
-  Bell,
   CreditCard,
-  Award,
   Target,
-  Activity,
   Dumbbell,
-  Clock,
   Flame,
-  Check,
   Loader2,
-  Lock,
-  Sparkles
+  Sparkles,
+  Building2,
 } from "lucide-react";
 
 interface DatabaseProfile extends ProfileRecord {}
 
+function displayValue(value: string | number | null | undefined, fallback = "Not specified") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function formatDateLabel(value: string | null | undefined) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const searchParams = useSearchParams();
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
@@ -81,9 +89,32 @@ export default function ProfilePage() {
     membershipType: "basic",
     joinDate: "",
     avatarUrl: "",
+    gymName: "",
+    gymType: "",
+    gymCity: "",
+    gymYearsOperating: "",
+    gymFacilities: [] as string[],
+    gymOperatingDays: "",
+    gymPeakHours: "",
+    gymMemberCapacity: "",
+    gymServices: [] as string[],
+    adminApproved: false,
+    isSuperAdmin: false,
+    approvalRequestedAt: "",
+    adminRejectedAt: "",
+    isVerified: false,
   });
 
   const [initialData, setInitialData] = useState<typeof profileData | null>(null);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (!tab) return;
+    const allowed = isAdmin
+      ? ["profile", "gym", "account", "settings"]
+      : ["profile", "fitness", "membership", "settings"];
+    if (allowed.includes(tab)) setActiveTab(tab);
+  }, [searchParams, isAdmin]);
 
   // Load profile once per user id — do not re-fetch when name/email sync updates
   // (that was resetting the page into a full-screen spinner while editing)
@@ -130,7 +161,7 @@ export default function ProfilePage() {
           email: dbProfile?.email || user.email || "",
           phone: dbProfile?.phone || meta.phone || "",
           address: dbProfile?.address || "",
-          bio: dbProfile?.bio || meta.bio || "Fitness enthusiast building strength and consistency.",
+          bio: dbProfile?.bio || meta.bio || (isAdmin ? "" : "Fitness enthusiast building strength and consistency."),
           dateOfBirth: dbProfile?.date_of_birth || meta.date_of_birth || "",
           gender: dbProfile?.gender || meta.gender || "",
           weightKg: dbProfile?.weight_kg ? String(dbProfile.weight_kg) : (meta.weight_kg ? String(meta.weight_kg) : ""),
@@ -140,29 +171,49 @@ export default function ProfilePage() {
             if (!cm || isNaN(Number(cm))) return "";
             return (Number(cm) / 30.48).toFixed(2).replace(/\.?0+$/, "");
           })(),
-          activityLevel: dbProfile?.activity_level || meta.activity_level || "Moderately Active",
-          fitnessGoal: dbProfile?.fitness_goal || meta.fitness_goal || "General Fitness",
-          experienceLevel: dbProfile?.experience_level || meta.experience_level || "Intermediate",
+          activityLevel: dbProfile?.activity_level || meta.activity_level || (isAdmin ? "" : "Moderately Active"),
+          fitnessGoal: dbProfile?.fitness_goal || meta.fitness_goal || (isAdmin ? "" : "General Fitness"),
+          experienceLevel: dbProfile?.experience_level || meta.experience_level || (isAdmin ? "" : "Intermediate"),
           targetAreas: Array.isArray(dbProfile?.target_areas) && dbProfile.target_areas.length > 0
             ? dbProfile.target_areas
-            : (Array.isArray(meta.target_areas) ? meta.target_areas : ["Full Body"]),
-          workoutDays: dbProfile?.workout_days_per_week ? String(dbProfile.workout_days_per_week) : (meta.workout_days_per_week ? String(meta.workout_days_per_week) : "4"),
-          workoutDuration: dbProfile?.workout_duration || meta.workout_duration || "45 min",
-          workoutType: dbProfile?.workout_type || meta.workout_type || "Weights",
-          preferredTime: dbProfile?.preferred_workout_time || meta.preferred_workout_time || "Morning",
+            : (Array.isArray(meta.target_areas) ? meta.target_areas : (isAdmin ? [] : ["Full Body"])),
+          workoutDays: dbProfile?.workout_days_per_week ? String(dbProfile.workout_days_per_week) : (meta.workout_days_per_week ? String(meta.workout_days_per_week) : (isAdmin ? "" : "4")),
+          workoutDuration: dbProfile?.workout_duration || meta.workout_duration || (isAdmin ? "" : "45 min"),
+          workoutType: dbProfile?.workout_type || meta.workout_type || (isAdmin ? "" : "Weights"),
+          preferredTime: dbProfile?.preferred_workout_time || meta.preferred_workout_time || (isAdmin ? "" : "Morning"),
           emergencyContact: dbProfile?.emergency_contact || meta.emergency_contact || "",
           membershipStatus: dbProfile?.membership_status || "active",
           membershipType: dbProfile?.membership_type || "basic",
           joinDate: dbProfile?.join_date || new Date().toISOString(),
-          avatarUrl: (dbProfile as any)?.avatar_url || "",
+          avatarUrl: dbProfile?.avatar_url || "",
+          gymName: dbProfile?.gym_name || meta.gym_name || "",
+          gymType: dbProfile?.gym_type || meta.gym_type || "",
+          gymCity: dbProfile?.gym_city || meta.gym_city || "",
+          gymYearsOperating: dbProfile?.gym_years_operating || meta.gym_years_operating || "",
+          gymFacilities: Array.isArray(dbProfile?.gym_facilities)
+            ? dbProfile.gym_facilities
+            : (Array.isArray(meta.gym_facilities) ? meta.gym_facilities : []),
+          gymOperatingDays: dbProfile?.gym_operating_days != null
+            ? String(dbProfile.gym_operating_days)
+            : (meta.gym_operating_days != null ? String(meta.gym_operating_days) : ""),
+          gymPeakHours: dbProfile?.gym_peak_hours || meta.gym_peak_hours || "",
+          gymMemberCapacity: dbProfile?.gym_member_capacity || meta.gym_member_capacity || "",
+          gymServices: Array.isArray(dbProfile?.gym_services)
+            ? dbProfile.gym_services
+            : (Array.isArray(meta.gym_services) ? meta.gym_services : []),
+          adminApproved: dbProfile?.admin_approved === true,
+          isSuperAdmin: dbProfile?.is_super_admin === true || isSuperAdmin === true,
+          approvalRequestedAt: dbProfile?.approval_requested_at || "",
+          adminRejectedAt: dbProfile?.admin_rejected_at || "",
+          isVerified: dbProfile?.is_verified === true,
         };
 
         setProfileData(mapped);
         setInitialData(mapped);
-        setAvatarPreview((dbProfile as any)?.avatar_url || null);
+        setAvatarPreview(dbProfile?.avatar_url || null);
         setPendingAvatarFile(null);
 
-        if (dbProfile && !dbProfile.fitness_goal && meta.fitness_goal) {
+        if (!isAdmin && dbProfile && !dbProfile.fitness_goal && meta.fitness_goal) {
           void updateMyProfile({
             phone: meta.phone || null,
             address: meta.address || null,
@@ -194,7 +245,7 @@ export default function ProfilePage() {
       isSubscribed = false;
       clearTimeout(safetyTimer);
     };
-  }, [user?.id, authChecked]);
+  }, [user?.id, authChecked, isAdmin, isSuperAdmin]);
 
   // Save changes to Supabase profiles table
   const handleSave = async () => {
@@ -219,23 +270,39 @@ export default function ProfilePage() {
         address: profileData.address.trim() || null,
         emergency_contact: profileData.emergencyContact.trim() || null,
         bio: profileData.bio.trim() || null,
-        date_of_birth: profileData.dateOfBirth || null,
-        gender: profileData.gender || null,
-        weight_kg: profileData.weightKg ? parseFloat(profileData.weightKg) : null,
-        height_cm: profileData.heightFt
-          ? Math.round(parseFloat(profileData.heightFt) * 30.48 * 100) / 100
-          : null,
-        activity_level: profileData.activityLevel || null,
-        fitness_goal: profileData.fitnessGoal || null,
-        experience_level: profileData.experienceLevel || null,
-        target_areas: profileData.targetAreas,
-        workout_days_per_week: profileData.workoutDays
-          ? parseInt(profileData.workoutDays)
-          : null,
-        workout_duration: profileData.workoutDuration || null,
-        workout_type: profileData.workoutType || null,
-        preferred_workout_time: profileData.preferredTime || null,
         avatar_url: nextAvatarUrl,
+        ...(isAdmin
+          ? {
+              gym_name: profileData.gymName.trim() || null,
+              gym_type: profileData.gymType.trim() || null,
+              gym_city: profileData.gymCity.trim() || null,
+              gym_years_operating: profileData.gymYearsOperating.trim() || null,
+              gym_facilities: profileData.gymFacilities,
+              gym_operating_days: profileData.gymOperatingDays
+                ? parseInt(profileData.gymOperatingDays, 10)
+                : null,
+              gym_peak_hours: profileData.gymPeakHours.trim() || null,
+              gym_member_capacity: profileData.gymMemberCapacity.trim() || null,
+              gym_services: profileData.gymServices,
+            }
+          : {
+              date_of_birth: profileData.dateOfBirth || null,
+              gender: profileData.gender || null,
+              weight_kg: profileData.weightKg ? parseFloat(profileData.weightKg) : null,
+              height_cm: profileData.heightFt
+                ? Math.round(parseFloat(profileData.heightFt) * 30.48 * 100) / 100
+                : null,
+              activity_level: profileData.activityLevel || null,
+              fitness_goal: profileData.fitnessGoal || null,
+              experience_level: profileData.experienceLevel || null,
+              target_areas: profileData.targetAreas,
+              workout_days_per_week: profileData.workoutDays
+                ? parseInt(profileData.workoutDays)
+                : null,
+              workout_duration: profileData.workoutDuration || null,
+              workout_type: profileData.workoutType || null,
+              preferred_workout_time: profileData.preferredTime || null,
+            }),
       };
 
       await updateMyProfile(dbPayload);
@@ -363,21 +430,49 @@ export default function ProfilePage() {
             </div>
             <div className="text-center md:text-left flex-1">
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {profileData.fullName || user?.name || "Fitness Member"}
+                {profileData.fullName || user?.name || (isAdmin ? "Gym Owner" : "Fitness Member")}
               </h1>
               <p className="text-muted-foreground">{profileData.email || user?.email}</p>
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center md:justify-start">
-                <Badge className={profileData.membershipStatus === "active" ? "bg-emerald-500 text-white" : "bg-zinc-700"}>
-                  {profileData.membershipStatus === "active" ? "Active Member" : profileData.membershipStatus}
-                </Badge>
-                <Badge variant="outline" className="border-red-500/40 text-red-400 capitalize">
-                  {profileData.membershipType} Plan
-                </Badge>
-                {profileData.fitnessGoal && (
-                  <Badge variant="secondary" className="bg-zinc-800 text-zinc-300">
-                    <Target className="h-3 w-3 mr-1 text-primary" />
-                    {profileData.fitnessGoal}
-                  </Badge>
+                {isAdmin ? (
+                  <>
+                    <Badge className="bg-red-600 text-white">Gym Owner</Badge>
+                    <Badge
+                      className={
+                        profileData.adminApproved
+                          ? "bg-emerald-500 text-white"
+                          : "bg-amber-500/90 text-white"
+                      }
+                    >
+                      {profileData.adminApproved ? "Approved" : "Pending Approval"}
+                    </Badge>
+                    {profileData.isSuperAdmin && (
+                      <Badge variant="outline" className="border-red-500/40 text-red-400">
+                        Super Admin
+                      </Badge>
+                    )}
+                    {profileData.gymName && (
+                      <Badge variant="secondary" className="bg-zinc-800 text-zinc-300">
+                        <Building2 className="h-3 w-3 mr-1 text-primary" />
+                        {profileData.gymName}
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Badge className={profileData.membershipStatus === "active" ? "bg-emerald-500 text-white" : "bg-zinc-700"}>
+                      {profileData.membershipStatus === "active" ? "Active Member" : profileData.membershipStatus}
+                    </Badge>
+                    <Badge variant="outline" className="border-red-500/40 text-red-400 capitalize">
+                      {profileData.membershipType} Plan
+                    </Badge>
+                    {profileData.fitnessGoal && (
+                      <Badge variant="secondary" className="bg-zinc-800 text-zinc-300">
+                        <Target className="h-3 w-3 mr-1 text-primary" />
+                        {profileData.fitnessGoal}
+                      </Badge>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -409,16 +504,25 @@ export default function ProfilePage() {
 
       <div className="max-w-6xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-zinc-900 border border-zinc-800">
+          <TabsList className={`grid w-full bg-zinc-900 border border-zinc-800 ${isAdmin ? "grid-cols-4" : "grid-cols-4"}`}>
             <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="fitness">Fitness & Routine</TabsTrigger>
-            <TabsTrigger value="membership">Membership</TabsTrigger>
+            {isAdmin ? (
+              <>
+                <TabsTrigger value="gym">Gym Details</TabsTrigger>
+                <TabsTrigger value="account">Account Status</TabsTrigger>
+              </>
+            ) : (
+              <>
+                <TabsTrigger value="fitness">Fitness & Routine</TabsTrigger>
+                <TabsTrigger value="membership">Membership</TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* ════════════ Tab 1: Profile ════════════ */}
           <TabsContent value="profile" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className={`grid gap-6 ${isAdmin ? "md:grid-cols-1 max-w-2xl" : "md:grid-cols-2"}`}>
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
@@ -468,33 +572,35 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  {!isAdmin && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="dateOfBirth"
+                            type="date"
+                            value={profileData.dateOfBirth}
+                            onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value })}
+                            disabled={!isEditing}
+                            className={isEditing ? "bg-zinc-900 border-zinc-700 pl-10" : "bg-zinc-950/50 pl-10"}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gender">Gender</Label>
                         <Input
-                          id="dateOfBirth"
-                          type="date"
-                          value={profileData.dateOfBirth}
-                          onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value })}
+                          id="gender"
+                          value={profileData.gender}
+                          onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
                           disabled={!isEditing}
-                          className={isEditing ? "bg-zinc-900 border-zinc-700 pl-10" : "bg-zinc-950/50 pl-10"}
+                          placeholder={isEditing ? "Male / Female / Other" : "Not specified"}
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Input
-                        id="gender"
-                        value={profileData.gender}
-                        onChange={(e) => setProfileData({ ...profileData, gender: e.target.value })}
-                        disabled={!isEditing}
-                        placeholder={isEditing ? "Male / Female / Other" : "Not specified"}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="address">Address</Label>
@@ -534,10 +640,26 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
+
+                  {isAdmin && (
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">About</Label>
+                      <Textarea
+                        id="bio"
+                        value={profileData.bio}
+                        onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                        disabled={!isEditing}
+                        rows={3}
+                        placeholder="About you or your gym…"
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Bio & Body Metrics Card */}
+              {/* Bio & Body Metrics Card — members only */}
+              {!isAdmin && (
               <div className="space-y-6">
                 <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                   <CardHeader>
@@ -604,10 +726,275 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
               </div>
+              )}
             </div>
           </TabsContent>
 
+          {/* ════════════ Admin: Gym Details ════════════ */}
+          {isAdmin && (
+            <TabsContent value="gym" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Building2 className="h-5 w-5 text-primary" />
+                      Gym Profile
+                    </CardTitle>
+                    <CardDescription>Saved from admin registration</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="gymName">Gym Name</Label>
+                      <Input
+                        id="gymName"
+                        value={profileData.gymName}
+                        onChange={(e) => setProfileData({ ...profileData, gymName: e.target.value })}
+                        disabled={!isEditing}
+                        placeholder="Not specified"
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymType">Gym Type</Label>
+                        <Input
+                          id="gymType"
+                          value={profileData.gymType}
+                          onChange={(e) => setProfileData({ ...profileData, gymType: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Not specified"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gymCity">City</Label>
+                        <Input
+                          id="gymCity"
+                          value={profileData.gymCity}
+                          onChange={(e) => setProfileData({ ...profileData, gymCity: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Not specified"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gymYearsOperating">Years Operating</Label>
+                      <Input
+                        id="gymYearsOperating"
+                        value={profileData.gymYearsOperating}
+                        onChange={(e) => setProfileData({ ...profileData, gymYearsOperating: e.target.value })}
+                        disabled={!isEditing}
+                        placeholder="Not specified"
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymOperatingDays">Operating Days / Week</Label>
+                        <Input
+                          id="gymOperatingDays"
+                          type="number"
+                          min="1"
+                          max="7"
+                          value={profileData.gymOperatingDays}
+                          onChange={(e) => setProfileData({ ...profileData, gymOperatingDays: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="—"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gymMemberCapacity">Member Capacity</Label>
+                        <Input
+                          id="gymMemberCapacity"
+                          value={profileData.gymMemberCapacity}
+                          onChange={(e) => setProfileData({ ...profileData, gymMemberCapacity: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Not specified"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gymPeakHours">Peak Hours</Label>
+                      <Input
+                        id="gymPeakHours"
+                        value={profileData.gymPeakHours}
+                        onChange={(e) => setProfileData({ ...profileData, gymPeakHours: e.target.value })}
+                        disabled={!isEditing}
+                        placeholder="Not specified"
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Dumbbell className="h-5 w-5 text-primary" />
+                      Facilities & Services
+                    </CardTitle>
+                    <CardDescription>From your onboarding submission</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-2">
+                      <Label>Facilities</Label>
+                      {isEditing ? (
+                        <Textarea
+                          value={profileData.gymFacilities.join(", ")}
+                          onChange={(e) =>
+                            setProfileData({
+                              ...profileData,
+                              gymFacilities: e.target.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          rows={3}
+                          placeholder="Comma-separated facilities"
+                          className="bg-zinc-900 border-zinc-700"
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {profileData.gymFacilities.length > 0 ? (
+                            profileData.gymFacilities.map((item) => (
+                              <Badge
+                                key={item}
+                                variant="secondary"
+                                className="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1"
+                              >
+                                {item}
+                              </Badge>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No facilities listed</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label>Services</Label>
+                      {isEditing ? (
+                        <Textarea
+                          value={profileData.gymServices.join(", ")}
+                          onChange={(e) =>
+                            setProfileData({
+                              ...profileData,
+                              gymServices: e.target.value
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          rows={3}
+                          placeholder="Comma-separated services"
+                          className="bg-zinc-900 border-zinc-700"
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {profileData.gymServices.length > 0 ? (
+                            profileData.gymServices.map((item) => (
+                              <Badge
+                                key={item}
+                                variant="secondary"
+                                className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1"
+                              >
+                                {item}
+                              </Badge>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No services listed</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+          )}
+
+          {/* ════════════ Admin: Account Status ════════════ */}
+          {isAdmin && (
+            <TabsContent value="account" className="space-y-6">
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Shield className="h-5 w-5 text-primary" />
+                    Admin Account Status
+                  </CardTitle>
+                  <CardDescription>Approval and role data from the database</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-xl bg-gradient-to-r from-red-950/30 via-zinc-900 to-zinc-900 border border-red-500/20 gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-primary uppercase tracking-wider">Role</span>
+                      <h3 className="text-2xl font-bold capitalize mt-1 text-foreground">
+                        {profileData.isSuperAdmin ? "Super Admin" : "Gym Owner (Admin)"}
+                      </h3>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        {displayValue(profileData.gymName, "No gym name on file")}
+                        {profileData.gymCity ? ` · ${profileData.gymCity}` : ""}
+                      </p>
+                    </div>
+                    <Badge
+                      className={`px-4 py-1.5 self-start sm:self-center ${
+                        profileData.adminApproved ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
+                      }`}
+                    >
+                      {profileData.adminApproved ? "Approved" : "Pending"}
+                    </Badge>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Admin Approved</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {profileData.adminApproved ? "Yes" : "No"}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Super Admin</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {profileData.isSuperAdmin ? "Yes" : "No"}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Verified</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {profileData.isVerified ? "Yes" : "No"}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Approval Requested</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {formatDateLabel(profileData.approvalRequestedAt)}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Rejected At</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {formatDateLabel(profileData.adminRejectedAt)}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Joined</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {formatDateLabel(profileData.joinDate)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           {/* ════════════ Tab 2: Fitness & Routine ════════════ */}
+          {!isAdmin && (
           <TabsContent value="fitness" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
@@ -746,8 +1133,10 @@ export default function ProfilePage() {
               </Card>
             </div>
           </TabsContent>
+          )}
 
           {/* ════════════ Tab 3: Membership ════════════ */}
+          {!isAdmin && (
           <TabsContent value="membership" className="space-y-6">
             <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
               <CardHeader>
@@ -796,9 +1185,108 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* ════════════ Tab 4: Settings ════════════ */}
           <TabsContent value="settings" className="space-y-6">
+            {isAdmin && (
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    Gym Configuration
+                  </CardTitle>
+                  <CardDescription>
+                    Same gym data as registration — edit here or under Gym Details
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsGymName">Gym Name</Label>
+                      <Input
+                        id="settingsGymName"
+                        value={profileData.gymName}
+                        onChange={(e) => setProfileData({ ...profileData, gymName: e.target.value })}
+                        disabled={!isEditing}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsGymCity">City</Label>
+                      <Input
+                        id="settingsGymCity"
+                        value={profileData.gymCity}
+                        onChange={(e) => setProfileData({ ...profileData, gymCity: e.target.value })}
+                        disabled={!isEditing}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsGymType">Gym Type</Label>
+                      <Input
+                        id="settingsGymType"
+                        value={profileData.gymType}
+                        onChange={(e) => setProfileData({ ...profileData, gymType: e.target.value })}
+                        disabled={!isEditing}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsPeakHours">Peak Hours</Label>
+                      <Input
+                        id="settingsPeakHours"
+                        value={profileData.gymPeakHours}
+                        onChange={(e) =>
+                          setProfileData({ ...profileData, gymPeakHours: e.target.value })
+                        }
+                        disabled={!isEditing}
+                        placeholder="e.g. 5pm - 8pm"
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsPhone">Contact Phone</Label>
+                      <Input
+                        id="settingsPhone"
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                        disabled={!isEditing}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="settingsCapacity">Member Capacity</Label>
+                      <Input
+                        id="settingsCapacity"
+                        value={profileData.gymMemberCapacity}
+                        onChange={(e) =>
+                          setProfileData({ ...profileData, gymMemberCapacity: e.target.value })
+                        }
+                        disabled={!isEditing}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="settingsAddress">Address</Label>
+                    <Input
+                      id="settingsAddress"
+                      value={profileData.address}
+                      onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                      disabled={!isEditing}
+                      className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                    />
+                  </div>
+                  {!isEditing && (
+                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                      Edit gym settings
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-xl">

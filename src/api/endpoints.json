@@ -46,6 +46,26 @@
       "method": "POST",
       "path": "/api/admin/pending",
       "description": "Approve a pending admin account"
+    },
+    "listUsers": {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "description": "List member accounts for gym admins (all users for super admin)"
+    },
+    "createUser": {
+      "method": "POST",
+      "path": "/api/admin/users",
+      "description": "Create a member account"
+    },
+    "updateUser": {
+      "method": "PATCH",
+      "path": "/api/admin/users",
+      "description": "Update a member profile or membership"
+    },
+    "deleteUser": {
+      "method": "DELETE",
+      "path": "/api/admin/users",
+      "description": "Delete a member account"
     }
   },
   "profiles": {

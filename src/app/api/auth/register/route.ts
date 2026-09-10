@@ -25,6 +25,64 @@ export async function POST(request: Request) {
       : "user";
 
   const supabase = createSupabaseServerClient();
+  const service = createSupabaseServiceClient();
+
+  const customerGymOwnerId =
+    requestedRole === "user" && fitnessData.gym_owner_id
+      ? String(fitnessData.gym_owner_id)
+      : null;
+
+  let gymMeta: {
+    gym_name: string | null;
+    gym_city: string | null;
+    gym_type: string | null;
+  } | null = null;
+
+  // Validate gym selection before creating the auth user
+  if (requestedRole === "user") {
+    if (!customerGymOwnerId) {
+      return NextResponse.json(
+        { error: "Please select a gym to join as a customer" },
+        { status: 400 },
+      );
+    }
+    if (!service) {
+      return NextResponse.json(
+        { error: "Server misconfigured — cannot validate gym" },
+        { status: 500 },
+      );
+    }
+
+    const { data: gymProfile } = await service
+      .from("profiles")
+      .select("user_id, gym_name, gym_city, gym_type, admin_approved, is_super_admin")
+      .eq("user_id", customerGymOwnerId)
+      .maybeSingle();
+
+    const { data: gymRoles } = await service
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", customerGymOwnerId);
+
+    const isGymAdmin = (gymRoles || []).some((r) => r.role === "admin");
+    if (
+      !gymProfile ||
+      !isGymAdmin ||
+      gymProfile.is_super_admin ||
+      gymProfile.admin_approved !== true ||
+      !(gymProfile.gym_name || "").trim()
+    ) {
+      return NextResponse.json(
+        { error: "Please select a valid gym to join" },
+        { status: 400 },
+      );
+    }
+    gymMeta = {
+      gym_name: gymProfile.gym_name,
+      gym_city: gymProfile.gym_city,
+      gym_type: gymProfile.gym_type,
+    };
+  }
 
   // Block duplicate accounts (auth.users + profiles)
   const { data: exists } = await (supabase.rpc as any)("check_user_exists", {
@@ -100,10 +158,13 @@ export async function POST(request: Request) {
       }
     }
 
-    const service = createSupabaseServiceClient();
-    if (service && (!profileSynced || requestedRole === "admin")) {
+    if (service && (!profileSynced || requestedRole === "admin" || customerGymOwnerId)) {
       try {
-        const adminApproved = requestedRole !== "admin";
+        const needsApproval = requestedRole === "admin" || !!customerGymOwnerId;
+        const adminApproved = !needsApproval;
+        const gymOwnerId =
+          requestedRole === "admin" ? userId : customerGymOwnerId;
+
         await service.from("profiles").upsert(
           {
             id: userId,
@@ -115,10 +176,20 @@ export async function POST(request: Request) {
             emergency_contact: fitnessData.emergency_contact || null,
             admin_approved: adminApproved,
             is_super_admin: false,
-            approval_requested_at: requestedRole === "admin" ? new Date().toISOString() : null,
-            gym_name: fitnessData.gym_name || null,
-            gym_type: fitnessData.gym_type || null,
-            gym_city: fitnessData.gym_city || null,
+            approval_requested_at: needsApproval ? new Date().toISOString() : null,
+            gym_owner_id: gymOwnerId,
+            gym_name:
+              requestedRole === "admin"
+                ? fitnessData.gym_name || null
+                : gymMeta?.gym_name || null,
+            gym_type:
+              requestedRole === "admin"
+                ? fitnessData.gym_type || null
+                : gymMeta?.gym_type || null,
+            gym_city:
+              requestedRole === "admin"
+                ? fitnessData.gym_city || null
+                : gymMeta?.gym_city || null,
             gym_years_operating: fitnessData.gym_years_operating || null,
             gym_facilities: fitnessData.gym_facilities || null,
             gym_operating_days: fitnessData.gym_operating_days ?? null,
@@ -137,7 +208,7 @@ export async function POST(request: Request) {
             workout_duration: fitnessData.workout_duration || null,
             workout_type: fitnessData.workout_type || null,
             preferred_workout_time: fitnessData.preferred_workout_time || null,
-            membership_status: "active",
+            membership_status: adminApproved ? "active" : "pending",
             membership_type: "basic",
             updated_at: new Date().toISOString(),
           } as any,
@@ -174,6 +245,43 @@ export async function POST(request: Request) {
             );
           }
         }
+
+        if (customerGymOwnerId) {
+          // Notify the gym owner + any co-admins of that gym
+          const { data: gymAdmins } = await service
+            .from("profiles")
+            .select("user_id")
+            .eq("gym_owner_id", customerGymOwnerId)
+            .eq("admin_approved", true);
+
+          const { data: ownerRoles } = await service
+            .from("user_roles")
+            .select("user_id, role")
+            .eq("role", "admin")
+            .in(
+              "user_id",
+              [
+                customerGymOwnerId,
+                ...((gymAdmins || []).map((p) => p.user_id) as string[]),
+              ].filter(Boolean),
+            );
+
+          const recipients = [
+            ...new Set((ownerRoles || []).map((r) => r.user_id).filter(Boolean)),
+          ].filter((id) => id !== userId);
+
+          if (recipients.length > 0) {
+            await (service.from("admin_notifications" as any) as any).insert(
+              recipients.map((recipient_user_id: string) => ({
+                recipient_user_id,
+                type: "member_approval_request",
+                from_user_id: userId,
+                title: "New member awaiting approval",
+                message: `${fullName} (${email}) wants to join ${gymMeta?.gym_name || "your gym"} and needs approval.`,
+              })),
+            );
+          }
+        }
         profileSynced = true;
       } catch (e: any) {
         console.warn("service-role signup finalize failed:", e?.message || e);
@@ -206,6 +314,8 @@ export async function POST(request: Request) {
   }
 
   const requiresVerification = !data.user?.email_confirmed_at;
+  const requiresGymApproval =
+    requestedRole === "user" && !!fitnessData.gym_owner_id;
 
   return NextResponse.json({
     userId,
@@ -217,7 +327,8 @@ export async function POST(request: Request) {
         }
       : null,
     requiresVerification,
-    requiresAdminApproval: requestedRole === "admin",
+    requiresAdminApproval: requestedRole === "admin" || requiresGymApproval,
+    requiresGymApproval,
     profileSynced,
     verificationEmailSent,
     verificationError,

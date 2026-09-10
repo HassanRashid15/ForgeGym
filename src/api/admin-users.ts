@@ -1,0 +1,130 @@
+import { apiRequest } from "@/api/client";
+
+export type ManagedUser = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address?: string | null;
+  membership_status: string | null;
+  membership_type: string | null;
+  account_status?: string | null;
+  join_date?: string | null;
+  created_at?: string | null;
+  role: "admin" | "moderator" | "user" | "trainer" | "staff";
+  is_super_admin?: boolean;
+  admin_approved?: boolean;
+  specialization?: string | null;
+  employment_type?: string | null;
+  branch_department?: string | null;
+  staff_type?: string | null;
+  department?: string | null;
+  login_enabled?: boolean;
+  gym_name?: string | null;
+  gym_owner_id?: string | null;
+};
+
+export type CreateStaffPayload = {
+  full_name: string;
+  email: string;
+  password?: string;
+  phone?: string | null;
+  address?: string | null;
+  gender?: string | null;
+  date_of_birth?: string | null;
+  emergency_contact?: string | null;
+  account_status?: string;
+  membership_status?: string;
+  membership_type?: string;
+  role?: "admin" | "moderator" | "user" | "trainer" | "staff";
+  avatar_base64?: string;
+  specialization?: string | null;
+  certifications?: string | string[];
+  certification_number?: string | null;
+  years_experience?: string | null;
+  education?: string | null;
+  skills?: string | string[];
+  languages?: string | string[];
+  trainer_bio?: string | null;
+  joining_date?: string | null;
+  employment_type?: string | null;
+  branch_department?: string | null;
+  department?: string | null;
+  salary?: string | null;
+  commission_percentage?: string | number | null;
+  working_days?: string | null;
+  working_hours?: string | null;
+  max_client_capacity?: string | null;
+  assigned_members?: string | string[];
+  availability?: string | null;
+  pt_sessions?: string | null;
+  leave_info?: string | null;
+  staff_type?: string | null;
+  supervisor?: string | null;
+  shift?: string | null;
+  overtime_rate?: string | null;
+  responsibilities?: string | null;
+  login_enabled?: boolean;
+  system_permissions?: string[];
+};
+
+export type CreateUserPayload = CreateStaffPayload;
+
+export type UpdateUserPayload = {
+  userId: string;
+  action?: "approve" | "reject";
+  full_name?: string;
+  phone?: string | null;
+  address?: string | null;
+  membership_status?: string;
+  membership_type?: string;
+  account_status?: string;
+  specialization?: string | null;
+  staff_type?: string | null;
+  login_enabled?: boolean;
+  role?: "admin" | "moderator" | "user" | "trainer" | "staff";
+};
+
+/** admin.listUsers → GET /api/admin/users */
+export async function listManagedUsers(q?: string) {
+  return apiRequest<{ users: ManagedUser[]; isSuperAdmin: boolean; gymOwnerId?: string }>(
+    "admin",
+    "listUsers",
+    q?.trim() ? { query: { q: q.trim() } } : {},
+  );
+}
+
+/** admin.createUser → POST /api/admin/users */
+export async function createManagedUser(payload: CreateStaffPayload) {
+  return apiRequest<{
+    user: ManagedUser & { requiresVerification?: boolean };
+    requiresVerification?: boolean;
+    message?: string;
+  }>("admin", "createUser", {
+    body: payload,
+  });
+}
+
+/** admin.updateUser → PATCH /api/admin/users */
+export async function updateManagedUser(payload: UpdateUserPayload) {
+  return apiRequest<{ user: ManagedUser; action?: string }>("admin", "updateUser", {
+    body: payload,
+  });
+}
+
+/** Approve a pending gym member */
+export async function approveManagedMember(userId: string) {
+  return updateManagedUser({ userId, action: "approve" });
+}
+
+/** Reject a pending gym member */
+export async function rejectManagedMember(userId: string) {
+  return updateManagedUser({ userId, action: "reject" });
+}
+
+/** admin.deleteUser → DELETE /api/admin/users */
+export async function deleteManagedUser(userId: string) {
+  return apiRequest<{ ok: boolean; userId: string }>("admin", "deleteUser", {
+    body: { userId },
+  });
+}

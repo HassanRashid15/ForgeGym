@@ -28,10 +28,18 @@ import {
   MapPin,
   Shield,
   ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
 
 type AccountType = "customer" | "admin";
+
+type PublicGym = {
+  ownerId: string;
+  gymName: string;
+  gymType?: string | null;
+  gymCity?: string | null;
+};
 
 // ─── Capsule Button ───────────────────────────────────────────────────────────
 function Capsule({
@@ -107,6 +115,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryEmail = searchParams.get("email") || "";
+  const queryGymOwnerId = searchParams.get("gym") || "";
   const { register, checkAccountExists } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -133,6 +142,7 @@ function RegisterContent() {
     address?: string;
     password?: string;
     confirmPassword?: string;
+    gymOwnerId?: string;
   }>({});
 
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -140,11 +150,71 @@ function RegisterContent() {
   const [emailCheckedOk, setEmailCheckedOk] = useState(false);
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [gyms, setGyms] = useState<PublicGym[]>([]);
+  const [loadingGyms, setLoadingGyms] = useState(false);
+  const [selectedGymOwnerId, setSelectedGymOwnerId] = useState(queryGymOwnerId);
+  const gymLockedFromUrl = Boolean(queryGymOwnerId);
+
   useEffect(() => {
     if (queryEmail && !email) {
       setEmail(queryEmail);
     }
   }, [queryEmail]);
+
+  useEffect(() => {
+    if (!queryGymOwnerId) return;
+    setAccountType("customer");
+    setSelectedGymOwnerId(queryGymOwnerId);
+  }, [queryGymOwnerId]);
+
+  useEffect(() => {
+    if (accountType !== "customer") return;
+    let cancelled = false;
+    setLoadingGyms(true);
+
+    (async () => {
+      try {
+        const listRes = await fetch("/api/gyms");
+        const listData = await listRes.json().catch(() => ({}));
+        let list: PublicGym[] = Array.isArray(listData?.gyms) ? listData.gyms : [];
+
+        // Ensure the gym from ?gym= is present even if list timing/filter differs
+        if (queryGymOwnerId) {
+          const inList = list.some((g) => g.ownerId === queryGymOwnerId);
+          if (!inList) {
+            const detailRes = await fetch(`/api/gyms/${encodeURIComponent(queryGymOwnerId)}`);
+            const detailData = await detailRes.json().catch(() => ({}));
+            if (detailRes.ok && detailData?.gym?.ownerId) {
+              list = [
+                {
+                  ownerId: detailData.gym.ownerId,
+                  gymName: detailData.gym.gymName,
+                  gymType: detailData.gym.gymType,
+                  gymCity: detailData.gym.gymCity,
+                },
+                ...list,
+              ];
+            }
+          }
+        }
+
+        if (cancelled) return;
+        setGyms(list);
+        if (queryGymOwnerId) {
+          const match = list.find((g) => g.ownerId === queryGymOwnerId);
+          if (match) setSelectedGymOwnerId(match.ownerId);
+        }
+      } catch {
+        if (!cancelled) setGyms([]);
+      } finally {
+        if (!cancelled) setLoadingGyms(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountType, queryGymOwnerId]);
 
   const handleEmailChange = (value: string) => {
     setEmail(value);
@@ -452,6 +522,9 @@ function RegisterContent() {
   const validateStep1 = () => {
     const e: typeof errors = {};
     if (!accountType) e.accountType = "Please select Admin or Customer";
+    if (accountType === "customer" && !selectedGymOwnerId) {
+      e.gymOwnerId = "Please select a gym to join";
+    }
     if (!firstName.trim()) e.firstName = "First name is required";
     if (!lastName.trim()) e.lastName = "Last name is required";
     if (!email.trim()) e.email = "Email is required";
@@ -599,6 +672,7 @@ function RegisterContent() {
                 workout_type: workoutType || undefined,
                 preferred_workout_time: preferredTime || undefined,
                 requested_role: "user" as const,
+                gym_owner_id: selectedGymOwnerId || undefined,
               };
             })();
 
@@ -607,10 +681,12 @@ function RegisterContent() {
       toast.success(
         isAdminAccount
           ? "Admin account created! Check your email to verify, then wait for super admin approval."
-          : "Account created! Please verify your email to activate 🎉",
+          : "Account created! Verify your email, then wait for gym admin approval.",
       );
       if (isAdminAccount) {
         toast.message("Super admins were notified to approve your account.");
+      } else {
+        toast.message("Your selected gym was notified to approve your membership.");
       }
       setCurrentStep(4);
     } catch (error: any) {
@@ -793,7 +869,9 @@ function RegisterContent() {
                     type="button"
                     onClick={() => {
                       setAccountType("admin");
+                      setSelectedGymOwnerId("");
                       if (errors.accountType) setErrors({ ...errors, accountType: undefined });
+                      if (errors.gymOwnerId) setErrors({ ...errors, gymOwnerId: undefined });
                     }}
                     disabled={isLoading}
                     className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all ${
@@ -937,6 +1015,69 @@ function RegisterContent() {
                   onChange={({ address: next }) => setAddress(next)}
                 />
               </div>
+
+              {/* Gym select (customers only) */}
+              {accountType === "customer" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="joinGym" className="text-zinc-300 font-medium text-sm">
+                    Join Gym
+                  </Label>
+                  <div className="relative">
+                    <Building2
+                      className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${
+                        selectedGymOwnerId ? "text-red-400" : "text-zinc-400"
+                      }`}
+                    />
+                    <select
+                      id="joinGym"
+                      value={selectedGymOwnerId}
+                      onChange={(e) => {
+                        setSelectedGymOwnerId(e.target.value);
+                        if (errors.gymOwnerId)
+                          setErrors({ ...errors, gymOwnerId: undefined });
+                      }}
+                      disabled={isLoading || loadingGyms}
+                      className={`${inputCls(!!errors.gymOwnerId)} pl-10 pr-10 appearance-none`}
+                    >
+                      <option value="">
+                        {loadingGyms ? "Loading gyms…" : "Select a gym to join"}
+                      </option>
+                      {gyms.map((g) => (
+                        <option key={g.ownerId} value={g.ownerId}>
+                          {g.gymName}
+                          {g.gymCity ? ` — ${g.gymCity}` : ""}
+                          {g.gymType ? ` (${g.gymType})` : ""}
+                          {gymLockedFromUrl && g.ownerId === queryGymOwnerId
+                            ? " ★"
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {errors.gymOwnerId && (
+                    <p className="text-xs text-red-400">{errors.gymOwnerId}</p>
+                  )}
+                  {!loadingGyms && gyms.length === 0 && (
+                    <p className="text-[11px] text-amber-400/90">
+                      No approved gyms are available yet. Check back soon or register as Admin to
+                      create one.
+                    </p>
+                  )}
+                  {gymLockedFromUrl &&
+                    selectedGymOwnerId === queryGymOwnerId &&
+                    !loadingGyms && (
+                      <p className="text-[11px] text-emerald-400/90">
+                        Pre-selected from the gym page — you can change it above if you want.
+                      </p>
+                    )}
+                  {selectedGymOwnerId && (
+                    <p className="text-[11px] text-zinc-500 leading-relaxed">
+                      After email verification, the gym admin must approve you before you can sign
+                      in.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Emergency Contact (Optional) */}
               <div className="space-y-1.5">
@@ -1796,7 +1937,7 @@ function RegisterContent() {
                 <p className="text-sm text-zinc-400">
                   {accountType === "admin"
                     ? "Your admin account was created — next: verify email, then wait for approval"
-                    : "Your personalized fitness plan is ready"}
+                    : "Next: verify your email, then wait for gym admin approval to join"}
                 </p>
               </div>
 
@@ -1809,10 +1950,14 @@ function RegisterContent() {
                       { label: "Capacity", value: gymMemberCapacity },
                     ]
                   : [
+                      {
+                        label: "Gym",
+                        value:
+                          gyms.find((g) => g.ownerId === selectedGymOwnerId)?.gymName || "—",
+                      },
                       { label: "Primary Goal", value: fitnessGoal },
                       { label: "Current Weight", value: `${weight} ${weightUnit}` },
                       { label: "Weekly Target", value: `${workoutDays} days/week` },
-                      { label: "Experience", value: experienceLevel },
                     ]
                 ).map(({ label, value }) => (
                   <div key={label} className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">

@@ -25,6 +25,20 @@ export type ProfileRecord = {
   membership_type?: string | null;
   join_date?: string | null;
   avatar_url?: string | null;
+  admin_approved?: boolean | null;
+  is_super_admin?: boolean | null;
+  admin_rejected_at?: string | null;
+  approval_requested_at?: string | null;
+  is_verified?: boolean | null;
+  gym_name?: string | null;
+  gym_type?: string | null;
+  gym_city?: string | null;
+  gym_years_operating?: string | null;
+  gym_facilities?: string[] | null;
+  gym_operating_days?: number | null;
+  gym_peak_hours?: string | null;
+  gym_member_capacity?: string | null;
+  gym_services?: string[] | null;
 };
 
 export type ProfileUpdatePayload = Partial<{
@@ -46,6 +60,15 @@ export type ProfileUpdatePayload = Partial<{
   workout_type: string | null;
   preferred_workout_time: string | null;
   avatar_url: string | null;
+  gym_name: string | null;
+  gym_type: string | null;
+  gym_city: string | null;
+  gym_years_operating: string | null;
+  gym_facilities: string[];
+  gym_operating_days: number | null;
+  gym_peak_hours: string | null;
+  gym_member_capacity: string | null;
+  gym_services: string[];
 }>;
 
 /** GET profiles.get → /api/profiles */

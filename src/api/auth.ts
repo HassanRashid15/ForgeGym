@@ -86,10 +86,14 @@ export async function fetchCurrentUser() {
     id: string;
     email: string | null;
     name: string;
-    role: "admin" | "moderator" | "customer";
+    role: "admin" | "moderator" | "customer" | "trainer" | "staff";
     isSuperAdmin?: boolean;
     admin_approved: boolean;
     avatar: string | null;
+    gymName?: string | null;
+    gymOwnerId?: string | null;
+    gymCity?: string | null;
+    gymType?: string | null;
   }>("auth", "me");
 }
 

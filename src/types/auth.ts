@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'customer' | 'moderator' | 'user';
+export type UserRole = 'admin' | 'customer' | 'moderator' | 'user' | 'trainer' | 'staff';
 
 export interface User {
   id: string;
@@ -8,6 +8,11 @@ export interface User {
   avatar?: string;
   /** Platform super admin — can approve gym-owner admins */
   isSuperAdmin?: boolean;
+  /** Gym brand name from profiles.gym_name */
+  gymName?: string | null;
+  gymOwnerId?: string | null;
+  gymCity?: string | null;
+  gymType?: string | null;
 }
 
 export type RegisterAccountType = "admin" | "customer";
@@ -30,6 +35,8 @@ export interface FitnessProfileData {
   preferred_workout_time?: string;
   /** Stored in auth metadata as requested_role for the signup trigger */
   requested_role?: "admin" | "user";
+  /** Customer joins this gym (owner's user_id) */
+  gym_owner_id?: string;
   /** Gym owner fields (admin registration steps 2–3) */
   gym_name?: string;
   gym_type?: string;

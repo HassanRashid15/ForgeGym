@@ -26,31 +26,57 @@ export async function POST(request: Request) {
     );
   }
 
-  // Admins must be approved by a super admin before they can use the app
   const userId = data.user.id;
+
+  const { data: accessProfile } = await supabase
+    .from("profiles")
+    .select("login_enabled, admin_approved, gym_owner_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if ((accessProfile as { login_enabled?: boolean | null } | null)?.login_enabled === false) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      {
+        error: "This staff account does not have login access",
+        code: "login_disabled",
+      },
+      { status: 403 },
+    );
+  }
+
   const { data: roleData } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (roleData?.role === "admin") {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("admin_approved")
-      .eq("user_id", userId)
-      .maybeSingle();
+  const role = roleData?.role;
+  const gymOwnerId = (accessProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id;
+  const isApproved = accessProfile?.admin_approved === true;
 
-    if (profile?.admin_approved !== true) {
-      await supabase.auth.signOut();
-      return NextResponse.json(
-        {
-          error: "Your admin account is pending super admin approval",
-          code: "admin_approval_pending",
-        },
-        { status: 403 },
-      );
-    }
+  // Gym owners need super-admin approval before signing in
+  if (role === "admin" && !isApproved) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      {
+        error: "Your admin account is pending super admin approval",
+        code: "admin_approval_pending",
+      },
+      { status: 403 },
+    );
+  }
+
+  // Customers joining a gym need that gym admin's approval
+  if (role === "user" && gymOwnerId && !isApproved) {
+    await supabase.auth.signOut();
+    return NextResponse.json(
+      {
+        error: "Your membership is pending gym admin approval",
+        code: "member_approval_pending",
+      },
+      { status: 403 },
+    );
   }
 
   return NextResponse.json({

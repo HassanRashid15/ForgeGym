@@ -63,6 +63,7 @@ function LoginContent() {
   const [accountExists, setAccountExists] = useState<boolean | null>(null);
   const [unconfirmedEmail, setUnconfirmedEmail] = useState(false);
   const [pendingAdminApproval, setPendingAdminApproval] = useState(false);
+  const [pendingMemberApproval, setPendingMemberApproval] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -72,6 +73,7 @@ function LoginContent() {
     setEmail(newVal);
     setUnconfirmedEmail(false);
     setPendingAdminApproval(false);
+    setPendingMemberApproval(false);
     setAccountExists(null);
 
     if (errors.email) {
@@ -133,6 +135,7 @@ function LoginContent() {
 
     setIsLoading(true);
     setPendingAdminApproval(false);
+    setPendingMemberApproval(false);
     try {
       await login(cleanEmail, password);
       toast.success("Welcome back! Let's crush it today.");
@@ -151,9 +154,14 @@ function LoginContent() {
         lower.includes("admin approval pending") ||
         lower.includes("pending super admin")
       ) {
-        // Expected for unapproved gym owners — stay on login, no console.error overlay
         setPendingAdminApproval(true);
         toast.error("Waiting for super admin approval. You cannot sign in yet.");
+      } else if (
+        lower.includes("membership approval pending") ||
+        lower.includes("pending gym admin")
+      ) {
+        setPendingMemberApproval(true);
+        toast.error("Waiting for gym admin approval. You cannot sign in yet.");
       } else if (lower.includes("invalid login credentials")) {
         toast.error("Invalid email or password. Please check your credentials.");
       } else {
@@ -267,6 +275,20 @@ function LoginContent() {
                 <p className="text-zinc-300 leading-relaxed">
                   Your email is verified, but a super admin must approve your admin account
                   before you can sign in. Please stay on this page and try again later.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Pending gym member approval */}
+          {pendingMemberApproval && (
+            <div className="mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-amber-300">Awaiting Gym Admin Approval</p>
+                <p className="text-zinc-300 leading-relaxed">
+                  Your email is verified, but the gym admin must approve your membership
+                  before you can sign in. Try again after they approve you.
                 </p>
               </div>
             </div>

@@ -20,16 +20,24 @@ type MePayload = {
   id: string;
   email: string | null;
   name: string;
-  role: 'admin' | 'moderator' | 'customer';
+  role: 'admin' | 'moderator' | 'customer' | 'trainer' | 'staff';
   isSuperAdmin?: boolean;
   admin_approved: boolean;
   avatar: string | null;
+  gymName?: string | null;
+  gymOwnerId?: string | null;
+  gymCity?: string | null;
+  gymType?: string | null;
 };
 
 function resolveRole(apiRole?: string | null, metaRole?: string): UserRole {
   if (apiRole === 'admin') return 'admin';
+  if (apiRole === 'trainer') return 'trainer';
+  if (apiRole === 'staff') return 'staff';
   if (apiRole === 'moderator') return 'moderator';
   if (String(metaRole || '').toLowerCase() === 'admin') return 'admin';
+  if (String(metaRole || '').toLowerCase() === 'trainer') return 'trainer';
+  if (String(metaRole || '').toLowerCase() === 'staff') return 'staff';
   return 'customer';
 }
 
@@ -143,8 +151,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const isSuperAdmin = me.isSuperAdmin === true || isSeededSuper;
       const apiApproved = me.admin_approved !== false;
+      const needsGymMemberApproval =
+        appRole === 'customer' && !!me.gymOwnerId && !apiApproved;
 
-      if (appRole === 'admin' && !apiApproved && !isSuperAdmin) {
+      if (
+        ((appRole === 'admin' && !apiApproved) || needsGymMemberApproval) &&
+        !isSuperAdmin
+      ) {
         meCacheRef.current = null;
         syncedUserIdRef.current = null;
         await supabase.auth.signOut({ scope: 'local' });
@@ -160,6 +173,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: appRole,
         isSuperAdmin,
         avatar: me.avatar || sessionUser.user_metadata?.avatar_url || undefined,
+        gymName: me.gymName || null,
+        gymOwnerId: me.gymOwnerId || null,
+        gymCity: me.gymCity || null,
+        gymType: me.gymType || null,
       });
     } catch (error) {
       console.error('Error syncing user profile:', error);
@@ -306,6 +323,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (err instanceof ApiError && err.details && (err.details as any).code === 'admin_approval_pending') {
         throw new Error('Admin approval pending');
+      }
+      if (err instanceof ApiError && err.details && (err.details as any).code === 'member_approval_pending') {
+        throw new Error('Membership approval pending');
       }
       throw new Error(err?.message || 'Login failed');
     }

@@ -17,24 +17,36 @@ export async function GET(request: Request) {
     db.from("user_roles").select("role").eq("user_id", user.id),
     db
       .from("profiles")
-      .select("full_name, email, admin_approved, avatar_url, is_super_admin")
+      .select(
+        "full_name, email, admin_approved, avatar_url, is_super_admin, gym_name, gym_owner_id, gym_city, gym_type",
+      )
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
 
   const roleNames = (roles || []).map((r) => r.role);
-  let role: "admin" | "moderator" | "customer" = "customer";
+  let role: "admin" | "moderator" | "customer" | "trainer" | "staff" = "customer";
   if (roleNames.includes("admin")) role = "admin";
+  else if (roleNames.includes("trainer")) role = "trainer";
+  else if (roleNames.includes("staff")) role = "staff";
   else if (roleNames.includes("moderator")) role = "moderator";
 
   const email = (profile?.email || user.email || "").toLowerCase();
-  let isSuperAdmin = (profile as any)?.is_super_admin === true;
+  let isSuperAdmin = (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   // Seeded platform account — treat as super admin without writing on every request
   if (email === "superadmin@forge.test") {
     isSuperAdmin = true;
     role = "admin";
   }
+
+  const profileRow = profile as {
+    gym_name?: string | null;
+    gym_owner_id?: string | null;
+    gym_city?: string | null;
+    gym_type?: string | null;
+    avatar_url?: string | null;
+  } | null;
 
   return NextResponse.json({
     id: user.id,
@@ -48,6 +60,10 @@ export async function GET(request: Request) {
     admin_approved:
       isSuperAdmin || profile?.admin_approved !== false,
     avatar:
-      (profile as any)?.avatar_url || user.user_metadata?.avatar_url || null,
+      profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
+    gymName: profileRow?.gym_name || null,
+    gymOwnerId: profileRow?.gym_owner_id || (role === "admin" ? user.id : null),
+    gymCity: profileRow?.gym_city || null,
+    gymType: profileRow?.gym_type || null,
   });
 }

@@ -4,11 +4,18 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import { ArrowRight, Zap, Users, Clock, Trophy, Star, ChevronRight, ChevronDown } from "lucide-react";
+import { ArrowRight, Zap, Users, Clock, Trophy, Star, ChevronRight, ChevronDown, Building2, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import TypingText from "@/components/marketing/TypingText";
+
+type FeaturedGym = {
+  ownerId: string;
+  gymName: string;
+  gymType: string | null;
+  gymCity: string | null;
+};
 
 const features = [
   {
@@ -77,6 +84,7 @@ const testimonials = [
 
 export default function HomePage() {
   const [scrollY, setScrollY] = useState(0);
+  const [featuredGyms, setFeaturedGyms] = useState<FeaturedGym[]>([]);
   // const isLoading = usePageLoading(600);
 
   useEffect(() => {
@@ -85,6 +93,24 @@ export default function HomePage() {
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/gyms");
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.gyms)) {
+          setFeaturedGyms(data.gyms.slice(0, 6));
+        }
+      } catch {
+        // keep empty — section still shows Popular Classes
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Preloader commented out for now
@@ -206,6 +232,36 @@ export default function HomePage() {
       {/* Classes Preview */}
       <section className="py-24">
         <div className="container mx-auto px-4">
+          {featuredGyms.length > 0 && (
+            <ScrollAnimate animation="fade-up">
+              <div className="mb-10">
+                <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
+                  Featured gyms
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  {featuredGyms.map((gym) => (
+                    <Link
+                      key={gym.ownerId}
+                      href={`/gyms/${gym.ownerId}`}
+                      className="group inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-4 py-2 transition-colors hover:border-primary/50 hover:bg-primary/10"
+                    >
+                      <Building2 className="h-4 w-4 text-primary" />
+                      <span className="font-semibold group-hover:text-primary">
+                        {gym.gymName}
+                      </span>
+                      {gym.gymCity && (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          {gym.gymCity}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </ScrollAnimate>
+          )}
+
           <ScrollAnimate animation="fade-up">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12">
               <div>

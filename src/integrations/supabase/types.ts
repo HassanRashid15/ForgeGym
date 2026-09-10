@@ -193,6 +193,35 @@ export type Database = {
           gym_peak_hours: string | null
           gym_member_capacity: string | null
           gym_services: string[] | null
+          specialization: string | null
+          certifications: string[] | null
+          certification_number: string | null
+          years_experience: string | null
+          education: string | null
+          skills: string[] | null
+          languages: string[] | null
+          trainer_bio: string | null
+          employment_type: string | null
+          branch_department: string | null
+          salary: string | null
+          commission_percentage: number | null
+          working_days: string | null
+          working_hours: string | null
+          max_client_capacity: string | null
+          assigned_members: string[] | null
+          availability: string | null
+          pt_sessions: string | null
+          leave_info: string | null
+          system_permissions: string[] | null
+          account_status: string | null
+          gym_owner_id: string | null
+          staff_type: string | null
+          department: string | null
+          supervisor: string | null
+          shift: string | null
+          overtime_rate: string | null
+          responsibilities: string | null
+          login_enabled: boolean | null
         }
         Insert: {
           created_at?: string | null
@@ -235,6 +264,35 @@ export type Database = {
           gym_peak_hours?: string | null
           gym_member_capacity?: string | null
           gym_services?: string[] | null
+          specialization?: string | null
+          certifications?: string[] | null
+          certification_number?: string | null
+          years_experience?: string | null
+          education?: string | null
+          skills?: string[] | null
+          languages?: string[] | null
+          trainer_bio?: string | null
+          employment_type?: string | null
+          branch_department?: string | null
+          salary?: string | null
+          commission_percentage?: number | null
+          working_days?: string | null
+          working_hours?: string | null
+          max_client_capacity?: string | null
+          assigned_members?: string[] | null
+          availability?: string | null
+          pt_sessions?: string | null
+          leave_info?: string | null
+          system_permissions?: string[] | null
+          account_status?: string | null
+          gym_owner_id?: string | null
+          staff_type?: string | null
+          department?: string | null
+          supervisor?: string | null
+          shift?: string | null
+          overtime_rate?: string | null
+          responsibilities?: string | null
+          login_enabled?: boolean | null
         }
         Update: {
           created_at?: string | null
@@ -277,6 +335,35 @@ export type Database = {
           gym_peak_hours?: string | null
           gym_member_capacity?: string | null
           gym_services?: string[] | null
+          specialization?: string | null
+          certifications?: string[] | null
+          certification_number?: string | null
+          years_experience?: string | null
+          education?: string | null
+          skills?: string[] | null
+          languages?: string[] | null
+          trainer_bio?: string | null
+          employment_type?: string | null
+          branch_department?: string | null
+          salary?: string | null
+          commission_percentage?: number | null
+          working_days?: string | null
+          working_hours?: string | null
+          max_client_capacity?: string | null
+          assigned_members?: string[] | null
+          availability?: string | null
+          pt_sessions?: string | null
+          leave_info?: string | null
+          system_permissions?: string[] | null
+          account_status?: string | null
+          gym_owner_id?: string | null
+          staff_type?: string | null
+          department?: string | null
+          supervisor?: string | null
+          shift?: string | null
+          overtime_rate?: string | null
+          responsibilities?: string | null
+          login_enabled?: boolean | null
         }
         Relationships: []
       }
@@ -315,7 +402,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "trainer" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -443,7 +530,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "trainer", "staff"],
     },
   },
 } as const

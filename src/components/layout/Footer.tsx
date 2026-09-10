@@ -17,35 +17,32 @@ const Footer = () => {
   const pathname = usePathname();
 
   return (
-    <footer className="bg-card border-t border-border">
+    <footer className="bg-card border-t border-border" suppressHydrationWarning>
       <div className="container mx-auto px-4 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div>
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              
+            <Link href="/" className="flex items-center gap-2 mb-4" suppressHydrationWarning>
               <img 
                 src={theme === "light" ? "/navlogolight.png" : "/gym.png"} 
                 alt="FORGE Gym" 
                 className="w-32 h-12 object-contain"
               />
-              
-              {/* <span className="font-display text-2xl tracking-wider">FORGE</span> */}
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed mb-6">
               Transform your body and mind at Forge. Premium fitness facilities, expert trainers, and a community that pushes you to be your best.
             </p>
             <div className="flex gap-4">
-              <a href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" aria-label="YouTube" className="text-muted-foreground hover:text-primary transition-colors">
+              <a href="#" aria-label="YouTube" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
                 <Youtube className="w-5 h-5" />
               </a>
             </div>
@@ -59,6 +56,7 @@ const Footer = () => {
                 <li key={link.path}>
                   <Link
                     href={link.path}
+                    suppressHydrationWarning
                     className={`text-sm transition-colors ${
                       pathname === link.path
                         ? "text-primary font-semibold"
@@ -117,10 +115,10 @@ const Footer = () => {
             © 2024 Forge Gym. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
-            <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+            <a href="#" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
               Privacy Policy
             </a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+            <a href="#" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
               Terms of Service
             </a>
           </div>

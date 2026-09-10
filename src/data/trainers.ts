@@ -1,14 +1,8 @@
-import trainer1 from "@/assets/trainer-1.jpg";
-import trainer2 from "@/assets/trainer-2.jpg";
-import trainer3 from "@/assets/trainer-3.jpg";
-import trainer4 from "@/assets/trainer-4.jpg";
-import type { StaticImageData } from "next/image";
-
 export interface Trainer {
   id: string;
   name: string;
   role: string;
-  image: string | StaticImageData;
+  image: string;
   bio: string;
   longBio: string;
   certifications: string[];
@@ -26,7 +20,7 @@ export const allTrainers: Trainer[] = [
     id: "marcus-johnson",
     name: "Marcus Johnson",
     role: "Head Trainer & HIIT Specialist",
-    image: trainer1,
+    image: "/images/trainer-1.jpg",
     bio: "With 12 years of experience, Marcus specializes in high-intensity training and functional fitness. He's helped hundreds of clients achieve their body transformation goals.",
     longBio:
       "Marcus began his fitness career as a competitive athlete before transitioning to coaching. Over 12 years, he has trained everyone from beginners to professional athletes, developing signature HIIT programs that maximize fat loss while preserving lean muscle. He believes fitness is 20% training, 80% consistency and mindset.",
@@ -43,7 +37,7 @@ export const allTrainers: Trainer[] = [
     id: "sarah-miller",
     name: "Sarah Miller",
     role: "Strength & Conditioning Coach",
-    image: trainer2,
+    image: "/images/trainer-2.jpg",
     bio: "Sarah is a former competitive powerlifter who now dedicates her expertise to helping clients build strength safely and effectively.",
     longBio:
       "A national-level powerlifter with over a decade under the bar, Sarah brings unmatched technical precision to strength coaching. She specializes in progressive overload programming and helps clients smash plateaus while staying injury-free.",
@@ -60,7 +54,7 @@ export const allTrainers: Trainer[] = [
     id: "james-wilson",
     name: "James Wilson",
     role: "Cardio & Endurance Specialist",
-    image: trainer3,
+    image: "/images/trainer-3.jpg",
     bio: "A former marathon runner, James brings his passion for endurance sports to our spin and cardio classes. He makes cardio fun and challenging.",
     longBio:
       "Boston Marathon finisher turned certified coach, James blends endurance science with high-energy group instruction. His spin sessions are legendary — expect hills, sprints, and a soundtrack that pushes you past your limit.",
@@ -77,7 +71,7 @@ export const allTrainers: Trainer[] = [
     id: "lisa-chen",
     name: "Lisa Chen",
     role: "Yoga & Mindfulness Instructor",
-    image: trainer4,
+    image: "/images/trainer-4.jpg",
     bio: "Lisa trained in India and brings an authentic approach to yoga and meditation. She specializes in helping clients find balance between physical and mental wellness.",
     longBio:
       "Trained in Rishikesh and Mysore, Lisa teaches yoga that honors tradition while meeting modern bodies where they are. Her classes weave breathwork, movement, and meditation into a single grounding practice.",

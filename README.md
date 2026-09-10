@@ -1,102 +1,63 @@
-# Welcome to your Lovable project
+# Forge Gym (gym-journey-hub)
 
-## Project info
+Next.js App Router gym membership and fitness platform, backed by Supabase Auth + Postgres.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- **Next.js** (App Router, `src/` layout)
+- **React** + **TypeScript**
+- **Tailwind CSS** + shadcn/ui
+- **Supabase** (auth, profiles, realtime)
 
-There are several ways of editing your application.
+## Project structure
 
-**Use Lovable**
+```
+public/images/           # static assets
+src/
+  app/                   # routes + API handlers
+  api/                   # browser API client (endpoints.json)
+  components/
+    fitness/             # BMI / assessment widgets
+    forms/               # shared form controls (address, etc.)
+    layout/              # navbar, footer
+    marketing/           # landing visuals / SEO / theme
+    ui/                  # shadcn primitives in use
+  contexts/              # AuthProvider
+  data/                  # static catalog content
+  hooks/
+  integrations/supabase/ # browser Supabase client
+  lib/supabase/          # server Supabase helpers
+  types/
+supabase/
+  migrations/            # schema migrations only
+  scripts/               # manual seed / repair SQL (SQL Editor)
+```
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## API pattern
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Define endpoint in `src/api/endpoints.json`
+2. Add/use Next.js route in `src/app/api/...`
+3. UI calls helpers from `src/api/*` only
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Setup
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...   # server only
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Scripts
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## Authentication
-
-This application includes a demo authentication system with two user roles:
-
-### Demo Credentials
-
-**Admin Account:**
-- Email: `admin@gym.com`
-- Password: `admin123`
-- Role: Admin (full access to all features)
-
-**Customer Account:**
-- Email: `customer@gym.com`
-- Password: `customer123`
-- Role: Customer (standard user access)
-
-### Features
-
-- Login page at `/login`
-- Registration page at `/register`
-- Role-based access control
-- Session persistence using localStorage
-- Demo credential buttons on login page for quick testing
-
-### User Roles
-
-- **Admin**: Full administrative access to manage gym resources, users, and settings
-- **Customer**: Standard user access to view classes, equipment, trainers, and manage membership
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+| Command         | Description              |
+|-----------------|--------------------------|
+| `npm run dev`   | Start Next.js dev server |
+| `npm run build` | Production build         |
+| `npm run start` | Serve production build   |
+| `npm run lint`  | Run Next.js ESLint       |

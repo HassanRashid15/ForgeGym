@@ -1,0 +1,73 @@
+{
+  "auth": {
+    "login": {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "description": "Sign in with email and password"
+    },
+    "register": {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "description": "Create a new account"
+    },
+    "logout": {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "description": "Sign out the current session"
+    },
+    "checkAccount": {
+      "method": "POST",
+      "path": "/api/auth/check-account",
+      "description": "Check if an email already has an account"
+    },
+    "checkVerified": {
+      "method": "POST",
+      "path": "/api/auth/check-verified",
+      "description": "Check if an email is verified"
+    },
+    "resendVerification": {
+      "method": "POST",
+      "path": "/api/auth/resend-verification",
+      "description": "Resend signup verification email"
+    },
+    "me": {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "description": "Current user profile and role from database"
+    }
+  },
+  "admin": {
+    "pendingAdmins": {
+      "method": "GET",
+      "path": "/api/admin/pending",
+      "description": "List pending and approved admin accounts from the database"
+    },
+    "approveAdmin": {
+      "method": "POST",
+      "path": "/api/admin/pending",
+      "description": "Approve a pending admin account"
+    }
+  },
+  "profiles": {
+    "get": {
+      "method": "GET",
+      "path": "/api/profiles",
+      "description": "Fetch the authenticated user's profile"
+    },
+    "create": {
+      "method": "POST",
+      "path": "/api/profiles",
+      "description": "Create a default profile if missing"
+    },
+    "update": {
+      "method": "PATCH",
+      "path": "/api/profiles",
+      "description": "Update the authenticated user's profile"
+    },
+    "uploadAvatar": {
+      "method": "POST",
+      "path": "/api/profiles/avatar",
+      "description": "Upload profile avatar to Supabase storage bucket"
+    }
+  }
+}

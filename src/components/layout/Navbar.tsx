@@ -15,8 +15,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, X, Dumbbell, LogOut, User, Settings, LayoutDashboard } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/marketing/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
+import { getNameInitials } from "@/lib/utils";
 
 const navLinks = [
   { name: "Home", path: "/" },
@@ -50,11 +51,12 @@ const Navbar = () => {
           ? "bg-background/95 backdrop-blur-lg border-b border-border shadow-lg shadow-primary/5" 
           : "bg-transparent border-b border-transparent"
       }`}
+      suppressHydrationWarning
     >
       <div className="container mx-auto px-4">
         <div className={`flex items-center justify-between transition-all duration-300 ${scrolled ? "h-16" : "h-20"} relative`}>
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2 group" suppressHydrationWarning>
             <img 
               src={theme === "light" ? "/navlogolight.png" : "/gym.png"} 
               alt="FORGE Gym" 
@@ -68,6 +70,7 @@ const Navbar = () => {
               <Link
                 key={link.path}
                 href={link.path}
+                suppressHydrationWarning
                 className={`nav-link text-sm font-medium transition-colors ${
                   pathname === link.path ? "text-primary" : ""
                 }`}
@@ -86,7 +89,9 @@ const Navbar = () => {
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar className="h-9 w-9">
                       <AvatarImage src={user?.avatar} alt={user?.name} />
-                      <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback className="text-xs font-semibold tracking-wide">
+                        {getNameInitials(user?.name)}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -126,11 +131,11 @@ const Navbar = () => {
               </DropdownMenu>
             ) : (
               <>
-                <Button variant="ghost" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300">
-                  <Link href="/login">Sign In</Link>
+                <Button variant="ghost" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300" suppressHydrationWarning>
+                  <Link href="/login" suppressHydrationWarning>Sign In</Link>
                 </Button>
-                <Button variant="default" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300">
-                  <Link href="/register">Join Now</Link>
+                <Button variant="default" size={scrolled ? "default" : "lg"} asChild className="transition-all duration-300" suppressHydrationWarning>
+                  <Link href="/register" suppressHydrationWarning>Join Now</Link>
                 </Button>
               </>
             )}
@@ -172,7 +177,9 @@ const Navbar = () => {
                   <div className="flex items-center gap-3 py-2 border-t border-border mt-4 pt-4">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={user?.avatar} alt={user?.name} />
-                      <AvatarFallback>{user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback className="text-sm font-semibold tracking-wide">
+                        {getNameInitials(user?.name)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
                       <p className="text-sm font-medium">{user?.name}</p>
@@ -204,11 +211,11 @@ const Navbar = () => {
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" className="mt-4" asChild>
-                    <Link href="/login" onClick={() => setIsOpen(false)}>Sign In</Link>
+                  <Button variant="ghost" className="mt-4" asChild suppressHydrationWarning>
+                    <Link href="/login" onClick={() => setIsOpen(false)} suppressHydrationWarning>Sign In</Link>
                   </Button>
-                  <Button variant="default" className="mt-2" asChild>
-                    <Link href="/register" onClick={() => setIsOpen(false)}>Join Now</Link>
+                  <Button variant="default" className="mt-2" asChild suppressHydrationWarning>
+                    <Link href="/register" onClick={() => setIsOpen(false)} suppressHydrationWarning>Join Now</Link>
                   </Button>
                 </>
               )}

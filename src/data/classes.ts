@@ -1,13 +1,8 @@
-import classHiit from "@/assets/class-hiit.jpg";
-import classYoga from "@/assets/class-yoga.jpg";
-import classSpin from "@/assets/class-spin.jpg";
-import type { StaticImageData } from "next/image";
-
 export interface GymClass {
   id: string;
   name: string;
   category: string;
-  image: string | StaticImageData;
+  image: string;
   duration: string;
   intensity: "Low" | "Medium" | "High";
   trainer: string;
@@ -26,7 +21,7 @@ export const allClasses: GymClass[] = [
     id: "power-hiit",
     name: "Power HIIT",
     category: "HIIT",
-    image: classHiit,
+    image: "/images/class-hiit.jpg",
     duration: "45 min",
     intensity: "High",
     trainer: "Marcus Johnson",
@@ -54,7 +49,7 @@ export const allClasses: GymClass[] = [
     id: "power-yoga",
     name: "Power Yoga",
     category: "Mind & Body",
-    image: classYoga,
+    image: "/images/class-yoga.jpg",
     duration: "60 min",
     intensity: "Medium",
     trainer: "Lisa Chen",
@@ -82,7 +77,7 @@ export const allClasses: GymClass[] = [
     id: "spin-revolution",
     name: "Spin Revolution",
     category: "Cardio",
-    image: classSpin,
+    image: "/images/class-spin.jpg",
     duration: "50 min",
     intensity: "High",
     trainer: "James Wilson",
@@ -110,7 +105,7 @@ export const allClasses: GymClass[] = [
     id: "strength-sculpt",
     name: "Strength & Sculpt",
     category: "Strength",
-    image: classHiit,
+    image: "/images/class-hiit.jpg",
     duration: "55 min",
     intensity: "High",
     trainer: "Sarah Miller",
@@ -138,7 +133,7 @@ export const allClasses: GymClass[] = [
     id: "meditation-flow",
     name: "Meditation Flow",
     category: "Mind & Body",
-    image: classYoga,
+    image: "/images/class-yoga.jpg",
     duration: "30 min",
     intensity: "Low",
     trainer: "Lisa Chen",
@@ -166,7 +161,7 @@ export const allClasses: GymClass[] = [
     id: "cardio-blast",
     name: "Cardio Blast",
     category: "Cardio",
-    image: classSpin,
+    image: "/images/class-spin.jpg",
     duration: "45 min",
     intensity: "High",
     trainer: "Marcus Johnson",

@@ -61,3 +61,9 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 | `npm run build` | Production build         |
 | `npm run start` | Serve production build   |
 | `npm run lint`  | Run Next.js ESLint       |
+| `npm test`      | Run unit tests (Vitest)  |
+
+## Production
+
+See [docs/PRODUCTION.md](docs/PRODUCTION.md) for rate limits, SSR notes, indexes, monitoring, and deploy checklist.
+

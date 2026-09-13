@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/server";
+import { notify } from "@/lib/notify-actions";
 
 /** POST /api/profiles/avatar — upload avatar to storage bucket */
 export async function POST(request: Request) {
@@ -77,6 +78,8 @@ export async function POST(request: Request) {
       avatar_url: avatarUrl,
     } as any);
   }
+
+  void notify.avatarUpdated(user.id);
 
   return NextResponse.json({ avatar_url: avatarUrl, profile: profile ?? null });
 }

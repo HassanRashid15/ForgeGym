@@ -21,6 +21,7 @@ import { getNameInitials } from "@/lib/utils";
 
 const navLinks = [
   { name: "Home", path: "/" },
+  { name: "Gyms", path: "/gyms" },
   { name: "Classes", path: "/classes" },
   { name: "Equipment", path: "/equipment" },
   { name: "Membership", path: "/membership" },
@@ -72,7 +73,13 @@ const Navbar = () => {
                 href={link.path}
                 suppressHydrationWarning
                 className={`nav-link text-sm font-medium transition-colors ${
-                  pathname === link.path ? "text-primary" : ""
+                  link.path === "/"
+                    ? pathname === "/"
+                      ? "text-primary"
+                      : ""
+                    : pathname === link.path || pathname.startsWith(`${link.path}/`)
+                      ? "text-primary"
+                      : ""
                 }`}
               >
                 {link.name}

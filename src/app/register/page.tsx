@@ -11,104 +11,41 @@ import { Stepper } from "@/components/ui/stepper";
 import { toast } from "sonner";
 import {
   ArrowRight,
-  LockKeyhole,
   Loader2,
-  Mail,
-  UserRound,
   Flame,
-  Eye,
-  EyeOff,
   Sparkles,
   Activity,
   Check,
-  Phone,
-  CheckCircle2,
-  AlertCircle,
-  X,
   MapPin,
-  Shield,
   ShieldCheck,
-  Building2,
+  Upload,
+  X,
+  Video,
+  Image as ImageIcon,
 } from "lucide-react";
-import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
+import { CapsuleRow } from "@/components/forms/CapsuleSelect";
+import { heightToCm } from "@/lib/validation/height";
+import { useRegisterPassword } from "@/hooks/useRegisterPassword";
+import { RegisterShell } from "@/components/register/RegisterShell";
+import { RegisterAccountStep } from "@/components/register/RegisterAccountStep";
+import type { AccountType, PublicGym } from "@/components/register/types";
+import { checkGymDuplicate } from "@/api/auth";
+import { formatCityLocation, placeFromAddressLabel } from "@/lib/geo/place";
 
-type AccountType = "customer" | "admin";
-
-type PublicGym = {
-  ownerId: string;
-  gymName: string;
-  gymType?: string | null;
-  gymCity?: string | null;
-};
-
-// ─── Capsule Button ───────────────────────────────────────────────────────────
-function Capsule({
-  label,
-  selected,
-  onClick,
-  icon,
-}: {
-  label: string;
-  selected: boolean;
-  onClick: () => void;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3.5 py-2 rounded-full text-xs font-semibold transition-all duration-200 border flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer ${
-        selected
-          ? "bg-red-600 text-white border-red-500 shadow-[0_0_16px_rgba(239,17,17,0.4)] scale-[1.02]"
-          : "bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-600 hover:text-white"
-      }`}
-    >
-      {icon && <span>{icon}</span>}
-      {label}
-    </button>
-  );
-}
-
-// ─── Capsule Row (horizontally scrollable) ───────────────────────────────────
-function CapsuleRow({
-  options,
-  selected,
-  onSelect,
-  icons,
-}: {
-  options: string[];
-  selected: string | string[];
-  onSelect: (val: string) => void;
-  icons?: Record<string, React.ReactNode>;
-}) {
-  const isSelected = (v: string) =>
-    Array.isArray(selected) ? selected.includes(v) : selected === v;
-
-  return (
-    <div className="flex gap-2 overflow-x-auto pb-1 pt-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-      {options.map((opt) => (
-        <Capsule
-          key={opt}
-          label={opt}
-          selected={isSelected(opt)}
-          onClick={() => onSelect(opt)}
-          icon={icons?.[opt]}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── Height converter ─────────────────────────────────────────────────────────
-function toCm(value: string, unit: "ft" | "inch"): number {
-  if (unit === "inch") return parseFloat(value) * 2.54;
-  // ft format: "5.10" => 5 ft 10 in
-  if (value.includes(".")) {
-    const [ft, inch] = value.split(".");
-    return ((parseInt(ft) || 0) * 12 + (parseInt(inch) || 0)) * 2.54;
-  }
-  return parseFloat(value) * 30.48; // pure feet
-}
+const CITY_OPTIONS = [
+  "Karachi",
+  "Lahore",
+  "Islamabad",
+  "Rawalpindi",
+  "Faisalabad",
+  "Multan",
+  "Peshawar",
+  "Quetta",
+  "Sialkot",
+  "Gujranwala",
+  "Hyderabad",
+  "Other / Custom",
+];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function RegisterContent() {
@@ -127,6 +64,8 @@ function RegisterContent() {
   const [email, setEmail] = useState(queryEmail);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [addressCity, setAddressCity] = useState<string | null>(null);
+  const [addressRegion, setAddressRegion] = useState<string | null>(null);
   const [emergencyContact, setEmergencyContact] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -153,6 +92,8 @@ function RegisterContent() {
   const [gyms, setGyms] = useState<PublicGym[]>([]);
   const [loadingGyms, setLoadingGyms] = useState(false);
   const [selectedGymOwnerId, setSelectedGymOwnerId] = useState(queryGymOwnerId);
+  const [preferredTrainerId, setPreferredTrainerId] = useState("");
+  const [preferredTrainerLabel, setPreferredTrainerLabel] = useState("");
   const gymLockedFromUrl = Boolean(queryGymOwnerId);
 
   useEffect(() => {
@@ -263,7 +204,19 @@ function RegisterContent() {
   const [gymName, setGymName] = useState("");
   const [gymType, setGymType] = useState("");
   const [gymCity, setGymCity] = useState("");
+  const [gymCityPreset, setGymCityPreset] = useState("");
   const [gymYearsOperating, setGymYearsOperating] = useState("");
+  const [gymMonthlyFee, setGymMonthlyFee] = useState("");
+  const [gymTrainerFee, setGymTrainerFee] = useState("");
+  const [gymMainImage, setGymMainImage] = useState<File | null>(null);
+  const [gymMainImagePreview, setGymMainImagePreview] = useState<string>("");
+  const [gymOptionalImages, setGymOptionalImages] = useState<File[]>([]);
+  const [gymOptionalImagesPreviews, setGymOptionalImagesPreviews] = useState<string[]>([]);
+  const [gymVideoUrl, setGymVideoUrl] = useState("");
+  const [gymVideoFile, setGymVideoFile] = useState<File | null>(null);
+  const [gymVideoFileName, setGymVideoFileName] = useState("");
+  const [gymDuplicateError, setGymDuplicateError] = useState<string | null>(null);
+  const gymCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [step2Errors, setStep2Errors] = useState<{
     dateOfBirth?: string;
     gender?: string;
@@ -275,6 +228,7 @@ function RegisterContent() {
     gymType?: string;
     gymCity?: string;
     gymYearsOperating?: string;
+    gymMainImage?: string;
   }>({});
 
   const activityLevels = [
@@ -303,6 +257,114 @@ function RegisterContent() {
     "Community",
   ];
   const gymYearsOptions = ["Under 1 year", "1–3 years", "3–5 years", "5–10 years", "10+ years"];
+
+  useEffect(() => {
+    if (accountType !== "admin" || currentStep !== 2) return;
+    if (!gymName.trim() || gymName.trim().length < 2) {
+      setGymDuplicateError(null);
+      return;
+    }
+    if (gymCheckTimer.current) clearTimeout(gymCheckTimer.current);
+    gymCheckTimer.current = setTimeout(() => {
+      void checkGymDuplicate({
+        gym_name: gymName.trim(),
+        gym_city: gymCity.trim() || undefined,
+        phone: phone.trim() || undefined,
+      })
+        .then((dup) => {
+          setGymDuplicateError(dup.duplicate ? dup.message || "Gym already registered" : null);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }, 450);
+    return () => {
+      if (gymCheckTimer.current) clearTimeout(gymCheckTimer.current);
+    };
+  }, [gymName, gymCity, phone, accountType, currentStep]);
+
+  // ── Image upload handlers ──────────────────────────────────────────────────────
+  const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be under 5MB");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error("Only image files are allowed");
+        return;
+      }
+      setGymMainImage(file);
+      const preview = URL.createObjectURL(file);
+      setGymMainImagePreview(preview);
+      if (step2Errors.gymMainImage) {
+        setStep2Errors({ ...step2Errors, gymMainImage: undefined });
+      }
+    }
+  };
+
+  const handleMainImageRemove = () => {
+    setGymMainImage(null);
+    setGymMainImagePreview("");
+  };
+
+  const handleOptionalImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length + gymOptionalImages.length > 5) {
+      toast.error("Maximum 5 optional images allowed");
+      return;
+    }
+    
+    const validFiles = files.filter(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 5MB)`);
+        return false;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error(`${file.name} is not an image`);
+        return false;
+      }
+      return true;
+    });
+
+    if (validFiles.length > 0) {
+      setGymOptionalImages(prev => [...prev, ...validFiles]);
+      const newPreviews = validFiles.map(file => URL.createObjectURL(file));
+      setGymOptionalImagesPreviews(prev => [...prev, ...newPreviews]);
+    }
+  };
+
+  const handleOptionalImageRemove = (index: number) => {
+    setGymOptionalImages(prev => prev.filter((_, i) => i !== index));
+    setGymOptionalImagesPreviews(prev => {
+      const newPreviews = prev.filter((_, i) => i !== index);
+      // Revoke the removed preview URL
+      URL.revokeObjectURL(prev[index]);
+      return newPreviews;
+    });
+  };
+
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 50 * 1024 * 1024) {
+        toast.error("Video must be under 50MB");
+        return;
+      }
+      if (!file.type.startsWith("video/")) {
+        toast.error("Only video files are allowed");
+        return;
+      }
+      setGymVideoFile(file);
+      setGymVideoFileName(file.name);
+    }
+  };
+
+  const handleVideoFileRemove = () => {
+    setGymVideoFile(null);
+    setGymVideoFileName("");
+  };
 
   // ── Step 3 (customer workout / admin facilities) ────────────────────────────
   const [experienceLevel, setExperienceLevel] = useState("");
@@ -502,21 +564,14 @@ function RegisterContent() {
         { id: "3", title: "Workout Plan", description: "Customize preferences" },
       ];
 
-  // ── Password Validation Metrics ─────────────────────────────────────────────
-  const hasMinLength = password.length >= 6;
-  const hasUpperLower = /(?=.*[a-z])(?=.*[A-Z])/.test(password);
-  const hasNumber = /(?=.*\d)/.test(password);
-  const isPasswordValid = hasMinLength && hasUpperLower && hasNumber;
-  const isConfirmFilled = confirmPassword.length > 0;
-  const doPasswordsMatch = isConfirmFilled && password === confirmPassword;
-  const passwordMismatch = isConfirmFilled && password !== confirmPassword;
-
-  let passwordStrength: "weak" | "medium" | "strong" = "weak";
-  if (isPasswordValid && password.length >= 8 && /[^A-Za-z0-9]/.test(password)) {
-    passwordStrength = "strong";
-  } else if (hasMinLength && (hasUpperLower || hasNumber)) {
-    passwordStrength = "medium";
-  }
+  const {
+    hasMinLength,
+    hasUpperLower,
+    hasNumber,
+    doPasswordsMatch,
+    passwordMismatch,
+    passwordStrength,
+  } = useRegisterPassword(password, confirmPassword);
 
   // ── Step 1 validation & submit ───────────────────────────────────────────────
   const validateStep1 = () => {
@@ -565,6 +620,24 @@ function RegisterContent() {
       toast.error("Please agree to the Terms & Conditions");
       return;
     }
+
+    if (isAdminAccount) {
+      const detected =
+        formatCityLocation(addressCity, addressRegion) ||
+        formatCityLocation(
+          placeFromAddressLabel(address).city,
+          placeFromAddressLabel(address).region,
+        );
+      if (detected && !gymCity.trim()) {
+        setGymCity(detected);
+        const cityOnly = (addressCity || placeFromAddressLabel(address).city || "").trim();
+        const matched = CITY_OPTIONS.find(
+          (c) => c !== "Other / Custom" && cityOnly.toLowerCase() === c.toLowerCase(),
+        );
+        setGymCityPreset(matched || (detected ? "Other / Custom" : ""));
+      }
+    }
+
     setCurrentStep(2);
   };
 
@@ -578,6 +651,7 @@ function RegisterContent() {
       if (!gymType) errs.gymType = "Please select a gym type";
       if (!gymCity.trim()) errs.gymCity = "City / location is required";
       if (!gymYearsOperating) errs.gymYearsOperating = "Please select years operating";
+      if (!gymMainImage) errs.gymMainImage = "Gym main image is required";
     } else {
       if (!dateOfBirth) errs.dateOfBirth = "Please select your date of birth";
       if (!gender) errs.gender = "Please select your gender";
@@ -597,6 +671,29 @@ function RegisterContent() {
       toast.error("Please fix the errors before continuing");
       return;
     }
+
+    if (isAdminAccount) {
+      if (gymDuplicateError) {
+        toast.error(gymDuplicateError);
+        return;
+      }
+      try {
+        const dup = await checkGymDuplicate({
+          gym_name: gymName.trim(),
+          gym_city: gymCity.trim(),
+          phone: phone.trim() || undefined,
+        });
+        if (dup.duplicate) {
+          setGymDuplicateError(dup.message || "This gym already exists");
+          toast.error(dup.message || "This gym already exists");
+          return;
+        }
+        setGymDuplicateError(null);
+      } catch {
+        // Non-blocking if check fails — server still enforces on submit
+      }
+    }
+
     setCurrentStep(3);
   };
 
@@ -645,14 +742,17 @@ function RegisterContent() {
               gym_type: gymType || undefined,
               gym_city: gymCity.trim(),
               gym_years_operating: gymYearsOperating || undefined,
+              gym_monthly_fee: gymMonthlyFee.trim() || undefined,
+              gym_trainer_fee: gymTrainerFee.trim() || undefined,
               gym_facilities: gymFacilities.length > 0 ? gymFacilities : undefined,
               gym_operating_days: gymOperatingDays ? parseInt(gymOperatingDays) : undefined,
               gym_peak_hours: gymPeakHours || undefined,
               gym_member_capacity: gymMemberCapacity || undefined,
               gym_services: gymServices.length > 0 ? gymServices : undefined,
+              gym_video_url: gymVideoUrl.trim() || undefined,
             }
           : (() => {
-              const heightCm = toCm(height, heightUnit);
+              const heightCm = heightToCm(height, heightUnit);
               const weightKg =
                 weightUnit === "lbs" ? parseFloat(weight) * 0.453592 : parseFloat(weight);
               return {
@@ -673,10 +773,23 @@ function RegisterContent() {
                 preferred_workout_time: preferredTime || undefined,
                 requested_role: "user" as const,
                 gym_owner_id: selectedGymOwnerId || undefined,
+                preferred_trainer_id: preferredTrainerId || undefined,
               };
             })();
 
-      await register(email, password, fullName, fitnessData);
+      await register(
+        email,
+        password,
+        fullName,
+        fitnessData,
+        isAdminAccount
+          ? {
+              mainImage: gymMainImage,
+              optionalImages: gymOptionalImages,
+              videoFile: gymVideoFile,
+            }
+          : undefined,
+      );
 
       toast.success(
         isAdminAccount
@@ -718,57 +831,7 @@ function RegisterContent() {
 
   // ──────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen w-screen overflow-hidden grid lg:grid-cols-2">
-      {/* Left — Image Panel */}
-      <aside className="hidden lg:flex flex-col relative overflow-hidden">
-        <img
-          src="/gymauth.png"
-          alt="Gym"
-          className="w-full h-full object-cover"
-          style={{ objectPosition: "10% 30%" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
-        <div className="absolute z-10 flex-col h-full p-10 xl:p-14">
-          <div className="mb-8">
-            <img src="/forge.png" alt="Forge Gym Logo" className="w-40 h-10 object-contain" />
-          </div>
-          <div className="max-w-full flex flex-col h-full justify-center">
-            <div>
-              <h2 className="text-5xl font-bold mb-4 !leading-[3.5rem]">
-                <span className="text-red-500">START</span>{" "}
-                <span className="text-white">YOUR</span>
-                <br />
-                <span className="text-white">JOURNEY</span>{" "}
-                <span className="text-red-500">TODAY.</span>
-              </h2>
-              <p className="text-sm text-zinc-300 mb-6">
-                Join thousands of members transforming their lives every day.
-              </p>
-              <div className="grid grid-cols-2 gap-6">
-                {[
-                  "Free Membership Sign-up",
-                  "Personal Training Plans",
-                  "Progress Tracking Tools",
-                  "Community Challenges",
-                ].map((feature) => (
-                  <div
-                    key={feature}
-                    className="flex items-center gap-4 p-4 border border-red-500/70 rounded-xl bg-black/30 backdrop-blur-sm"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] shrink-0" />
-                    <p className="text-[17px] font-medium text-white">{feature}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Right — Form Panel */}
-      <section className="flex flex-col items-center justify-center bg-black overflow-y-auto px-8 py-12 sm:px-12">
-        <div className="w-full max-w-[600px] border border-red-500/30 rounded-2xl bg-zinc-900/50 backdrop-blur-sm p-8 shadow-2xl shadow-red-500/10">
-
+    <RegisterShell>
           {/* Mobile logo */}
           {currentStep <= 3 && (
             <Link href="/" className="mb-6 inline-flex items-center gap-2.5 lg:hidden">
@@ -825,468 +888,68 @@ function RegisterContent() {
                 steps={steps}
                 currentStep={currentStep}
                 completedSteps={Array.from({ length: currentStep - 1 }, (_, i) => i + 1)}
+                onStepClick={(n) => {
+                  if (n < currentStep) setCurrentStep(n);
+                }}
               />
             </div>
           )}
 
-          {/* ══════════════════════ STEP 1 ══════════════════════ */}
           {currentStep === 1 && (
-            <form onSubmit={handleStep1Submit} noValidate className="space-y-4">
-              {/* Account type: Admin or Customer */}
-              <div className="space-y-2">
-                <Label className="text-zinc-300 font-medium text-sm">Register as</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccountType("customer");
-                      if (errors.accountType) setErrors({ ...errors, accountType: undefined });
-                    }}
-                    disabled={isLoading}
-                    className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all ${
-                      accountType === "customer"
-                        ? "border-red-500 bg-red-500/15 shadow-[0_0_16px_rgba(239,17,17,0.25)]"
-                        : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
-                    }`}
-                  >
-                    <UserRound
-                      className={`h-4 w-4 shrink-0 ${
-                        accountType === "customer" ? "text-red-400" : "text-zinc-400"
-                      }`}
-                    />
-                    <div>
-                      <p
-                        className={`text-sm font-semibold ${
-                          accountType === "customer" ? "text-white" : "text-zinc-300"
-                        }`}
-                      >
-                        Customer
-                      </p>
-                      <p className="text-[11px] text-zinc-500">Member account</p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAccountType("admin");
-                      setSelectedGymOwnerId("");
-                      if (errors.accountType) setErrors({ ...errors, accountType: undefined });
-                      if (errors.gymOwnerId) setErrors({ ...errors, gymOwnerId: undefined });
-                    }}
-                    disabled={isLoading}
-                    className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all ${
-                      accountType === "admin"
-                        ? "border-red-500 bg-red-500/15 shadow-[0_0_16px_rgba(239,17,17,0.25)]"
-                        : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
-                    }`}
-                  >
-                    <Shield
-                      className={`h-4 w-4 shrink-0 ${
-                        accountType === "admin" ? "text-red-400" : "text-zinc-400"
-                      }`}
-                    />
-                    <div>
-                      <p
-                        className={`text-sm font-semibold ${
-                          accountType === "admin" ? "text-white" : "text-zinc-300"
-                        }`}
-                      >
-                        Admin
-                      </p>
-                      <p className="text-[11px] text-zinc-500">Needs approval</p>
-                    </div>
-                  </button>
-                </div>
-                {errors.accountType && (
-                  <p className="text-xs text-red-400">{errors.accountType}</p>
-                )}
-                {accountType === "admin" && (
-                  <p className="text-[11px] text-amber-400/90 leading-relaxed">
-                    Admin accounts use the same signup + email verification. A super admin must
-                    approve you before you can sign in.
-                  </p>
-                )}
-              </div>
-
-              {/* First & Last Name */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="firstName" className="text-zinc-300 font-medium text-sm">
-                    First Name
-                  </Label>
-                  <div className="relative">
-                    <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="firstName"
-                      type="text"
-                      placeholder="John"
-                      value={firstName}
-                      onChange={(e) => {
-                        setFirstName(e.target.value);
-                        if (errors.firstName) setErrors({ ...errors, firstName: undefined });
-                      }}
-                      disabled={isLoading}
-                      className={`${inputCls(!!errors.firstName)} pl-10`}
-                    />
-                  </div>
-                  {errors.firstName && <p className="text-xs text-red-400">{errors.firstName}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="lastName" className="text-zinc-300 font-medium text-sm">
-                    Last Name
-                  </Label>
-                  <div className="relative">
-                    <UserRound className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="lastName"
-                      type="text"
-                      placeholder="Doe"
-                      value={lastName}
-                      onChange={(e) => {
-                        setLastName(e.target.value);
-                        if (errors.lastName) setErrors({ ...errors, lastName: undefined });
-                      }}
-                      disabled={isLoading}
-                      className={`${inputCls(!!errors.lastName)} pl-10`}
-                    />
-                  </div>
-                  {errors.lastName && <p className="text-xs text-red-400">{errors.lastName}</p>}
-                </div>
-              </div>
-
-              {/* Email & Phone */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-zinc-300 font-medium text-sm">
-                    Email
-                  </Label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => handleEmailChange(e.target.value)}
-                      disabled={isLoading}
-                      className={`${inputCls(!!errors.email)} pl-10`}
-                    />
-                  </div>
-                  {checkingEmail && (
-                    <p className="text-xs text-zinc-500 flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Checking email…
-                    </p>
-                  )}
-                  {errors.email && <p className="text-xs text-red-400">{errors.email}</p>}
-                  {!errors.email && emailCheckedOk && !checkingEmail && (
-                    <p className="text-xs text-emerald-400">Email available</p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone" className="text-zinc-300 font-medium text-sm">
-                    Phone Number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="+1 234 567 8900"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      disabled={isLoading}
-                      className={`${inputCls(false)} pl-10`}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Address */}
-              <div className="space-y-1.5">
-                <Label htmlFor="address" className="text-zinc-300 font-medium text-sm">
-                  Address
-                </Label>
-                <AddressAutocomplete
-                  id="address"
-                  value={address}
-                  disabled={isLoading}
-                  placeholder="Search, detect location, or type your address"
-                  inputClassName={inputCls(false)}
-                  onChange={({ address: next }) => setAddress(next)}
-                />
-              </div>
-
-              {/* Gym select (customers only) */}
-              {accountType === "customer" && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="joinGym" className="text-zinc-300 font-medium text-sm">
-                    Join Gym
-                  </Label>
-                  <div className="relative">
-                    <Building2
-                      className={`pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 ${
-                        selectedGymOwnerId ? "text-red-400" : "text-zinc-400"
-                      }`}
-                    />
-                    <select
-                      id="joinGym"
-                      value={selectedGymOwnerId}
-                      onChange={(e) => {
-                        setSelectedGymOwnerId(e.target.value);
-                        if (errors.gymOwnerId)
-                          setErrors({ ...errors, gymOwnerId: undefined });
-                      }}
-                      disabled={isLoading || loadingGyms}
-                      className={`${inputCls(!!errors.gymOwnerId)} pl-10 pr-10 appearance-none`}
-                    >
-                      <option value="">
-                        {loadingGyms ? "Loading gyms…" : "Select a gym to join"}
-                      </option>
-                      {gyms.map((g) => (
-                        <option key={g.ownerId} value={g.ownerId}>
-                          {g.gymName}
-                          {g.gymCity ? ` — ${g.gymCity}` : ""}
-                          {g.gymType ? ` (${g.gymType})` : ""}
-                          {gymLockedFromUrl && g.ownerId === queryGymOwnerId
-                            ? " ★"
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {errors.gymOwnerId && (
-                    <p className="text-xs text-red-400">{errors.gymOwnerId}</p>
-                  )}
-                  {!loadingGyms && gyms.length === 0 && (
-                    <p className="text-[11px] text-amber-400/90">
-                      No approved gyms are available yet. Check back soon or register as Admin to
-                      create one.
-                    </p>
-                  )}
-                  {gymLockedFromUrl &&
-                    selectedGymOwnerId === queryGymOwnerId &&
-                    !loadingGyms && (
-                      <p className="text-[11px] text-emerald-400/90">
-                        Pre-selected from the gym page — you can change it above if you want.
-                      </p>
-                    )}
-                  {selectedGymOwnerId && (
-                    <p className="text-[11px] text-zinc-500 leading-relaxed">
-                      After email verification, the gym admin must approve you before you can sign
-                      in.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Emergency Contact (Optional) */}
-              <div className="space-y-1.5">
-                <Label htmlFor="emergencyContact" className="text-zinc-300 font-medium text-sm">
-                  Emergency Contact <span className="text-zinc-500 font-normal">(Optional)</span>
-                </Label>
-                <div className="relative">
-                  <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                  <Input
-                    id="emergencyContact"
-                    type="tel"
-                    placeholder="+1 234 567 8900"
-                    value={emergencyContact}
-                    onChange={(e) => setEmergencyContact(e.target.value)}
-                    disabled={isLoading}
-                    className={`${inputCls(false)} pl-10`}
-                  />
-                </div>
-              </div>
-
-              {/* Password & Confirm */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-zinc-300 font-medium text-sm">
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Min. 6 chars"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        if (errors.password) setErrors({ ...errors, password: undefined });
-                      }}
-                      disabled={isLoading}
-                      className={`${inputCls(!!errors.password)} pl-10 pr-10`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirmPassword" className="text-zinc-300 font-medium text-sm">
-                    Confirm Password
-                  </Label>
-                  <div className="relative">
-                    <LockKeyhole className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Repeat"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        if (errors.confirmPassword)
-                          setErrors({ ...errors, confirmPassword: undefined });
-                      }}
-                      disabled={isLoading}
-                      className={`h-11 rounded-xl text-white placeholder:text-zinc-500 transition-colors pl-10 pr-10 ${
-                        errors.confirmPassword || passwordMismatch
-                          ? "border-red-500 bg-red-500/10 focus-visible:border-red-500 focus-visible:ring-red-500"
-                          : doPasswordsMatch
-                          ? "border-emerald-500/80 bg-emerald-500/10 focus-visible:border-emerald-400 focus-visible:ring-emerald-500"
-                          : "border-zinc-700 bg-zinc-900 focus-visible:border-red-400"
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  {doPasswordsMatch && (
-                    <p className="text-xs text-emerald-400 flex items-center gap-1 font-medium mt-1">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Passwords match
-                    </p>
-                  )}
-                  {(errors.confirmPassword || passwordMismatch) && (
-                    <p className="text-xs text-red-400 flex items-center gap-1 font-medium mt-1">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      {errors.confirmPassword || "Passwords do not match"}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Password Requirements & Strength Real-Time Feedback */}
-              {password.length > 0 && (
-                <div className="rounded-xl bg-zinc-900/90 border border-zinc-800 p-3 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-400">Password strength:</span>
-                    <span
-                      className={`font-semibold capitalize ${
-                        passwordStrength === "strong"
-                          ? "text-emerald-400"
-                          : passwordStrength === "medium"
-                          ? "text-amber-400"
-                          : "text-red-400"
-                      }`}
-                    >
-                      {passwordStrength}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 h-1.5">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength === "weak"
-                          ? "bg-red-500"
-                          : passwordStrength === "medium"
-                          ? "bg-amber-500"
-                          : "bg-emerald-500"
-                      }`}
-                    />
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength === "medium"
-                          ? "bg-amber-500"
-                          : passwordStrength === "strong"
-                          ? "bg-emerald-500"
-                          : "bg-zinc-800"
-                      }`}
-                    />
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        passwordStrength === "strong" ? "bg-emerald-500" : "bg-zinc-800"
-                      }`}
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 pt-1 text-[11px]">
-                    <div
-                      className={`flex items-center gap-1 transition-colors ${
-                        hasMinLength ? "text-emerald-400 font-medium" : "text-zinc-500"
-                      }`}
-                    >
-                      {hasMinLength ? (
-                        <Check className="h-3 w-3 shrink-0" />
-                      ) : (
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-600 inline-block shrink-0" />
-                      )}
-                      <span>Min. 6 chars</span>
-                    </div>
-                    <div
-                      className={`flex items-center gap-1 transition-colors ${
-                        hasUpperLower ? "text-emerald-400 font-medium" : "text-zinc-500"
-                      }`}
-                    >
-                      {hasUpperLower ? (
-                        <Check className="h-3 w-3 shrink-0" />
-                      ) : (
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-600 inline-block shrink-0" />
-                      )}
-                      <span>Upper & lower</span>
-                    </div>
-                    <div
-                      className={`flex items-center gap-1 transition-colors ${
-                        hasNumber ? "text-emerald-400 font-medium" : "text-zinc-500"
-                      }`}
-                    >
-                      {hasNumber ? (
-                        <Check className="h-3 w-3 shrink-0" />
-                      ) : (
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-600 inline-block shrink-0" />
-                      )}
-                      <span>At least 1 number</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Terms */}
-              <label className="flex cursor-pointer items-center gap-2.5 text-sm text-zinc-400 select-none">
-                <input
-                  type="checkbox"
-                  checked={agreeTerms}
-                  onChange={(e) => setAgreeTerms(e.target.checked)}
-                  className="h-4 w-4 rounded accent-red-600"
-                />
-                I agree to the{" "}
-                <button type="button" className="text-red-500 hover:text-red-400 font-medium">
-                  Terms & Conditions
-                </button>
-              </label>
-
-              <Button
-                type="submit"
-                className="h-12 w-full rounded-xl bg-[#EF1111] text-sm font-bold text-white shadow-lg hover:bg-[#C90808] active:bg-[#A90606] transition-all"
-                style={{ boxShadow: "0 10px 40px rgba(239,17,17,0.35)" }}
-              >
-                Continue
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </form>
+            <RegisterAccountStep
+              isLoading={isLoading}
+              accountType={accountType}
+              setAccountType={setAccountType}
+              firstName={firstName}
+              setFirstName={setFirstName}
+              lastName={lastName}
+              setLastName={setLastName}
+              email={email}
+              onEmailChange={handleEmailChange}
+              phone={phone}
+              setPhone={setPhone}
+              address={address}
+              setAddress={setAddress}
+              onAddressPlace={({ city, region }) => {
+                setAddressCity(city || null);
+                setAddressRegion(region || null);
+              }}
+              emergencyContact={emergencyContact}
+              setEmergencyContact={setEmergencyContact}
+              password={password}
+              setPassword={setPassword}
+              confirmPassword={confirmPassword}
+              setConfirmPassword={setConfirmPassword}
+              agreeTerms={agreeTerms}
+              setAgreeTerms={setAgreeTerms}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              showConfirmPassword={showConfirmPassword}
+              setShowConfirmPassword={setShowConfirmPassword}
+              errors={errors}
+              setErrors={setErrors}
+              checkingEmail={checkingEmail}
+              emailCheckedOk={emailCheckedOk}
+              gyms={gyms}
+              loadingGyms={loadingGyms}
+              selectedGymOwnerId={selectedGymOwnerId}
+              setSelectedGymOwnerId={setSelectedGymOwnerId}
+              preferredTrainerId={preferredTrainerId}
+              setPreferredTrainerId={setPreferredTrainerId}
+              preferredTrainerLabel={preferredTrainerLabel}
+              setPreferredTrainerLabel={setPreferredTrainerLabel}
+              gymLockedFromUrl={gymLockedFromUrl}
+              queryGymOwnerId={queryGymOwnerId}
+              hasMinLength={hasMinLength}
+              hasUpperLower={hasUpperLower}
+              hasNumber={hasNumber}
+              doPasswordsMatch={doPasswordsMatch}
+              passwordMismatch={passwordMismatch}
+              passwordStrength={passwordStrength}
+              onSubmit={handleStep1Submit}
+            />
           )}
+ 
 
           {/* ══════════════════════ STEP 2 ══════════════════════ */}
           {currentStep === 2 && (
@@ -1337,22 +1000,92 @@ function RegisterContent() {
                       City / Location
                     </Label>
                     <div className="relative">
-                      <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <MapPin className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                      <select
+                        id="gymCityPreset"
+                        value={
+                          gymCityPreset ||
+                          (CITY_OPTIONS.includes(gymCity) ? gymCity : gymCity ? "Other / Custom" : "")
+                        }
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setGymCityPreset(v);
+                          if (v && v !== "Other / Custom") {
+                            const withRegion =
+                              addressRegion && !v.toLowerCase().includes(addressRegion.toLowerCase())
+                                ? `${v}, ${addressRegion}`
+                                : v;
+                            setGymCity(withRegion);
+                          }
+                          if (step2Errors.gymCity)
+                            setStep2Errors({ ...step2Errors, gymCity: undefined });
+                          setGymDuplicateError(null);
+                        }}
+                        className={`${inputCls(!!step2Errors.gymCity)} pl-10 appearance-none`}
+                      >
+                        <option value="">Select city / location</option>
+                        {CITY_OPTIONS.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {(gymCityPreset === "Other / Custom" ||
+                      (!!gymCity && !CITY_OPTIONS.includes(gymCity.split(",")[0].trim()))) && (
                       <Input
                         id="gymCity"
                         type="text"
-                        placeholder="Karachi, Pakistan"
+                        placeholder="City, Province"
                         value={gymCity}
                         onChange={(e) => {
                           setGymCity(e.target.value);
+                          setGymCityPreset("Other / Custom");
                           if (step2Errors.gymCity)
                             setStep2Errors({ ...step2Errors, gymCity: undefined });
+                          setGymDuplicateError(null);
                         }}
-                        className={`${inputCls(!!step2Errors.gymCity)} pl-10`}
+                        className={inputCls(!!step2Errors.gymCity)}
                       />
-                    </div>
+                    )}
+                    {(addressCity || address) && (
+                      <p className="text-[11px] text-zinc-500">
+                        From step 1 address:{" "}
+                        <button
+                          type="button"
+                          className="text-zinc-300 underline-offset-2 hover:underline"
+                          onClick={() => {
+                            const detected =
+                              formatCityLocation(addressCity, addressRegion) ||
+                              formatCityLocation(
+                                placeFromAddressLabel(address).city,
+                                placeFromAddressLabel(address).region,
+                              );
+                            if (!detected) return;
+                            setGymCity(detected);
+                            const cityOnly = (
+                              addressCity ||
+                              placeFromAddressLabel(address).city ||
+                              ""
+                            ).trim();
+                            const matched = CITY_OPTIONS.find(
+                              (c) =>
+                                c !== "Other / Custom" &&
+                                cityOnly.toLowerCase() === c.toLowerCase(),
+                            );
+                            setGymCityPreset(matched || "Other / Custom");
+                          }}
+                        >
+                          {formatCityLocation(addressCity, addressRegion) ||
+                            address.slice(0, 60)}
+                        </button>
+                      </p>
+                    )}
                     {step2Errors.gymCity && (
                       <p className="text-xs text-red-400">{step2Errors.gymCity}</p>
+                    )}
+                    {gymDuplicateError && (
+                      <p className="text-xs text-amber-400">{gymDuplicateError}</p>
                     )}
                   </div>
 
@@ -1372,6 +1105,219 @@ function RegisterContent() {
                     {step2Errors.gymYearsOperating && (
                       <p className="text-xs text-red-400">{step2Errors.gymYearsOperating}</p>
                     )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="gymMonthlyFee" className="text-zinc-300 font-medium text-sm">
+                        Monthly Gym Fee
+                      </Label>
+                      <Input
+                        id="gymMonthlyFee"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="e.g. 5000"
+                        value={gymMonthlyFee}
+                        onChange={(e) => setGymMonthlyFee(e.target.value)}
+                        className={inputCls(false)}
+                      />
+                      <p className="text-[11px] text-zinc-500">Shown on your gym detail page</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="gymTrainerFee" className="text-zinc-300 font-medium text-sm">
+                        Trainer Fee
+                      </Label>
+                      <Input
+                        id="gymTrainerFee"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="e.g. 3000"
+                        value={gymTrainerFee}
+                        onChange={(e) => setGymTrainerFee(e.target.value)}
+                        className={inputCls(false)}
+                      />
+                      <p className="text-[11px] text-zinc-500">Personal training / month</p>
+                    </div>
+                  </div>
+
+                  {/* Gym Main Image Upload */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gymMainImage" className="text-zinc-300 font-medium text-sm">
+                      Gym Main Image <span className="text-zinc-500 font-normal">(Required)</span>
+                    </Label>
+                    <div className="relative">
+                      <input
+                        id="gymMainImage"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleMainImageChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="gymMainImage"
+                        className={`flex items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                          gymMainImagePreview
+                            ? "border-red-500/50 bg-red-500/5"
+                            : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+                        }`}
+                      >
+                        {gymMainImagePreview ? (
+                          <div className="relative w-full h-full">
+                            <img
+                              src={gymMainImagePreview}
+                              alt="Gym main image preview"
+                              className="w-full h-full object-cover rounded-xl"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleMainImageRemove();
+                              }}
+                              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white rounded-full p-1.5 transition-colors"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-zinc-400">
+                            <ImageIcon className="h-8 w-8" />
+                            <span className="text-sm">Click to upload main image</span>
+                            <span className="text-xs text-zinc-500">Max 5MB • JPG, PNG, WebP</span>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                    {step2Errors.gymMainImage && (
+                      <p className="text-xs text-red-400">{step2Errors.gymMainImage}</p>
+                    )}
+                  </div>
+
+                  {/* Gym Optional Images Upload */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gymOptionalImages" className="text-zinc-300 font-medium text-sm">
+                      Additional Images <span className="text-zinc-500 font-normal">(Optional - Max 5)</span>
+                    </Label>
+                    <div className="relative">
+                      <input
+                        id="gymOptionalImages"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleOptionalImagesChange}
+                        className="hidden"
+                        disabled={gymOptionalImages.length >= 5}
+                      />
+                      <label
+                        htmlFor="gymOptionalImages"
+                        className={`flex items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                          gymOptionalImages.length >= 5
+                            ? "border-zinc-800 bg-zinc-900/30 cursor-not-allowed"
+                            : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-2 text-zinc-400">
+                          <Upload className="h-6 w-6" />
+                          <span className="text-sm">
+                            {gymOptionalImages.length >= 5
+                              ? "Maximum 5 images reached"
+                              : `Click to add images (${gymOptionalImages.length}/5)`}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                    {gymOptionalImagesPreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        {gymOptionalImagesPreviews.map((preview, index) => (
+                          <div key={index} className="relative aspect-square">
+                            <img
+                              src={preview}
+                              alt={`Optional image ${index + 1}`}
+                              className="w-full h-full object-cover rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleOptionalImageRemove(index)}
+                              className="absolute top-1 right-1 bg-black/70 hover:bg-black/90 text-white rounded-full p-1 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gym Video Section */}
+                  <div className="space-y-3">
+                    <Label className="text-zinc-300 font-medium text-sm">
+                      Gym Video <span className="text-zinc-500 font-normal">(Optional)</span>
+                    </Label>
+                    
+                    {/* Video URL Input */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="gymVideoUrl" className="text-zinc-400 text-xs">
+                        Video URL (YouTube, Vimeo, etc.)
+                      </Label>
+                      <div className="relative">
+                        <Video className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                        <Input
+                          id="gymVideoUrl"
+                          type="url"
+                          placeholder="https://youtube.com/watch?v=..."
+                          value={gymVideoUrl}
+                          onChange={(e) => setGymVideoUrl(e.target.value)}
+                          className={`${inputCls(false)} pl-10`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Video File Upload */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-500 text-xs">or upload a video file:</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        id="gymVideoFile"
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoFileChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="gymVideoFile"
+                        className={`flex items-center justify-center gap-2 h-16 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                          gymVideoFileName
+                            ? "border-red-500/50 bg-red-500/5"
+                            : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+                        }`}
+                      >
+                        {gymVideoFileName ? (
+                          <div className="flex items-center gap-2">
+                            <Video className="h-5 w-5 text-red-400" />
+                            <span className="text-sm text-zinc-300 truncate max-w-[200px]">
+                              {gymVideoFileName}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleVideoFileRemove();
+                              }}
+                              className="ml-2 text-zinc-400 hover:text-white transition-colors"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-zinc-400">
+                            <Upload className="h-5 w-5" />
+                            <span className="text-sm">Click to upload video</span>
+                            <span className="text-xs text-zinc-500">Max 50MB • MP4, WebM</span>
+                          </div>
+                        )}
+                      </label>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -1947,7 +1893,10 @@ function RegisterContent() {
                       { label: "Gym Name", value: gymName },
                       { label: "Gym Type", value: gymType },
                       { label: "Location", value: gymCity },
-                      { label: "Capacity", value: gymMemberCapacity },
+                      {
+                        label: "Monthly Fee",
+                        value: gymMonthlyFee.trim() || "—",
+                      },
                     ]
                   : [
                       {
@@ -1955,8 +1904,11 @@ function RegisterContent() {
                         value:
                           gyms.find((g) => g.ownerId === selectedGymOwnerId)?.gymName || "—",
                       },
+                      {
+                        label: "Trainer",
+                        value: preferredTrainerLabel || "None",
+                      },
                       { label: "Primary Goal", value: fitnessGoal },
-                      { label: "Current Weight", value: `${weight} ${weightUnit}` },
                       { label: "Weekly Target", value: `${workoutDays} days/week` },
                     ]
                 ).map(({ label, value }) => (
@@ -1976,7 +1928,7 @@ function RegisterContent() {
                     ? [
                         { label: "Operating Days", value: `${gymOperatingDays} days/week` },
                         { label: "Peak Hours", value: gymPeakHours },
-                        { label: "Years Operating", value: gymYearsOperating },
+                        { label: "Trainer Fee", value: gymTrainerFee.trim() || "—" },
                         {
                           label: "Facilities",
                           value: `${gymFacilities.slice(0, 2).join(", ")}${gymFacilities.length > 2 ? ` +${gymFacilities.length - 2}` : ""}`,
@@ -2055,9 +2007,7 @@ function RegisterContent() {
               </Link>
             </p>
           )}
-        </div>
-      </section>
-    </div>
+    </RegisterShell>
   );
 }
 

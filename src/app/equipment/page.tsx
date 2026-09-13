@@ -9,6 +9,7 @@ import { allEquipment, equipmentCategories } from "@/data/equipment";
 import { ChevronRight, Dumbbell } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
+import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 
 export default function EquipmentPage() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -21,6 +22,11 @@ export default function EquipmentPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
+      <ComingSoonOverlay
+        title="Equipment catalog coming soon"
+        description="Preview our equipment library. Full guides and booking unlock next — join now for early access."
+        icon={Dumbbell}
+      >
       {/* Hero */}
       <section className="relative overflow-hidden pt-32 pb-16 bg-card">
         <InteractiveBackground variant="gradient" />
@@ -138,6 +144,7 @@ export default function EquipmentPage() {
           </ScrollAnimate>
         </div>
       </section>
+      </ComingSoonOverlay>
 
       <Footer />
     </div>

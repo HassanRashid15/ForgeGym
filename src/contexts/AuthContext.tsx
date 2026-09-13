@@ -1,8 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { User, AuthContextType, UserRole, FitnessProfileData } from '@/types/auth';
-import { supabase } from '@/integrations/supabase/client';
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import { User, AuthContextType, FitnessProfileData, RegisterMediaFiles } from "@/types/auth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   loginWithPassword,
   registerAccount,
@@ -11,50 +11,21 @@ import {
   checkEmailVerified as apiCheckEmailVerified,
   resendVerificationEmail as apiResendVerificationEmail,
   fetchCurrentUser,
-} from '@/api/auth';
-import { ApiError } from '@/api/client';
+} from "@/api/auth";
+import { updateMyProfile } from "@/api/profiles";
+import { pickAllowedProfileFields } from "@/lib/profiles/allowlist";
+import { ApiError } from "@/api/client";
+import { isSeededSuperAdmin, resolveRole } from "@/lib/auth/roles";
+import {
+  MePayload,
+  MeCacheEntry,
+  readMeCache,
+  writeMeCache,
+  withTimeout,
+} from "@/lib/auth/me-cache";
+import { trackEvent, trackException } from "@/lib/monitoring";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-type MePayload = {
-  id: string;
-  email: string | null;
-  name: string;
-  role: 'admin' | 'moderator' | 'customer' | 'trainer' | 'staff';
-  isSuperAdmin?: boolean;
-  admin_approved: boolean;
-  avatar: string | null;
-  gymName?: string | null;
-  gymOwnerId?: string | null;
-  gymCity?: string | null;
-  gymType?: string | null;
-};
-
-function resolveRole(apiRole?: string | null, metaRole?: string): UserRole {
-  if (apiRole === 'admin') return 'admin';
-  if (apiRole === 'trainer') return 'trainer';
-  if (apiRole === 'staff') return 'staff';
-  if (apiRole === 'moderator') return 'moderator';
-  if (String(metaRole || '').toLowerCase() === 'admin') return 'admin';
-  if (String(metaRole || '').toLowerCase() === 'trainer') return 'trainer';
-  if (String(metaRole || '').toLowerCase() === 'staff') return 'staff';
-  return 'customer';
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(fallback), ms);
-    promise
-      .then((value) => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(() => {
-        clearTimeout(timer);
-        resolve(fallback);
-      });
-  });
-}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -62,9 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [mounted, setMounted] = useState<boolean>(false);
   const userRef = useRef<User | null>(null);
   const syncGenRef = useRef(0);
-  /** User id already hydrated from /api/auth/me this tab session */
   const syncedUserIdRef = useRef<string | null>(null);
-  const meCacheRef = useRef<{ userId: string; data: MePayload; at: number } | null>(null);
+  const meCacheRef = useRef<MeCacheEntry | null>(null);
   const meInflightRef = useRef<Promise<MePayload | null> | null>(null);
 
   useEffect(() => {
@@ -72,25 +42,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const getMeOnce = async (userId: string, force = false): Promise<MePayload | null> => {
-    const cached = meCacheRef.current;
-    if (
-      !force &&
-      cached &&
-      cached.userId === userId &&
-      Date.now() - cached.at < 5 * 60 * 1000
-    ) {
-      return cached.data;
-    }
-
-    if (!force && meInflightRef.current) {
-      return meInflightRef.current;
+    if (!force) {
+      const cached = readMeCache(meCacheRef.current, userId);
+      if (cached) return cached;
+      if (meInflightRef.current) return meInflightRef.current;
     }
 
     const request = withTimeout(
       fetchCurrentUser()
         .then((m) => {
-          meCacheRef.current = { userId, data: m as MePayload, at: Date.now() };
-          return m as MePayload;
+          const payload = m as MePayload;
+          meCacheRef.current = writeMeCache(userId, payload);
+          return payload;
         })
         .catch(() => null),
       6000,
@@ -103,36 +66,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return request;
   };
 
-  const syncUserProfile = async (sessionUser: any, options?: { force?: boolean }) => {
+  const syncUserProfile = async (
+    sessionUser: { id?: string; email?: string | null; user_metadata?: Record<string, unknown> },
+    options?: { force?: boolean },
+  ) => {
     if (!sessionUser?.id) return;
 
     const force = options?.force === true;
     const userId = sessionUser.id;
-    const userEmail = (sessionUser.email || '').toLowerCase();
+    const userEmail = (sessionUser.email || "").toLowerCase();
 
-    // Already hydrated this session — skip repeat /api/auth/me on navigation / auth noise
     if (!force && syncedUserIdRef.current === userId && userRef.current?.id === userId) {
       return;
     }
 
     const gen = ++syncGenRef.current;
     const fallbackName =
-      sessionUser.user_metadata?.full_name || userEmail.split('@')[0] || 'User';
-    const isSeededSuper = userEmail === 'superadmin@forge.test';
+      (sessionUser.user_metadata?.full_name as string | undefined) ||
+      userEmail.split("@")[0] ||
+      "User";
+    const isSeededSuper = isSeededSuperAdmin(userEmail);
     const keepAdmin =
-      userRef.current?.id === userId && userRef.current.role === 'admin';
+      userRef.current?.id === userId && userRef.current.role === "admin";
 
-    // Optimistic UI only when we don't already have this user
     if (!userRef.current || userRef.current.id !== userId) {
       setUser({
         id: userId,
         email: userEmail,
         name: fallbackName,
-        role: isSeededSuper || keepAdmin ? 'admin' : 'customer',
+        role: isSeededSuper || keepAdmin ? "admin" : "customer",
         isSuperAdmin:
           isSeededSuper ||
           (userRef.current?.id === userId ? !!userRef.current.isSuperAdmin : false),
-        avatar: sessionUser.user_metadata?.avatar_url || undefined,
+        avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
       });
     }
 
@@ -141,53 +107,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (gen !== syncGenRef.current) return;
 
       if (!me) {
-        // Keep optimistic / existing user if me fails transiently
         syncedUserIdRef.current = userId;
         return;
       }
 
-      let appRole = resolveRole(me.role, sessionUser.user_metadata?.requested_role);
-      if (isSeededSuper) appRole = 'admin';
+      let appRole = resolveRole(
+        me.role,
+        sessionUser.user_metadata?.requested_role as string | undefined,
+      );
+      if (isSeededSuper) appRole = "admin";
 
       const isSuperAdmin = me.isSuperAdmin === true || isSeededSuper;
       const apiApproved = me.admin_approved !== false;
       const needsGymMemberApproval =
-        appRole === 'customer' && !!me.gymOwnerId && !apiApproved;
+        appRole === "customer" && !!me.gymOwnerId && !apiApproved;
 
       if (
-        ((appRole === 'admin' && !apiApproved) || needsGymMemberApproval) &&
+        ((appRole === "admin" && !apiApproved) || needsGymMemberApproval) &&
         !isSuperAdmin
       ) {
         meCacheRef.current = null;
         syncedUserIdRef.current = null;
-        await supabase.auth.signOut({ scope: 'local' });
+        await supabase.auth.signOut({ scope: "local" });
         setUser(null);
         return;
       }
 
       syncedUserIdRef.current = userId;
-      setUser({
+      const nextUser = {
         id: userId,
         email: me.email || userEmail,
         name: me.name || fallbackName,
         role: appRole,
         isSuperAdmin,
-        avatar: me.avatar || sessionUser.user_metadata?.avatar_url || undefined,
+        avatar: me.avatar || (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         gymName: me.gymName || null,
         gymOwnerId: me.gymOwnerId || null,
         gymCity: me.gymCity || null,
         gymType: me.gymType || null,
-      });
+        gymMainImageUrl: me.gymMainImageUrl || null,
+        membershipStatus: me.membershipStatus || null,
+        membershipType: me.membershipType || null,
+      };
+      const prev = userRef.current;
+      const unchanged =
+        prev &&
+        prev.id === nextUser.id &&
+        prev.email === nextUser.email &&
+        prev.name === nextUser.name &&
+        prev.role === nextUser.role &&
+        prev.isSuperAdmin === nextUser.isSuperAdmin &&
+        prev.avatar === nextUser.avatar &&
+        prev.gymName === nextUser.gymName &&
+        prev.gymOwnerId === nextUser.gymOwnerId &&
+        prev.gymCity === nextUser.gymCity &&
+        prev.gymType === nextUser.gymType &&
+        prev.gymMainImageUrl === nextUser.gymMainImageUrl &&
+        prev.membershipStatus === nextUser.membershipStatus &&
+        prev.membershipType === nextUser.membershipType;
+      if (!unchanged) setUser(nextUser);
     } catch (error) {
-      console.error('Error syncing user profile:', error);
+      trackException(error, { action: "syncUserProfile" });
       if (!userRef.current) {
         setUser({
           id: userId,
           email: userEmail,
           name: fallbackName,
-          role: isSeededSuper ? 'admin' : 'customer',
+          role: isSeededSuper ? "admin" : "customer",
           isSuperAdmin: isSeededSuper,
-          avatar: sessionUser.user_metadata?.avatar_url || undefined,
+          avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         });
       }
     }
@@ -207,7 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await withTimeout(
           supabase.auth.getSession(),
           8000,
-          { data: { session: null } } as any,
+          { data: { session: null } } as Awaited<ReturnType<typeof supabase.auth.getSession>>,
         );
 
         if (!alive) return;
@@ -230,7 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         await syncUserProfile(session.user);
       } catch (err) {
-        console.error('Auth boot failed:', err);
+        trackException(err, { action: "auth_boot" });
         if (alive) setUser(null);
       } finally {
         bootDone = true;
@@ -244,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setTimeout(() => {
         if (!alive) return;
 
-        if (event === 'SIGNED_OUT') {
+        if (event === "SIGNED_OUT") {
           setUser(null);
           syncedUserIdRef.current = null;
           meCacheRef.current = null;
@@ -253,22 +241,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Ignore noise — do not re-hit /api/auth/me
         if (
-          event === 'TOKEN_REFRESHED' ||
-          event === 'INITIAL_SESSION' ||
-          event === 'USER_UPDATED'
+          event === "TOKEN_REFRESHED" ||
+          event === "INITIAL_SESSION" ||
+          event === "USER_UPDATED"
         ) {
           return;
         }
 
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           const path = window.location.pathname;
           const params = new URLSearchParams(window.location.search);
           const forceManualLogin =
-            path.startsWith('/verification') ||
-            path.startsWith('/verify') ||
-            (path.startsWith('/login') && params.get('verified') === 'true');
+            path.startsWith("/verification") ||
+            path.startsWith("/verify") ||
+            (path.startsWith("/login") && params.get("verified") === "true");
           if (forceManualLogin) {
             setUser(null);
             syncedUserIdRef.current = null;
@@ -284,8 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // After boot, SIGNED_IN often fires again for the same session — skip duplicates
-        if (event === 'SIGNED_IN') {
+        if (event === "SIGNED_IN") {
           if (
             bootDone &&
             syncedUserIdRef.current === session.user.id &&
@@ -311,23 +297,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await loginWithPassword(email, password);
       const authUser = data.user;
-      if (!authUser) throw new Error('Login failed');
+      if (!authUser) throw new Error("Login failed");
       syncedUserIdRef.current = null;
       meCacheRef.current = null;
       await syncUserProfile(authUser, { force: true });
       setIsLoading(false);
-    } catch (err: any) {
+      trackEvent("auth.login", { userId: authUser.id });
+    } catch (err: unknown) {
+      trackEvent("auth.login_failed");
       setIsLoading(false);
-      if (err instanceof ApiError && err.details && (err.details as any).code === 'email_not_confirmed') {
-        throw new Error('Email not confirmed');
+      if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "email_not_confirmed") {
+        throw new Error("Email not confirmed");
       }
-      if (err instanceof ApiError && err.details && (err.details as any).code === 'admin_approval_pending') {
-        throw new Error('Admin approval pending');
+      if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "admin_approval_pending") {
+        throw new Error("Admin approval pending");
       }
-      if (err instanceof ApiError && err.details && (err.details as any).code === 'member_approval_pending') {
-        throw new Error('Membership approval pending');
+      if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "member_approval_pending") {
+        throw new Error("Membership approval pending");
       }
-      throw new Error(err?.message || 'Login failed');
+      throw new Error(err instanceof Error ? err.message : "Login failed");
     }
   };
 
@@ -336,21 +324,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     name: string,
     fitnessData?: FitnessProfileData,
+    media?: RegisterMediaFiles,
   ): Promise<string | null> => {
     try {
-      const data = await registerAccount(email, password, name, fitnessData);
+      const data = await registerAccount(email, password, name, fitnessData, media);
       setUser(null);
       syncedUserIdRef.current = null;
       meCacheRef.current = null;
+      trackEvent("auth.register");
       return data.userId;
-    } catch (err: any) {
-      throw new Error(err?.message || 'Registration failed');
+    } catch (err: unknown) {
+      throw new Error(err instanceof Error ? err.message : "Registration failed");
     }
   };
 
   const updateFitnessProfile = async (userId: string, data: FitnessProfileData): Promise<void> => {
-    const { error } = await supabase.from('profiles').update(data).eq('user_id', userId);
-    if (error) throw new Error(error.message);
+    void userId;
+    await updateMyProfile(
+      pickAllowedProfileFields(data as Record<string, unknown>) as Parameters<
+        typeof updateMyProfile
+      >[0],
+    );
+    trackEvent("profile.update", { userId });
   };
 
   const checkAccountExists = async (email: string): Promise<boolean | null> => {
@@ -375,21 +370,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendVerificationEmail = async (email: string): Promise<void> => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) throw new Error('Email is required');
+    if (!cleanEmail) throw new Error("Email is required");
     await apiResendVerificationEmail(cleanEmail);
   };
 
   const logout = async () => {
     try {
       await logoutAccount();
+    } catch {
+      // always clear local state
+    } finally {
       setUser(null);
       syncedUserIdRef.current = null;
       meCacheRef.current = null;
       meInflightRef.current = null;
-    } catch {
-      setUser(null);
-      syncedUserIdRef.current = null;
-      meCacheRef.current = null;
+      userRef.current = null;
+      // Hard navigate so protected routes re-run auth and land on login
+      if (typeof window !== "undefined") {
+        const path = window.location.pathname;
+        const onAuthPage = path.startsWith("/login") || path.startsWith("/register");
+        if (!onAuthPage) {
+          window.location.assign(`/login?redirect=${encodeURIComponent(path)}`);
+        }
+      }
     }
   };
 
@@ -404,7 +407,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resendVerificationEmail,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user?.role === "admin",
     isSuperAdmin: user?.isSuperAdmin === true,
   };
 
@@ -437,7 +440,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

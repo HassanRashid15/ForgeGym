@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import SeoManager from "@/components/marketing/SeoManager";
+import { SplashProvider } from "@/components/marketing/SplashProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,6 +24,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          id="forge-splash-lock"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  if (location.pathname === '/') {
+                    document.documentElement.classList.add('forge-splash-lock');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <script
           id="strip-extension-attributes"
           dangerouslySetInnerHTML={{
@@ -76,10 +91,12 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
             <TooltipProvider>
-              <SeoManager />
-              <Toaster />
-              <Sonner />
-              {children}
+              <SplashProvider>
+                <SeoManager />
+                <Toaster />
+                <Sonner />
+                {children}
+              </SplashProvider>
             </TooltipProvider>
           </AuthProvider>
         </ThemeProvider>

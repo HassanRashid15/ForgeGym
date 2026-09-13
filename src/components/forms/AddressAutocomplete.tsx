@@ -10,6 +10,9 @@ export type AddressValue = {
   address: string;
   lat?: number | null;
   lon?: number | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
 };
 
 type Suggestion = {
@@ -17,6 +20,9 @@ type Suggestion = {
   label: string;
   lat: number;
   lon: number;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
 };
 
 type AddressAutocompleteProps = {
@@ -89,7 +95,14 @@ export function AddressAutocomplete({
 
   const handleInputChange = (next: string) => {
     setQuery(next);
-    onChange({ address: next, lat: coords?.lat ?? null, lon: coords?.lon ?? null });
+    onChange({
+      address: next,
+      lat: coords?.lat ?? null,
+      lon: coords?.lon ?? null,
+      city: null,
+      region: null,
+      country: null,
+    });
     setError(null);
 
     if (suppressSearchRef.current) {
@@ -112,7 +125,14 @@ export function AddressAutocomplete({
     setCoords({ lat: s.lat, lon: s.lon });
     setSuggestions([]);
     setOpen(false);
-    onChange({ address: s.label, lat: s.lat, lon: s.lon });
+    onChange({
+      address: s.label,
+      lat: s.lat,
+      lon: s.lon,
+      city: s.city ?? null,
+      region: s.region ?? null,
+      country: s.country ?? null,
+    });
   };
 
   const useMyLocation = () => {
@@ -134,7 +154,13 @@ export function AddressAutocomplete({
           if (!res.ok) {
             setError(data.error || "Could not resolve your location");
             setCoords({ lat, lon });
-            onChange({ address: query || `${lat.toFixed(5)}, ${lon.toFixed(5)}`, lat, lon });
+            onChange({
+              address: query || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+              lat,
+              lon,
+              city: null,
+              region: null,
+            });
             return;
           }
           suppressSearchRef.current = true;
@@ -142,7 +168,14 @@ export function AddressAutocomplete({
           setCoords({ lat: data.lat, lon: data.lon });
           setSuggestions([]);
           setOpen(false);
-          onChange({ address: data.label, lat: data.lat, lon: data.lon });
+          onChange({
+            address: data.label,
+            lat: data.lat,
+            lon: data.lon,
+            city: data.city ?? null,
+            region: data.region ?? null,
+            country: data.country ?? null,
+          });
         } catch {
           setError("Could not resolve your location");
         } finally {
@@ -167,7 +200,7 @@ export function AddressAutocomplete({
     setSuggestions([]);
     setOpen(false);
     setError(null);
-    onChange({ address: "", lat: null, lon: null });
+    onChange({ address: "", lat: null, lon: null, city: null, region: null, country: null });
   };
 
   const mapSrc =

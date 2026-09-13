@@ -6,8 +6,8 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { getClassById, allClasses } from "@/data/classes";
-import { Clock, Flame, Users, Calendar, ArrowLeft, Check, Zap } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Clock, Flame, Users, Calendar, ArrowLeft, Check, Zap, Dumbbell } from "lucide-react";
+import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 
 interface ClassDetailPageProps {
   params: Promise<{ id: string }>;
@@ -15,7 +15,6 @@ interface ClassDetailPageProps {
 
 export default function ClassDetailPage({ params }: ClassDetailPageProps) {
   const resolvedParams = use(params);
-  const { toast } = useToast();
   const gymClass = getClassById(resolvedParams.id);
   const relatedClasses = gymClass
     ? allClasses.filter((c) => c.id !== gymClass.id && c.category === gymClass.category).slice(0, 3)
@@ -27,7 +26,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
         <Navbar />
         <div className="pt-32 pb-16 container mx-auto px-4 text-center">
           <h1 className="font-display text-5xl mb-4">Class Not Found</h1>
-          <p className="text-muted-foreground mb-8">The class you're looking for doesn't exist.</p>
+          <p className="text-muted-foreground mb-8">The class you&apos;re looking for doesn&apos;t exist.</p>
           <Button asChild>
             <Link href="/classes">Back to Classes</Link>
           </Button>
@@ -37,19 +36,17 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
     );
   }
 
-  const handleBookClass = () => {
-    toast({
-      title: "Class Booked!",
-      description: `You've successfully booked ${gymClass.name}. Check your email for confirmation.`,
-    });
-  };
-
   const spotsPercentage = ((gymClass.maxSpots - gymClass.spots) / gymClass.maxSpots) * 100;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
+      <ComingSoonOverlay
+        title="Booking coming soon"
+        description={`${gymClass.name} is a preview. Class booking unlocks next — join the waitlist for early access.`}
+        icon={Dumbbell}
+      >
       {/* Hero */}
       <section className="pt-24 relative">
         <div className="absolute inset-0 h-[50vh]">
@@ -195,8 +192,8 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
                   </div>
                 </div>
 
-                <Button className="w-full" variant="hero" onClick={handleBookClass}>
-                  Book Now
+                <Button className="w-full" variant="hero" disabled>
+                  Book Now — Coming Soon
                 </Button>
 
                 <p className="text-muted-foreground text-xs text-center mt-4">
@@ -254,6 +251,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
           )}
         </div>
       </section>
+      </ComingSoonOverlay>
 
       <Footer />
     </div>

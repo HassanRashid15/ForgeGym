@@ -34,6 +34,11 @@
       "method": "GET",
       "path": "/api/auth/me",
       "description": "Current user profile and role from database"
+    },
+    "checkGym": {
+      "method": "POST",
+      "path": "/api/auth/check-gym",
+      "description": "Check if gym name/city or phone already exists for a gym owner"
     }
   },
   "admin": {
@@ -66,6 +71,11 @@
       "method": "DELETE",
       "path": "/api/admin/users",
       "description": "Delete a member account"
+    },
+    "monthlyMembers": {
+      "method": "GET",
+      "path": "/api/admin/monthly-members",
+      "description": "List gym monthly members with fee and days left"
     }
   },
   "profiles": {
@@ -88,6 +98,49 @@
       "method": "POST",
       "path": "/api/profiles/avatar",
       "description": "Upload profile avatar to Supabase storage bucket"
+    },
+    "uploadGymMedia": {
+      "method": "POST",
+      "path": "/api/gym-media",
+      "description": "Upload gym main/optional image or video to gym-media bucket"
+    }
+  },
+  "progress": {
+    "get": {
+      "method": "GET",
+      "path": "/api/progress",
+      "description": "Fetch workout days, exercises, PRs and stats"
+    },
+    "save": {
+      "method": "POST",
+      "path": "/api/progress",
+      "description": "Upsert workout day focus or create a personal record"
+    },
+    "addExercise": {
+      "method": "POST",
+      "path": "/api/progress/exercises",
+      "description": "Add an exercise with sets and reps to a workout day"
+    },
+    "exerciseCatalog": {
+      "method": "GET",
+      "path": "/api/progress/exercise-catalog",
+      "description": "List exercises for a focus (wger public API + local fallback)"
+    },
+    "exerciseDemo": {
+      "method": "GET",
+      "path": "/api/progress/exercise-demo",
+      "description": "Resolve a YouTube form demo for an exercise name"
+    },
+
+    "deleteExercise": {
+      "method": "DELETE",
+      "path": "/api/progress/exercises",
+      "description": "Delete a workout exercise by id"
+    },
+    "deleteRecord": {
+      "method": "DELETE",
+      "path": "/api/progress/records",
+      "description": "Delete a personal record by id"
     }
   }
 }

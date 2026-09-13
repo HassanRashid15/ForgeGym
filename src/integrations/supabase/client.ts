@@ -1,15 +1,15 @@
-// Supabase client (clean implementation)
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "./types";
+import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "@/integrations/supabase/types";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+/**
+ * Browser Supabase client with cookie + localStorage session sync.
+ * Cookies enable middleware/proxy auth; localStorage keeps existing client APIs working.
+ */
+export function createSupabaseBrowserClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: typeof window !== "undefined" ? window.localStorage : undefined,
-  },
-});
+export const supabase = createSupabaseBrowserClient();

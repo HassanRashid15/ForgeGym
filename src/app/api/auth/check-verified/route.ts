@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
+import { trackEvent } from "@/lib/monitoring";
 
-/** POST /api/auth/check-verified */
+/** POST /api/auth/check-verified — RPC only (no password probe). */
 export async function POST(request: Request) {
+  const requestId = getRequestId(request);
+  const limited = await rateLimit(clientKey(request, "auth:check-verified"), 20, 60_000);
+  if (!limited.allowed) {
+    trackEvent("auth.rate_limited", { route: "check-verified", requestId });
+    return rateLimitedResponse(limited);
+  }
+
   const body = await request.json().catch(() => null);
   const email = body?.email?.trim()?.toLowerCase();
 
   if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    return jsonError("Email is required", 400, { requestId });
   }
 
   const supabase = createSupabaseServerClient();
@@ -21,21 +31,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ verified: rpcData });
   }
 
-  // Fallback probe: invalid password tells us if email is confirmed
-  const { error: authError } = await supabase.auth.signInWithPassword({
-    email,
-    password: "__probe_verification_check_only__",
-  });
-
-  if (authError) {
-    const msg = authError.message.toLowerCase();
-    if (msg.includes("email not confirmed")) {
-      return NextResponse.json({ verified: false });
-    }
-    if (msg.includes("invalid login credentials")) {
-      return NextResponse.json({ verified: true });
-    }
-  }
-
+  // Do not probe sign-in — avoids credential enumeration side-channels
   return NextResponse.json({ verified: false });
 }

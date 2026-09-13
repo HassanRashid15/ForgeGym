@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     db
       .from("profiles")
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, gym_name, gym_owner_id, gym_city, gym_type",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -34,7 +34,6 @@ export async function GET(request: Request) {
   const email = (profile?.email || user.email || "").toLowerCase();
   let isSuperAdmin = (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
-  // Seeded platform account — treat as super admin without writing on every request
   if (email === "superadmin@forge.test") {
     isSuperAdmin = true;
     role = "admin";
@@ -46,7 +45,40 @@ export async function GET(request: Request) {
     gym_city?: string | null;
     gym_type?: string | null;
     avatar_url?: string | null;
+    membership_status?: string | null;
+    membership_type?: string | null;
+    admin_approved?: boolean | null;
   } | null;
+
+  const gymOwnerId =
+    profileRow?.gym_owner_id || (role === "admin" ? user.id : null);
+
+  let gymName = profileRow?.gym_name || null;
+  let gymCity = profileRow?.gym_city || null;
+  let gymType = profileRow?.gym_type || null;
+  let gymMainImageUrl: string | null = null;
+
+  // For members (and owners), resolve live gym branding from the gym catalog / owner profile
+  if (gymOwnerId && service) {
+    const [{ data: gymRow }, { data: ownerProfile }] = await Promise.all([
+      service
+        .from("gyms")
+        .select("name, city, gym_type, main_image_url")
+        .eq("owner_user_id", gymOwnerId)
+        .maybeSingle(),
+      service
+        .from("profiles")
+        .select("gym_name, gym_city, gym_type, gym_main_image_url")
+        .eq("user_id", gymOwnerId)
+        .maybeSingle(),
+    ]);
+
+    gymName = gymRow?.name || ownerProfile?.gym_name || gymName;
+    gymCity = gymRow?.city || ownerProfile?.gym_city || gymCity;
+    gymType = gymRow?.gym_type || ownerProfile?.gym_type || gymType;
+    gymMainImageUrl =
+      gymRow?.main_image_url || ownerProfile?.gym_main_image_url || null;
+  }
 
   return NextResponse.json({
     id: user.id,
@@ -57,13 +89,16 @@ export async function GET(request: Request) {
       email.split("@")[0],
     role,
     isSuperAdmin,
+    // Strict: only true when explicitly approved (or platform super admin)
     admin_approved:
-      isSuperAdmin || profile?.admin_approved !== false,
-    avatar:
-      profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
-    gymName: profileRow?.gym_name || null,
-    gymOwnerId: profileRow?.gym_owner_id || (role === "admin" ? user.id : null),
-    gymCity: profileRow?.gym_city || null,
-    gymType: profileRow?.gym_type || null,
+      isSuperAdmin || profile?.admin_approved === true,
+    avatar: profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
+    gymName,
+    gymOwnerId,
+    gymCity,
+    gymType,
+    gymMainImageUrl,
+    membershipStatus: profileRow?.membership_status || null,
+    membershipType: profileRow?.membership_type || null,
   });
 }

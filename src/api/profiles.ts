@@ -30,6 +30,7 @@ export type ProfileRecord = {
   admin_rejected_at?: string | null;
   approval_requested_at?: string | null;
   is_verified?: boolean | null;
+  gym_owner_id?: string | null;
   gym_name?: string | null;
   gym_type?: string | null;
   gym_city?: string | null;
@@ -39,6 +40,13 @@ export type ProfileRecord = {
   gym_peak_hours?: string | null;
   gym_member_capacity?: string | null;
   gym_services?: string[] | null;
+  gym_main_image_url?: string | null;
+  gym_optional_images_urls?: string[] | null;
+  gym_video_url?: string | null;
+  gym_video_file_url?: string | null;
+  gym_monthly_fee?: string | null;
+  gym_trainer_fee?: string | null;
+  preferred_trainer_id?: string | null;
 };
 
 export type ProfileUpdatePayload = Partial<{
@@ -69,6 +77,12 @@ export type ProfileUpdatePayload = Partial<{
   gym_peak_hours: string | null;
   gym_member_capacity: string | null;
   gym_services: string[];
+  gym_main_image_url: string | null;
+  gym_optional_images_urls: string[] | null;
+  gym_video_url: string | null;
+  gym_video_file_url: string | null;
+  gym_monthly_fee: string | null;
+  gym_trainer_fee: string | null;
 }>;
 
 /** GET profiles.get → /api/profiles */
@@ -98,4 +112,22 @@ export async function uploadMyAvatar(file: File) {
     body: form,
     timeoutMs: 30000,
   });
+}
+
+/** POST profiles.uploadGymMedia → /api/gym-media */
+export async function uploadGymMedia(
+  file: File,
+  type: "main-image" | "optional-image" | "video",
+) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("type", type);
+  return apiRequest<{ url: string; type: string; filename: string }>(
+    "profiles",
+    "uploadGymMedia",
+    {
+      body: form,
+      timeoutMs: 120_000,
+    },
+  );
 }

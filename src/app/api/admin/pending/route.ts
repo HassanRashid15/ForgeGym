@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient, requireAuth } from "@/lib/supabase/server";
+import { notify } from "@/lib/notify-actions";
 
 async function requireSuperAdmin(request: Request) {
   const auth = await requireAuth(request);
@@ -235,6 +236,16 @@ export async function POST(request: Request) {
       .eq("from_user_id", userId)
       .is("read_at", null);
 
+    const { data: gymProfile } = await supabase
+      .from("profiles")
+      .select("gym_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    void notify.gymOwnerApproved(
+      userId,
+      (gymProfile as { gym_name?: string | null } | null)?.gym_name,
+    );
+
     return NextResponse.json({ approved: data, action: "approve" });
   }
 
@@ -260,6 +271,8 @@ export async function POST(request: Request) {
     .update({ read_at: new Date().toISOString() } as any)
     .eq("from_user_id", userId)
     .is("read_at", null);
+
+  void notify.gymOwnerRejected(userId);
 
   return NextResponse.json({ rejected: data, action: "reject" });
 }

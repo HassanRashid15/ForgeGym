@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      gyms: {
+        Row: {
+          id: string
+          owner_user_id: string
+          name: string
+          gym_type: string | null
+          city: string | null
+          facilities: string[] | null
+          services: string[] | null
+          peak_hours: string | null
+          member_capacity: string | null
+          years_operating: string | null
+          operating_days: number | null
+          bio: string | null
+          avatar_url: string | null
+          owner_display_name: string | null
+          is_published: boolean
+          main_image_url: string | null
+          optional_images_urls: string[] | null
+          video_url: string | null
+          video_file_url: string | null
+          monthly_fee: string | null
+          trainer_fee: string | null
+          latitude: number | null
+          longitude: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          owner_user_id: string
+          name: string
+          gym_type?: string | null
+          city?: string | null
+          facilities?: string[] | null
+          services?: string[] | null
+          peak_hours?: string | null
+          member_capacity?: string | null
+          years_operating?: string | null
+          operating_days?: number | null
+          bio?: string | null
+          avatar_url?: string | null
+          owner_display_name?: string | null
+          is_published?: boolean
+          main_image_url?: string | null
+          optional_images_urls?: string[] | null
+          video_url?: string | null
+          video_file_url?: string | null
+          monthly_fee?: string | null
+          trainer_fee?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          owner_user_id?: string
+          name?: string
+          gym_type?: string | null
+          city?: string | null
+          facilities?: string[] | null
+          services?: string[] | null
+          peak_hours?: string | null
+          member_capacity?: string | null
+          years_operating?: string | null
+          operating_days?: number | null
+          bio?: string | null
+          avatar_url?: string | null
+          owner_display_name?: string | null
+          is_published?: boolean
+          main_image_url?: string | null
+          optional_images_urls?: string[] | null
+          video_url?: string | null
+          video_file_url?: string | null
+          monthly_fee?: string | null
+          trainer_fee?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_records: {
         Row: {
           amount: number
@@ -193,6 +277,15 @@ export type Database = {
           gym_peak_hours: string | null
           gym_member_capacity: string | null
           gym_services: string[] | null
+          gym_main_image_url: string | null
+          gym_optional_images_urls: string[] | null
+          gym_video_url: string | null
+          gym_video_file_url: string | null
+          gym_monthly_fee: string | null
+          gym_trainer_fee: string | null
+          gym_latitude: number | null
+          gym_longitude: number | null
+          preferred_trainer_id: string | null
           specialization: string | null
           certifications: string[] | null
           certification_number: string | null
@@ -264,6 +357,15 @@ export type Database = {
           gym_peak_hours?: string | null
           gym_member_capacity?: string | null
           gym_services?: string[] | null
+          gym_main_image_url?: string | null
+          gym_optional_images_urls?: string[] | null
+          gym_video_url?: string | null
+          gym_video_file_url?: string | null
+          gym_monthly_fee?: string | null
+          gym_trainer_fee?: string | null
+          gym_latitude?: number | null
+          gym_longitude?: number | null
+          preferred_trainer_id?: string | null
           specialization?: string | null
           certifications?: string[] | null
           certification_number?: string | null
@@ -335,6 +437,15 @@ export type Database = {
           gym_peak_hours?: string | null
           gym_member_capacity?: string | null
           gym_services?: string[] | null
+          gym_main_image_url?: string | null
+          gym_optional_images_urls?: string[] | null
+          gym_video_url?: string | null
+          gym_video_file_url?: string | null
+          gym_monthly_fee?: string | null
+          gym_trainer_fee?: string | null
+          gym_latitude?: number | null
+          gym_longitude?: number | null
+          preferred_trainer_id?: string | null
           specialization?: string | null
           certifications?: string[] | null
           certification_number?: string | null
@@ -385,6 +496,195 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          title: string
+          message: string
+          metadata: Json
+          unread: boolean
+          dismissed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          title: string
+          message: string
+          metadata?: Json
+          unread?: boolean
+          dismissed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          title?: string
+          message?: string
+          metadata?: Json
+          unread?: boolean
+          dismissed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      admin_notifications: {
+        Row: {
+          id: string
+          recipient_user_id: string
+          type: string
+          title: string
+          message: string
+          from_user_id: string | null
+          unread: boolean
+          dismissed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          recipient_user_id: string
+          type: string
+          title: string
+          message: string
+          from_user_id?: string | null
+          unread?: boolean
+          dismissed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          recipient_user_id?: string
+          type?: string
+          title?: string
+          message?: string
+          from_user_id?: string | null
+          unread?: boolean
+          dismissed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workout_days: {
+        Row: {
+          id: string
+          user_id: string
+          day_date: string
+          focus: string
+          notes: string | null
+          duration_minutes: number | null
+          calories: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          day_date: string
+          focus?: string
+          notes?: string | null
+          duration_minutes?: number | null
+          calories?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          day_date?: string
+          focus?: string
+          notes?: string | null
+          duration_minutes?: number | null
+          calories?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workout_exercises: {
+        Row: {
+          id: string
+          workout_day_id: string
+          user_id: string
+          exercise_name: string
+          sets: number
+          reps: number
+          weight: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          workout_day_id: string
+          user_id: string
+          exercise_name: string
+          sets?: number
+          reps?: number
+          weight?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          workout_day_id?: string
+          user_id?: string
+          exercise_name?: string
+          sets?: number
+          reps?: number
+          weight?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      personal_records: {
+        Row: {
+          id: string
+          user_id: string
+          exercise_name: string
+          value: string
+          unit: string
+          improvement: string | null
+          achieved_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          exercise_name: string
+          value: string
+          unit?: string
+          improvement?: string | null
+          achieved_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          exercise_name?: string
+          value?: string
+          unit?: string
+          improvement?: string | null
+          achieved_at?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

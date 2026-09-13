@@ -1,10 +1,11 @@
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import type { Database } from "@/integrations/supabase/types";
-import { NextResponse } from "next/server";
+import { jsonError } from "@/lib/api/errors";
 
 /**
- * Server-side Supabase client for Route Handlers.
- * Pass the caller's JWT so RLS applies as that user.
+ * Server-side Supabase client for Route Handlers (Bearer JWT → RLS as that user).
  */
 export function createSupabaseServerClient(accessToken?: string | null): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -22,13 +23,44 @@ export function createSupabaseServerClient(accessToken?: string | null): Supabas
   });
 }
 
+/** Cookie-backed SSR client for Server Components / Route Handlers. */
+export async function createSupabaseCookieClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // Called from a Server Component — middleware/proxy will refresh cookies
+          }
+        },
+      },
+    },
+  );
+}
+
 /** Service-role client (bypasses RLS). Optional — only if SUPABASE_SERVICE_ROLE_KEY is set. */
 export function createSupabaseServiceClient(): SupabaseClient<Database> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !serviceKey) return null;
 
   return createClient<Database>(url, serviceKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+      },
+    },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -52,35 +84,52 @@ export type AuthedContext = {
 };
 
 /**
- * Validate Bearer JWT and return a user-scoped Supabase client.
- * Uses getUser(jwt) — more reliable than relying on header-only session state.
+ * Validate Bearer JWT (preferred for API) or fall back to cookie session.
  */
 export async function requireAuth(
   request: Request,
-): Promise<AuthedContext | { error: NextResponse }> {
+): Promise<AuthedContext | { error: ReturnType<typeof jsonError> }> {
   const accessToken = getBearerToken(request);
-  if (!accessToken) {
-    return {
-      error: NextResponse.json(
-        { error: "Unauthorized", hint: "Missing access token. Please log in again." },
-        { status: 401 },
-      ),
-    };
+
+  if (accessToken) {
+    const supabase = createSupabaseServerClient(accessToken);
+    const { data, error } = await supabase.auth.getUser(accessToken);
+
+    if (error || !data.user) {
+      return {
+        error: jsonError("Unauthorized", 401, {
+          hint: error?.message || "Invalid or expired session",
+        }),
+      };
+    }
+
+    return { supabase, user: data.user, accessToken };
   }
 
-  const supabase = createSupabaseServerClient(accessToken);
+  // Cookie session fallback (SSR / middleware-aligned)
+  try {
+    const cookieClient = await createSupabaseCookieClient();
+    const { data, error } = await cookieClient.auth.getUser();
+    if (error || !data.user) {
+      return {
+        error: jsonError("Unauthorized", 401, {
+          hint: "Missing access token. Please log in again.",
+        }),
+      };
+    }
 
-  // Pass JWT explicitly so validation does not depend on an in-memory server session
-  const { data, error } = await supabase.auth.getUser(accessToken);
-
-  if (error || !data.user) {
+    const { data: sessionData } = await cookieClient.auth.getSession();
+    const token = sessionData.session?.access_token || "";
     return {
-      error: NextResponse.json(
-        { error: "Unauthorized", hint: error?.message || "Invalid or expired session" },
-        { status: 401 },
-      ),
+      supabase: cookieClient as unknown as SupabaseClient<Database>,
+      user: data.user,
+      accessToken: token,
+    };
+  } catch {
+    return {
+      error: jsonError("Unauthorized", 401, {
+        hint: "Missing access token. Please log in again.",
+      }),
     };
   }
-
-  return { supabase, user: data.user, accessToken };
 }

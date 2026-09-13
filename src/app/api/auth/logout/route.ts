@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient, getBearerToken } from "@/lib/supabase/server";
+import {
+  createSupabaseCookieClient,
+  createSupabaseServerClient,
+  getBearerToken,
+} from "@/lib/supabase/server";
 
 /** POST /api/auth/logout */
 export async function POST(request: Request) {
   const token = getBearerToken(request);
-  const supabase = createSupabaseServerClient(token);
 
-  // Best-effort server revoke; client always clears local session too
-  if (token) {
-    await supabase.auth.getUser(token);
+  try {
+    const cookieClient = await createSupabaseCookieClient();
+    await cookieClient.auth.signOut();
+  } catch {
+    // ignore cookie clear failures
   }
-  await supabase.auth.signOut();
+
+  if (token) {
+    const supabase = createSupabaseServerClient(token);
+    await supabase.auth.signOut();
+  }
 
   return NextResponse.json({ ok: true });
 }

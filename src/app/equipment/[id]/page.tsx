@@ -6,7 +6,8 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { getEquipmentById, allEquipment } from "@/data/equipment";
-import { ArrowLeft, Check, AlertCircle, Lightbulb, Target } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, Lightbulb, Target, Dumbbell } from "lucide-react";
+import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 
 interface EquipmentDetailPageProps {
   params: Promise<{ id: string }>;
@@ -36,6 +37,11 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
     <div className="min-h-screen bg-background">
       <Navbar />
 
+      <ComingSoonOverlay
+        title="Equipment guides coming soon"
+        description={`${equipment.name} is a preview. Detailed guides unlock next — join for early access.`}
+        icon={Dumbbell}
+      >
       {/* Hero */}
       <section className="pt-24 relative">
         <div className="absolute inset-0 h-[50vh]">
@@ -234,6 +240,7 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
           })()}
         </div>
       </section>
+      </ComingSoonOverlay>
 
       <Footer />
     </div>

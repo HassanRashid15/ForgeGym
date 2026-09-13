@@ -8,11 +8,14 @@ export interface User {
   avatar?: string;
   /** Platform super admin — can approve gym-owner admins */
   isSuperAdmin?: boolean;
-  /** Gym brand name from profiles.gym_name */
+  /** Gym brand name from profiles.gym_name / gyms catalog */
   gymName?: string | null;
   gymOwnerId?: string | null;
   gymCity?: string | null;
   gymType?: string | null;
+  gymMainImageUrl?: string | null;
+  membershipStatus?: string | null;
+  membershipType?: string | null;
 }
 
 export type RegisterAccountType = "admin" | "customer";
@@ -37,6 +40,8 @@ export interface FitnessProfileData {
   requested_role?: "admin" | "user";
   /** Customer joins this gym (owner's user_id) */
   gym_owner_id?: string;
+  /** Optional preferred trainer at the selected gym */
+  preferred_trainer_id?: string;
   /** Gym owner fields (admin registration steps 2–3) */
   gym_name?: string;
   gym_type?: string;
@@ -47,7 +52,21 @@ export interface FitnessProfileData {
   gym_peak_hours?: string;
   gym_member_capacity?: string;
   gym_services?: string[];
+  gym_main_image_url?: string;
+  gym_optional_images_urls?: string[];
+  gym_video_url?: string;
+  gym_video_file_url?: string;
+  /** Monthly membership fee (admin gym registration) */
+  gym_monthly_fee?: string;
+  /** Personal trainer fee (admin gym registration) */
+  gym_trainer_fee?: string;
 }
+
+export type RegisterMediaFiles = {
+  mainImage?: File | null;
+  optionalImages?: File[];
+  videoFile?: File | null;
+};
 
 export interface AuthContextType {
   user: User | null;
@@ -57,13 +76,14 @@ export interface AuthContextType {
     email: string,
     password: string,
     name: string,
-    fitnessData?: FitnessProfileData
+    fitnessData?: FitnessProfileData,
+    media?: RegisterMediaFiles,
   ) => Promise<string | null>;
   updateFitnessProfile: (userId: string, data: FitnessProfileData) => Promise<void>;
   checkAccountExists: (email: string) => Promise<boolean | null>;
   checkEmailVerified: (email: string) => Promise<boolean>;
   resendVerificationEmail: (email: string) => Promise<void>;
-  logout: () => void;
+  logout: () => void | Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;

@@ -3,14 +3,88 @@ import {
   createSupabaseServerClient,
   createSupabaseServiceClient,
 } from "@/lib/supabase/server";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
+import { trackEvent } from "@/lib/monitoring";
+import { uploadGymMediaFile } from "@/lib/gym-media";
+import { notify, notifyApprovalRequest } from "@/lib/notify-actions";
+
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+async function parseRegisterBody(request: Request): Promise<{
+  email: string;
+  password: string;
+  fullName: string;
+  fitnessData: Record<string, any>;
+  roleHint?: string;
+  mainImage: File | null;
+  optionalImages: File[];
+  videoFile: File | null;
+}> {
+  const contentType = request.headers.get("content-type") || "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData();
+    const email = String(form.get("email") || "")
+      .trim()
+      .toLowerCase();
+    const password = String(form.get("password") || "");
+    const fullName = String(form.get("full_name") || form.get("name") || "").trim();
+    let fitnessData: Record<string, any> = {};
+    const rawFitness = form.get("fitnessData");
+    if (typeof rawFitness === "string" && rawFitness.trim()) {
+      try {
+        fitnessData = JSON.parse(rawFitness);
+      } catch {
+        fitnessData = {};
+      }
+    }
+
+    const mainImage = form.get("gym_main_image");
+    const videoFile = form.get("gym_video_file");
+    const optionalImages = form
+      .getAll("gym_optional_images")
+      .filter((f): f is File => f instanceof File);
+
+    return {
+      email,
+      password,
+      fullName,
+      fitnessData,
+      roleHint: String(form.get("role") || ""),
+      mainImage: mainImage instanceof File ? mainImage : null,
+      optionalImages,
+      videoFile: videoFile instanceof File ? videoFile : null,
+    };
+  }
+
+  const body = await request.json().catch(() => null);
+  return {
+    email: body?.email?.trim()?.toLowerCase() || "",
+    password: body?.password || "",
+    fullName: body?.full_name?.trim() || body?.name?.trim() || "",
+    fitnessData: body?.fitnessData || {},
+    roleHint: body?.role,
+    mainImage: null,
+    optionalImages: [],
+    videoFile: null,
+  };
+}
 
 /** POST /api/auth/register */
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
-  const email = body?.email?.trim()?.toLowerCase();
-  const password = body?.password;
-  const fullName = body?.full_name?.trim() || body?.name?.trim();
-  const fitnessData = body?.fitnessData || {};
+  const requestId = getRequestId(request);
+  const limited = await rateLimit(clientKey(request, "auth:register"), 5, 60_000);
+  if (!limited.allowed) {
+    trackEvent("auth.rate_limited", { route: "register", requestId });
+    return rateLimitedResponse(limited);
+  }
+
+  const parsed = await parseRegisterBody(request);
+  const { email, password, fullName } = parsed;
+  const fitnessData = { ...(parsed.fitnessData || {}) };
 
   if (!email || !password || !fullName) {
     return NextResponse.json(
@@ -20,7 +94,7 @@ export async function POST(request: Request) {
   }
 
   const requestedRole =
-    fitnessData.requested_role === "admin" || body?.role === "admin"
+    fitnessData.requested_role === "admin" || parsed.roleHint === "admin"
       ? "admin"
       : "user";
 
@@ -82,6 +156,105 @@ export async function POST(request: Request) {
       gym_city: gymProfile.gym_city,
       gym_type: gymProfile.gym_type,
     };
+
+    const preferredTrainerId = fitnessData.preferred_trainer_id
+      ? String(fitnessData.preferred_trainer_id).trim()
+      : "";
+    if (preferredTrainerId) {
+      const { data: trainerProfile } = await service
+        .from("profiles")
+        .select("user_id, gym_owner_id")
+        .eq("user_id", preferredTrainerId)
+        .maybeSingle();
+      const { data: trainerRoles } = await service
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", preferredTrainerId);
+      const isTrainer = (trainerRoles || []).some((r) => r.role === "trainer");
+      if (
+        !trainerProfile ||
+        !isTrainer ||
+        trainerProfile.gym_owner_id !== customerGymOwnerId
+      ) {
+        return NextResponse.json(
+          { error: "Selected trainer is not available at this gym" },
+          { status: 400 },
+        );
+      }
+    } else {
+      fitnessData.preferred_trainer_id = null;
+    }
+  }
+
+  // Block duplicate gym name+city / phone for gym owners
+  if (requestedRole === "admin" && service) {
+    const gymName = String(fitnessData.gym_name || "").trim();
+    const gymCity = String(fitnessData.gym_city || "").trim();
+    const phone = String(fitnessData.phone || "").trim();
+
+    if (!gymName) {
+      return NextResponse.json({ error: "Gym name is required" }, { status: 400 });
+    }
+    if (!parsed.mainImage && !fitnessData.gym_main_image_url) {
+      return NextResponse.json(
+        { error: "Gym main image is required" },
+        { status: 400 },
+      );
+    }
+
+    const { data: roles } = await service.from("user_roles").select("user_id").eq("role", "admin");
+    const adminIds = Array.from(new Set((roles || []).map((r) => r.user_id).filter(Boolean)));
+    if (adminIds.length > 0) {
+      const { data: profiles } = await service
+        .from("profiles")
+        .select("user_id, gym_name, gym_city, phone, is_super_admin")
+        .in("user_id", adminIds);
+
+      const rows = (profiles || []).filter((p) => !(p as any).is_super_admin);
+      const nameKey = normalizeKey(gymName);
+      const cityKey = normalizeKey(gymCity);
+      const nameHit = rows.find((p) => {
+        const existingName = normalizeKey(p.gym_name || "");
+        if (!existingName || existingName !== nameKey) return false;
+        if (!cityKey) return true;
+        const existingCity = normalizeKey(p.gym_city || "");
+        return (
+          !existingCity ||
+          existingCity === cityKey ||
+          existingCity.includes(cityKey.split(",")[0]) ||
+          cityKey.includes(existingCity.split(",")[0])
+        );
+      });
+
+      if (nameHit) {
+        return NextResponse.json(
+          {
+            error: `A gym named "${gymName}" is already registered${
+              nameHit.gym_city ? ` in ${nameHit.gym_city}` : ""
+            }.`,
+            code: "gym_duplicate",
+          },
+          { status: 409 },
+        );
+      }
+
+      const phoneDigits = phone.replace(/\D/g, "");
+      if (phoneDigits.length >= 7) {
+        const phoneHit = rows.find((p) => {
+          const existing = (p.phone || "").replace(/\D/g, "");
+          return existing.length >= 7 && existing === phoneDigits;
+        });
+        if (phoneHit) {
+          return NextResponse.json(
+            {
+              error: "This phone number is already used by another gym owner account.",
+              code: "phone_duplicate",
+            },
+            { status: 409 },
+          );
+        }
+      }
+    }
   }
 
   // Block duplicate accounts (auth.users + profiles)
@@ -104,13 +277,21 @@ export async function POST(request: Request) {
     "http://localhost:3000";
   const emailRedirectTo = `${siteUrl}/verification?email=${encodeURIComponent(email)}`;
 
+  // Keep auth metadata light — large media URLs still go on profile upsert
+  const {
+    gym_optional_images_urls: _opt,
+    gym_main_image_url: _main,
+    gym_video_file_url: _vid,
+    ...metaFitness
+  } = fitnessData;
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
-        ...fitnessData,
+        ...metaFitness,
         requested_role: requestedRole,
       },
       emailRedirectTo,
@@ -145,6 +326,41 @@ export async function POST(request: Request) {
 
   const userId = data.user?.id ?? null;
 
+  // Upload gym media with service role (signup has no session yet)
+  if (userId && service && requestedRole === "admin") {
+    try {
+      if (parsed.mainImage) {
+        fitnessData.gym_main_image_url = await uploadGymMediaFile(
+          service,
+          userId,
+          parsed.mainImage,
+          "main-image",
+        );
+      }
+
+      if (parsed.optionalImages.length > 0) {
+        const urls: string[] = [];
+        for (const file of parsed.optionalImages.slice(0, 5)) {
+          urls.push(
+            await uploadGymMediaFile(service, userId, file, "optional-image"),
+          );
+        }
+        fitnessData.gym_optional_images_urls = urls;
+      }
+
+      if (parsed.videoFile) {
+        fitnessData.gym_video_file_url = await uploadGymMediaFile(
+          service,
+          userId,
+          parsed.videoFile,
+          "video",
+        );
+      }
+    } catch (uploadErr: any) {
+      console.warn("gym media upload failed:", uploadErr?.message || uploadErr);
+    }
+  }
+
   // Backup: sync profile/role/notifications via RPC (when session exists)
   // or service role (when confirm-email is on and session is null)
   let profileSynced = false;
@@ -165,7 +381,7 @@ export async function POST(request: Request) {
         const gymOwnerId =
           requestedRole === "admin" ? userId : customerGymOwnerId;
 
-        await service.from("profiles").upsert(
+        const { error: profileUpsertError } = await service.from("profiles").upsert(
           {
             id: userId,
             user_id: userId,
@@ -196,6 +412,16 @@ export async function POST(request: Request) {
             gym_peak_hours: fitnessData.gym_peak_hours || null,
             gym_member_capacity: fitnessData.gym_member_capacity || null,
             gym_services: fitnessData.gym_services || null,
+            gym_main_image_url: fitnessData.gym_main_image_url || null,
+            gym_optional_images_urls: fitnessData.gym_optional_images_urls || null,
+            gym_video_url: fitnessData.gym_video_url || null,
+            gym_video_file_url: fitnessData.gym_video_file_url || null,
+            gym_monthly_fee:
+              requestedRole === "admin" ? fitnessData.gym_monthly_fee || null : null,
+            gym_trainer_fee:
+              requestedRole === "admin" ? fitnessData.gym_trainer_fee || null : null,
+            preferred_trainer_id:
+              requestedRole === "user" ? fitnessData.preferred_trainer_id || null : null,
             date_of_birth: fitnessData.date_of_birth || null,
             gender: fitnessData.gender || null,
             weight_kg: fitnessData.weight_kg ?? null,
@@ -215,13 +441,32 @@ export async function POST(request: Request) {
           { onConflict: "user_id" },
         );
 
-        await service.from("user_roles").upsert(
+        if (profileUpsertError) {
+          console.error("profile upsert failed:", profileUpsertError.message);
+          if (customerGymOwnerId) {
+            return NextResponse.json(
+              {
+                error:
+                  profileUpsertError.message ||
+                  "Account created but could not link you to the gym. Please contact support.",
+                code: "gym_link_failed",
+                userId,
+              },
+              { status: 500 },
+            );
+          }
+        }
+
+        const { error: roleUpsertError } = await service.from("user_roles").upsert(
           {
             user_id: userId,
             role: requestedRole === "admin" ? "admin" : "user",
           } as any,
           { onConflict: "user_id,role" },
         );
+        if (roleUpsertError) {
+          console.warn("role upsert failed:", roleUpsertError.message);
+        }
 
         if (requestedRole === "admin") {
           const { data: superAdmins } = await (service.from("profiles") as any)
@@ -233,17 +478,15 @@ export async function POST(request: Request) {
             .map((p) => p.user_id)
             .filter((id) => id && id !== userId);
 
-          if (recipients.length > 0) {
-            await (service.from("admin_notifications" as any) as any).insert(
-              recipients.map((recipient_user_id: string) => ({
-                recipient_user_id,
-                type: "admin_approval_request",
-                from_user_id: userId,
-                title: "New admin awaiting approval",
-                message: `${fullName} (${email}) registered as admin/gym owner and needs approval.`,
-              })),
-            );
-          }
+          await notifyApprovalRequest({
+            recipientIds: recipients,
+            type: "admin_approval_request",
+            fromUserId: userId!,
+            title: "New admin awaiting approval",
+            message: `${fullName} (${email}) registered as admin/gym owner and needs approval.`,
+          });
+
+          void notify.registrationWelcome(userId!, "admin");
         }
 
         if (customerGymOwnerId) {
@@ -270,17 +513,17 @@ export async function POST(request: Request) {
             ...new Set((ownerRoles || []).map((r) => r.user_id).filter(Boolean)),
           ].filter((id) => id !== userId);
 
-          if (recipients.length > 0) {
-            await (service.from("admin_notifications" as any) as any).insert(
-              recipients.map((recipient_user_id: string) => ({
-                recipient_user_id,
-                type: "member_approval_request",
-                from_user_id: userId,
-                title: "New member awaiting approval",
-                message: `${fullName} (${email}) wants to join ${gymMeta?.gym_name || "your gym"} and needs approval.`,
-              })),
-            );
-          }
+          await notifyApprovalRequest({
+            recipientIds: recipients,
+            type: "member_approval_request",
+            fromUserId: userId!,
+            title: "New member awaiting approval",
+            message: `${fullName} (${email}) wants to join ${gymMeta?.gym_name || "your gym"} and needs approval.`,
+          });
+
+          void notify.memberPending(userId!, gymMeta?.gym_name);
+        } else if (requestedRole !== "admin" && userId) {
+          void notify.registrationWelcome(userId, "user");
         }
         profileSynced = true;
       } catch (e: any) {

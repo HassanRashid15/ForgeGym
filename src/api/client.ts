@@ -100,6 +100,9 @@ export async function apiRequest<T>(
   const requiresAuth =
     group === "profiles" ||
     group === "admin" ||
+    (group === "progress" &&
+      action !== "exerciseCatalog" &&
+      action !== "exerciseDemo") ||
     (group === "auth" && (action === "logout" || action === "me"));
 
   if (requiresAuth && !token) {

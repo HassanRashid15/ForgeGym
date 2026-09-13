@@ -5,13 +5,12 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
-import { Check, X, Sparkles } from "lucide-react";
+import { Check, X, Sparkles, CreditCard } from "lucide-react";
 import BMICalculator from "@/components/fitness/BMICalculator";
 import FitnessAssessment from "@/components/fitness/FitnessAssessment";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-// import { usePageLoading } from "@/hooks/usePageLoading";
-// import PageSkeleton from "@/components/skeletons/PageSkeleton";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
+import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 
 const plans = [
   {
@@ -104,6 +103,11 @@ export default function MembershipPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
+      <ComingSoonOverlay
+        title="Online payments coming soon"
+        description="Preview membership plans below. Checkout unlocks next — join a gym now and pay at the front desk for launch."
+        icon={CreditCard}
+      >
       {/* Hero */}
       <section className="pt-32 pb-16 bg-card relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
@@ -201,6 +205,7 @@ export default function MembershipPage() {
                   <Button
                     className="w-full mt-auto"
                     variant={plan.popular ? "default" : "outline"}
+                    disabled
                   >
                     Get Started
                   </Button>
@@ -310,6 +315,7 @@ export default function MembershipPage() {
           </ScrollAnimate>
         </div>
       </section>
+      </ComingSoonOverlay>
 
       <Footer />
     </div>

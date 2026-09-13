@@ -1,130 +1,145 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { cn } from "@/lib/utils"
-import { Check, Circle } from "lucide-react"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 interface StepperProps {
   steps: Array<{
-    id: string
-    title: string
-    description?: string
-  }>
-  currentStep: number
-  completedSteps?: number[]
-  className?: string
+    id: string;
+    title: string;
+    description?: string;
+  }>;
+  currentStep: number;
+  completedSteps?: number[];
+  className?: string;
+  /** Jump to a step (usually completed / current). Same pattern as register editing. */
+  onStepClick?: (stepNumber: number) => void;
 }
 
-interface StepperItemProps {
-  step: {
-    id: string
-    title: string
-    description?: string
+const TIP = 10;
+
+function chevronClip(isFirst: boolean, isLast: boolean) {
+  if (isFirst && isLast) {
+    return "polygon(0 0, 100% 0, 100% 100%, 0 100%)";
   }
-  index: number
-  currentStep: number
-  isCompleted: boolean
-  isLast: boolean
+  if (isFirst) {
+    return `polygon(0 0, calc(100% - ${TIP}px) 0, 100% 50%, calc(100% - ${TIP}px) 100%, 0 100%)`;
+  }
+  if (isLast) {
+    return `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${TIP}px 50%)`;
+  }
+  return `polygon(0 0, calc(100% - ${TIP}px) 0, 100% 50%, calc(100% - ${TIP}px) 100%, 0 100%, ${TIP}px 50%)`;
 }
 
-const StepperItem = ({ step, index, currentStep, isCompleted, isLast }: StepperItemProps) => {
-  const isActive = index + 1 === currentStep
-  const isPending = index + 1 > currentStep
+/**
+ * Chevron stepper — scrollable without visible scrollbar; click completed steps to edit.
+ */
+const Stepper = ({
+  steps,
+  currentStep,
+  completedSteps = [],
+  className,
+  onStepClick,
+}: StepperProps) => {
+  const scrollerRef = React.useRef<HTMLDivElement>(null);
+  const safeStep = Math.min(Math.max(currentStep, 1), Math.max(steps.length, 1));
+  const pct =
+    currentStep > steps.length
+      ? 100
+      : Math.max(0, Math.round(((safeStep - 1) / (steps.length - 1 || 1)) * 100));
 
-  return (
-    <div className="flex items-center flex-1">
-      <div className="flex flex-col items-center flex-1">
-        {/* Step Indicator */}
-        <div
-          className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300",
-            isActive
-              ? "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.6)] scale-110"
-              : isCompleted
-              ? "bg-green-500 text-white"
-              : "bg-zinc-800 text-zinc-500 border-2 border-zinc-600"
-          )}
-        >
-          {isCompleted ? (
-            <Check className="w-5 h-5" />
-          ) : isActive ? (
-            <span>{index + 1}</span>
-          ) : (
-            <Circle className="w-4 h-4" />
-          )}
-        </div>
+  React.useEffect(() => {
+    const root = scrollerRef.current;
+    if (!root) return;
+    const active = root.querySelector<HTMLElement>('[aria-current="step"]');
+    active?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }, [currentStep]);
 
-        {/* Step Title */}
-        <p
-          className={cn(
-            "text-xs font-medium mt-2 text-center transition-colors",
-            isActive
-              ? "text-white"
-              : isCompleted
-              ? "text-green-400"
-              : "text-zinc-500"
-          )}
-        >
-          {step.title}
-        </p>
-
-        {/* Step Description */}
-        {step.description && (
-          <p
-            className={cn(
-              "text-[10px] text-center mt-1 transition-colors",
-              isActive ? "text-zinc-300" : "text-zinc-600"
-            )}
-          >
-            {step.description}
-          </p>
-        )}
-      </div>
-
-      {/* Separator */}
-      {!isLast && (
-        <div
-          className={cn(
-            "flex-1 h-0.5 mx-4 transition-all duration-300",
-            isCompleted ? "bg-green-500" : isActive ? "bg-red-500/50" : "bg-zinc-700"
-          )}
-        />
-      )}
-    </div>
-  )
-}
-
-const Stepper = ({ steps, currentStep, completedSteps = [], className }: StepperProps) => {
   return (
     <div className={cn("w-full", className)}>
-      <div className="flex items-center">
-        {steps.map((step, index) => (
-          <StepperItem
-            key={step.id}
-            step={step}
-            index={index}
-            currentStep={currentStep}
-            isCompleted={completedSteps.includes(index + 1) || index + 1 < currentStep}
-            isLast={index === steps.length - 1}
-          />
-        ))}
+      <div
+        ref={scrollerRef}
+        className={cn(
+          "w-full overflow-x-auto overscroll-x-contain",
+          "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        <ol className="flex h-12 w-max min-w-full list-none items-stretch p-0">
+          {steps.map((step, index) => {
+            const stepNumber = index + 1;
+            const isFirst = index === 0;
+            const isLast = index === steps.length - 1;
+            const isActive = stepNumber === currentStep;
+            const isCompleted =
+              completedSteps.includes(stepNumber) || stepNumber < currentStep;
+            const isNext = stepNumber === currentStep + 1;
+            const canJump =
+              !!onStepClick && (stepNumber <= currentStep || isCompleted);
+            const clip = chevronClip(isFirst, isLast);
+
+            return (
+              <li
+                key={step.id}
+                className={cn(
+                  "relative flex h-12 w-[8.75rem] shrink-0 flex-col justify-center sm:w-[9.5rem]",
+                  !isFirst && "-ml-2",
+                )}
+                style={{ zIndex: isActive ? 30 : isCompleted ? 20 : 10 + index }}
+                aria-current={isActive ? "step" : undefined}
+              >
+                <button
+                  type="button"
+                  disabled={!canJump}
+                  onClick={() => canJump && onStepClick?.(stepNumber)}
+                  title={`${step.title}${step.description ? ` — ${step.description}` : ""}`}
+                  className={cn(
+                    "flex h-full w-full flex-col justify-center text-left transition-opacity",
+                    isActive && "bg-primary text-primary-foreground",
+                    isCompleted && !isActive && "bg-primary/20 text-foreground",
+                    !isActive &&
+                      !isCompleted &&
+                      "border border-border bg-card text-foreground",
+                    canJump && "cursor-pointer hover:brightness-110",
+                    !canJump && "cursor-default",
+                  )}
+                  style={{
+                    clipPath: clip,
+                    WebkitClipPath: clip,
+                    paddingLeft: isFirst ? 10 : TIP + 8,
+                    paddingRight: isLast ? 10 : TIP + 8,
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "block truncate text-[11px] font-semibold leading-tight sm:text-xs",
+                      isActive && "text-primary-foreground",
+                      isNext && !isActive && "text-primary",
+                    )}
+                  >
+                    {step.title}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-0.5 block truncate text-[9px] leading-tight sm:text-[10px]",
+                      isActive
+                        ? "text-primary-foreground/85"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {step.description || `Step ${stepNumber}`}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
       </div>
 
-      {/* Progress Percentage */}
-      <div className="text-right mt-2 flex justify-between items-center">
-        {currentStep > steps.length && (
-          <span className="text-xs font-bold text-green-400">
-            ✓ Complete
-          </span>
-        )}
-        <span className="text-xs font-bold text-red-500 ml-auto">
-          {currentStep > steps.length 
-            ? 100 
-            : Math.max(0, Math.round(((currentStep - 1) / (steps.length - 1 || 1)) * 100))}%
-        </span>
+      <div className="mt-2 flex justify-end">
+        <span className="text-xs font-semibold tabular-nums text-primary">{pct}%</span>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export { Stepper, type StepperProps }
+export { Stepper, type StepperProps };

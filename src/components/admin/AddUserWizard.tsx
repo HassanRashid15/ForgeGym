@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,34 +18,46 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Camera, Loader2, Shield, Dumbbell, HardHat } from "lucide-react";
+import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown } from "lucide-react";
 import { toast } from "sonner";
-import { createManagedUser, type CreateStaffPayload } from "@/api/admin-users";
+import { createManagedUser, updateManagedUser, type CreateStaffPayload, type ManagedUser } from "@/api/admin-users";
 import { getNameInitials } from "@/lib/utils";
 
-export type StaffCreateRole = "admin" | "trainer" | "staff";
+export type StaffCreateRole = "admin" | "trainer" | "staff" | "user" | "super_admin";
 
 const TRAINER_STEPS = [
-  { id: "basic", title: "Basic" },
-  { id: "pro", title: "Professional" },
-  { id: "job", title: "Employment" },
-  { id: "gym", title: "Gym" },
-  { id: "account", title: "Account" },
-  { id: "review", title: "Review" },
+  { id: "basic", title: "Basic", description: "Name & contact" },
+  { id: "pro", title: "Professional", description: "Skills & certs" },
+  { id: "job", title: "Employment", description: "Pay & schedule" },
+  { id: "gym", title: "Gym", description: "Clients & capacity" },
+  { id: "account", title: "Account", description: "Login access" },
+  { id: "review", title: "Review", description: "Confirm details" },
 ];
 
 const ADMIN_STEPS = [
-  { id: "basic", title: "Basic" },
-  { id: "account", title: "Account" },
-  { id: "review", title: "Review" },
+  { id: "basic", title: "Basic", description: "Name & contact" },
+  { id: "account", title: "Account", description: "Login access" },
+  { id: "review", title: "Review", description: "Confirm details" },
+];
+
+const SUPER_ADMIN_STEPS = [
+  { id: "basic", title: "Basic", description: "Name & contact" },
+  { id: "account", title: "Account", description: "Platform access" },
+  { id: "review", title: "Review", description: "Confirm details" },
 ];
 
 const STAFF_STEPS = [
-  { id: "basic", title: "Basic" },
-  { id: "job", title: "Job" },
-  { id: "work", title: "Work" },
-  { id: "account", title: "Account" },
-  { id: "review", title: "Review" },
+  { id: "basic", title: "Basic", description: "Name & contact" },
+  { id: "job", title: "Job", description: "Role & type" },
+  { id: "work", title: "Work", description: "Shift & duties" },
+  { id: "account", title: "Account", description: "Login access" },
+  { id: "review", title: "Review", description: "Confirm details" },
+];
+
+const MEMBER_STEPS = [
+  { id: "basic", title: "Basic", description: "Name & contact" },
+  { id: "plan", title: "Membership", description: "Plan & status" },
+  { id: "review", title: "Review", description: "Confirm details" },
 ];
 
 const STAFF_TYPES = [
@@ -108,6 +120,7 @@ type WizardFormState = {
   confirm_password: string;
   role: StaffCreateRole;
   system_permissions: string[];
+  membership_type: string;
 };
 
 const emptyForm = (): WizardFormState => ({
@@ -153,6 +166,7 @@ const emptyForm = (): WizardFormState => ({
   confirm_password: "",
   role: "staff",
   system_permissions: [],
+  membership_type: "basic",
 });
 
 function Field({
@@ -181,24 +195,141 @@ function ReviewRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function listToCsv(value?: string[] | string | null) {
+  if (!value) return "";
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function formFromUser(user: ManagedUser, fallbackRole: StaffCreateRole): WizardFormState {
+  const parts = String(user.full_name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const first_name = parts[0] || "";
+  const last_name = parts.slice(1).join(" ");
+  const role: StaffCreateRole =
+    user.is_super_admin
+      ? "super_admin"
+      : user.role === "admin" ||
+          user.role === "trainer" ||
+          user.role === "staff" ||
+          user.role === "user"
+        ? user.role
+        : user.role === "moderator"
+          ? "user"
+          : fallbackRole;
+
+  return {
+    ...emptyForm(),
+    first_name,
+    last_name,
+    email: user.email || "",
+    phone: user.phone || "",
+    gender: user.gender || "",
+    date_of_birth: user.date_of_birth || "",
+    address: user.address || "",
+    emergency_contact: user.emergency_contact || "",
+    account_status: user.account_status || user.membership_status || "active",
+    membership_type: user.membership_type || "basic",
+    avatar_preview: user.avatar_url || "",
+    avatar_base64: "",
+    specialization: user.specialization || "",
+    certifications: listToCsv(user.certifications),
+    certification_number: user.certification_number || "",
+    years_experience: user.years_experience || "",
+    education: user.education || "",
+    skills: listToCsv(user.skills),
+    languages: listToCsv(user.languages),
+    trainer_bio: user.trainer_bio || "",
+    joining_date: user.join_date || "",
+    employment_type: user.employment_type || "",
+    branch_department: user.branch_department || "",
+    department: user.department || "",
+    salary: user.salary || "",
+    commission_percentage:
+      user.commission_percentage !== null && user.commission_percentage !== undefined
+        ? String(user.commission_percentage)
+        : "",
+    working_days: user.working_days || "",
+    working_hours: user.working_hours || "",
+    max_client_capacity: user.max_client_capacity || "",
+    assigned_members: listToCsv(user.assigned_members),
+    availability: user.availability || "",
+    pt_sessions: user.pt_sessions || "",
+    leave_info: user.leave_info || "",
+    staff_type: user.staff_type || "",
+    supervisor: user.supervisor || "",
+    shift: user.shift || "",
+    overtime_rate: user.overtime_rate || "",
+    responsibilities: user.responsibilities || "",
+    login_enabled: user.login_enabled !== false,
+    password: "",
+    confirm_password: "",
+    role,
+    system_permissions: user.system_permissions || [],
+  };
+}
+
 type AddUserWizardProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  /** Limit which roles can be selected (default: all three). */
+  allowedRoles?: StaffCreateRole[];
+  /** Initial role when the sheet opens. */
+  defaultRole?: StaffCreateRole;
+  /** When set, opens as edit wizard with full stepped form. */
+  editUser?: ManagedUser | null;
 };
 
-export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardProps) {
-  const [form, setForm] = useState<WizardFormState>(emptyForm);
+export function AddUserWizard({
+  open,
+  onOpenChange,
+  onCreated,
+  allowedRoles = ["admin", "trainer", "staff"],
+  defaultRole,
+  editUser = null,
+}: AddUserWizardProps) {
+  const isEdit = !!editUser;
+  const initialRole =
+    (editUser?.is_super_admin ? "super_admin" : null) ||
+    (editUser &&
+      (editUser.role === "admin" ||
+        editUser.role === "trainer" ||
+        editUser.role === "staff" ||
+        editUser.role === "user") &&
+      editUser.role) ||
+    (editUser?.role === "moderator" ? "user" : null) ||
+    (defaultRole && allowedRoles.includes(defaultRole) ? defaultRole : null) ||
+    allowedRoles[0] ||
+    "staff";
+
+  const [form, setForm] = useState<WizardFormState>(() =>
+    editUser
+      ? formFromUser(editUser, initialRole)
+      : {
+          ...emptyForm(),
+          role: initialRole,
+          login_enabled: initialRole !== "staff",
+        },
+  );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const roleLocked = allowedRoles.length === 1 || isEdit;
+
   const steps =
-    form.role === "admin"
-      ? ADMIN_STEPS
-      : form.role === "trainer"
-        ? TRAINER_STEPS
-        : STAFF_STEPS;
+    form.role === "super_admin"
+      ? SUPER_ADMIN_STEPS
+      : form.role === "admin"
+        ? ADMIN_STEPS
+        : form.role === "trainer"
+          ? TRAINER_STEPS
+          : form.role === "user"
+            ? MEMBER_STEPS
+            : STAFF_STEPS;
   const totalSteps = steps.length;
   const inputClass = "bg-background";
 
@@ -207,15 +338,48 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
   };
 
   const reset = () => {
-    setForm(emptyForm());
+    if (editUser) {
+      setForm(formFromUser(editUser, initialRole));
+    } else {
+      setForm({
+        ...emptyForm(),
+        role: initialRole,
+        login_enabled: initialRole !== "staff",
+      });
+    }
     setStep(1);
     setSaving(false);
   };
 
+  // Sync form when opening create/edit sheet
+  useEffect(() => {
+    if (!open) return;
+    if (editUser) {
+      setForm(formFromUser(editUser, initialRole));
+    } else {
+      setForm({
+        ...emptyForm(),
+        role: initialRole,
+        login_enabled: initialRole !== "staff",
+      });
+    }
+    setStep(1);
+    setSaving(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when sheet opens / edit target changes
+  }, [open, editUser?.user_id]);
+
+  const ignoreCloseUntilRef = useRef(0);
+
   const handleOpenChange = (next: boolean) => {
+    // Ignore spurious close while another sheet/dialog is tearing down
+    if (!next && Date.now() < ignoreCloseUntilRef.current) return;
     if (!next) reset();
     onOpenChange(next);
   };
+
+  useEffect(() => {
+    if (open) ignoreCloseUntilRef.current = Date.now() + 400;
+  }, [open, editUser?.user_id]);
 
   const handleRoleChange = (role: StaffCreateRole) => {
     setForm((prev) => ({
@@ -251,7 +415,7 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
     reader.readAsDataURL(file);
   };
 
-  const needsPassword = form.role !== "staff" || form.login_enabled;
+  const needsPassword = !isEdit && (form.role !== "staff" || form.login_enabled);
 
   const fullName = [form.first_name, form.last_name].map((s) => s.trim()).filter(Boolean).join(" ");
 
@@ -259,11 +423,17 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
     const isAccountStep =
       (form.role === "trainer" && step === 5) ||
       (form.role === "admin" && step === 2) ||
+      (form.role === "super_admin" && step === 2) ||
       (form.role === "staff" && step === 4);
+    // members have no password/account step
 
     if (step === 1) {
-      if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
-        toast.error("First name, last name, and email are required");
+      if (!form.first_name.trim() || !form.last_name.trim()) {
+        toast.error("First name and last name are required");
+        return false;
+      }
+      if (!isEdit && !form.email.trim()) {
+        toast.error("Email is required");
         return false;
       }
     }
@@ -300,6 +470,8 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
     address: form.address.trim() || null,
     emergency_contact: form.emergency_contact.trim() || null,
     account_status: form.account_status,
+    membership_status: form.account_status,
+    membership_type: form.membership_type.trim() || "basic",
     role: form.role,
     avatar_base64: form.avatar_base64 || undefined,
     specialization: form.specialization.trim() || null,
@@ -336,21 +508,77 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
     if (!validateStep()) return;
     setSaving(true);
     try {
-      const result = await createManagedUser(buildPayload());
-      toast.success(result.message || "Created successfully");
+      if (isEdit && editUser) {
+        const payload = buildPayload();
+        await updateManagedUser({
+          userId: editUser.user_id,
+          full_name: payload.full_name,
+          phone: payload.phone,
+          address: payload.address,
+          account_status: payload.account_status,
+          membership_status: payload.account_status,
+          membership_type: payload.membership_type,
+          role: payload.role,
+          specialization: payload.specialization,
+          staff_type: payload.staff_type,
+          login_enabled: payload.login_enabled,
+          gender: payload.gender,
+          date_of_birth: payload.date_of_birth,
+          emergency_contact: payload.emergency_contact,
+          trainer_bio: payload.trainer_bio,
+          certifications: payload.certifications,
+          certification_number: payload.certification_number,
+          years_experience: payload.years_experience,
+          education: payload.education,
+          skills: payload.skills,
+          languages: payload.languages,
+          employment_type: payload.employment_type,
+          branch_department: payload.branch_department,
+          department: payload.department,
+          salary: payload.salary,
+          commission_percentage: payload.commission_percentage,
+          working_days: payload.working_days,
+          working_hours: payload.working_hours,
+          max_client_capacity: payload.max_client_capacity,
+          assigned_members: payload.assigned_members,
+          availability: payload.availability,
+          pt_sessions: payload.pt_sessions,
+          leave_info: payload.leave_info,
+          supervisor: payload.supervisor,
+          shift: payload.shift,
+          overtime_rate: payload.overtime_rate,
+          responsibilities: payload.responsibilities,
+          system_permissions: payload.system_permissions,
+          joining_date: payload.joining_date,
+          avatar_base64: payload.avatar_base64,
+        });
+        toast.success("Saved successfully");
+      } else {
+        const result = await createManagedUser(buildPayload());
+        toast.success(result.message || "Created successfully");
+      }
       handleOpenChange(false);
       onCreated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to create");
+      toast.error(err instanceof Error ? err.message : isEdit ? "Failed to save" : "Failed to create");
     } finally {
       setSaving(false);
     }
   };
 
-  const completedSteps = useMemo(
-    () => Array.from({ length: Math.max(0, step - 1) }, (_, i) => i + 1),
-    [step],
-  );
+  const completedSteps = useMemo(() => {
+    if (isEdit) {
+      return Array.from({ length: totalSteps }, (_, i) => i + 1);
+    }
+    return Array.from({ length: Math.max(0, step - 1) }, (_, i) => i + 1);
+  }, [isEdit, step, totalSteps]);
+
+  const activeStepMeta = steps[step - 1];
+
+  const jumpToStep = (n: number) => {
+    if (n < 1 || n > totalSteps) return;
+    if (isEdit || n <= step) setStep(n);
+  };
 
   const renderBasic = () => (
     <div className="space-y-4">
@@ -405,6 +633,7 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
             type="email"
             className={inputClass}
             value={form.email}
+            disabled={isEdit}
             onChange={(e) => set("email", e.target.value)}
           />
         </Field>
@@ -525,8 +754,13 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
         <Badge className="bg-primary text-primary-foreground uppercase">{form.role}</Badge>
         {form.role === "admin" && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Co-admin for <strong>your gym only</strong>. Verification email will be sent to{" "}
+            Gym owner / co-admin. Verification email will be sent to{" "}
             {form.email || "their address"}.
+          </p>
+        )}
+        {form.role === "super_admin" && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Platform super admin with full Forge Gym access.
           </p>
         )}
         {form.role === "staff" && form.staff_type && (
@@ -534,7 +768,10 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
         )}
       </div>
 
-      {(form.role === "admin" || form.role === "trainer" || form.login_enabled) && (
+      {(form.role === "admin" ||
+        form.role === "super_admin" ||
+        form.role === "trainer" ||
+        form.login_enabled) && (
         <div className="space-y-3">
           <p className="text-sm font-medium">System permissions</p>
           {PERMISSION_OPTIONS.filter((p) =>
@@ -585,7 +822,15 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
       <Separator />
       <ReviewRow label="Phone" value={form.phone} />
       <ReviewRow label="Gender" value={form.gender} />
+      <ReviewRow label="Address" value={form.address} />
+      <ReviewRow label="Emergency contact" value={form.emergency_contact} />
       <ReviewRow label="Status" value={form.account_status} />
+      {form.role === "user" && (
+        <>
+          <ReviewRow label="Plan" value={form.membership_type} />
+          <ReviewRow label="Joined" value={form.joining_date} />
+        </>
+      )}
       {form.role === "trainer" && (
         <>
           <ReviewRow label="Specialization" value={form.specialization} />
@@ -609,12 +854,62 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
       )}
       {form.role === "admin" && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-          This co-admin will belong to <strong>your gym</strong> and receive a verification
-          email.
+          This admin will be created as an approved gym owner account.
+        </p>
+      )}
+      {form.role === "super_admin" && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          This person will get <strong>full platform</strong> super admin access.
         </p>
       )}
     </div>
   );
+
+  const renderMembership = () => (
+    <div className="space-y-4">
+      <Field id="membership_type" label="Membership plan">
+        <select
+          id="membership_type"
+          className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
+          value={form.membership_type}
+          onChange={(e) => set("membership_type", e.target.value)}
+        >
+          <option value="basic">Basic</option>
+          <option value="premium">Premium</option>
+          <option value="vip">VIP</option>
+          <option value="staff">Staff</option>
+        </select>
+      </Field>
+      <Field id="member_status" label="Membership status">
+        <select
+          id="member_status"
+          className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
+          value={form.account_status}
+          onChange={(e) => set("account_status", e.target.value)}
+        >
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="pending">Pending</option>
+          <option value="expired">Expired</option>
+        </select>
+      </Field>
+      <Field id="joining_date" label="Join date">
+        <Input
+          id="joining_date"
+          type="date"
+          className={inputClass}
+          value={form.joining_date}
+          onChange={(e) => set("joining_date", e.target.value)}
+        />
+      </Field>
+    </div>
+  );
+
+  const renderMemberBody = () => {
+    if (step === 1) return renderBasic();
+    if (step === 2) return renderMembership();
+    return renderReview();
+  };
 
   const renderTrainerBody = () => {
     switch (step) {
@@ -977,57 +1272,133 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
     return renderReview();
   };
 
+  const platformOnly =
+    allowedRoles.every((r) => r === "super_admin" || r === "admin") &&
+    allowedRoles.includes("super_admin");
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>Add gym staff</SheetTitle>
+          <SheetTitle>
+            {isEdit
+              ? form.role === "trainer"
+                ? "Edit trainer"
+                : form.role === "super_admin"
+                  ? "Edit super admin"
+                  : form.role === "admin"
+                    ? "Edit admin"
+                    : form.role === "staff"
+                      ? "Edit staff"
+                      : form.role === "user"
+                        ? "Edit member"
+                        : "Edit user"
+              : platformOnly
+                ? "Add platform user"
+                : roleLocked && initialRole === "trainer"
+                  ? "Add trainer"
+                  : roleLocked && initialRole === "admin"
+                    ? "Add admin"
+                    : roleLocked && initialRole === "staff"
+                      ? "Add staff"
+                      : "Add gym staff"}
+          </SheetTitle>
           <SheetDescription>
-            Add a co-admin, trainer, or staff member for <strong>your gym only</strong>.
-            Roles: Admin → Trainer → Staff → Member.
+            {isEdit
+              ? "Update details using the same stepped form. Click any step to jump and edit."
+              : platformOnly
+                ? "Create a platform super admin or gym owner admin."
+                : roleLocked && initialRole === "trainer"
+                  ? "Add a trainer for your gym only."
+                  : "Add a co-admin or staff member for your gym only."}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <Button
-            type="button"
-            variant={form.role === "admin" ? "default" : "outline"}
-            className="gap-1 px-2"
-            onClick={() => handleRoleChange("admin")}
+        {!roleLocked && (
+          <div
+            className={`mt-4 grid gap-2 ${
+              allowedRoles.length <= 2 ? "grid-cols-2" : "grid-cols-3"
+            }`}
           >
-            <Shield className="h-4 w-4" />
-            Admin
-          </Button>
-          <Button
-            type="button"
-            variant={form.role === "trainer" ? "default" : "outline"}
-            className="gap-1 px-2"
-            onClick={() => handleRoleChange("trainer")}
-          >
-            <Dumbbell className="h-4 w-4" />
-            Trainer
-          </Button>
-          <Button
-            type="button"
-            variant={form.role === "staff" ? "default" : "outline"}
-            className="gap-1 px-2"
-            onClick={() => handleRoleChange("staff")}
-          >
-            <HardHat className="h-4 w-4" />
-            Staff
-          </Button>
-        </div>
+            {allowedRoles.includes("super_admin") && (
+              <Button
+                type="button"
+                variant={form.role === "super_admin" ? "default" : "outline"}
+                className="gap-1 px-2"
+                onClick={() => handleRoleChange("super_admin")}
+              >
+                <Crown className="h-4 w-4" />
+                Super admin
+              </Button>
+            )}
+            {allowedRoles.includes("admin") && (
+              <Button
+                type="button"
+                variant={form.role === "admin" ? "default" : "outline"}
+                className="gap-1 px-2"
+                onClick={() => handleRoleChange("admin")}
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </Button>
+            )}
+            {allowedRoles.includes("trainer") && (
+              <Button
+                type="button"
+                variant={form.role === "trainer" ? "default" : "outline"}
+                className="gap-1 px-2"
+                onClick={() => handleRoleChange("trainer")}
+              >
+                <Dumbbell className="h-4 w-4" />
+                Trainer
+              </Button>
+            )}
+            {allowedRoles.includes("staff") && (
+              <Button
+                type="button"
+                variant={form.role === "staff" ? "default" : "outline"}
+                className="gap-1 px-2"
+                onClick={() => handleRoleChange("staff")}
+              >
+                <HardHat className="h-4 w-4" />
+                Staff
+              </Button>
+            )}
+          </div>
+        )}
 
-        <div className="mt-4 overflow-x-auto pb-2">
-          <Stepper steps={steps} currentStep={step} completedSteps={completedSteps} />
+        <div className="mt-5 w-full shrink-0 space-y-3">
+          {activeStepMeta && (
+            <header>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.28em] text-primary">
+                Step {step} of {totalSteps}
+              </p>
+              <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                {activeStepMeta.title}
+              </h3>
+              {activeStepMeta.description && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {activeStepMeta.description}
+                </p>
+              )}
+            </header>
+          )}
+          <Stepper
+            steps={steps}
+            currentStep={step}
+            completedSteps={completedSteps}
+            onStepClick={jumpToStep}
+          />
         </div>
 
         <div className="mt-4 flex-1">
-          {form.role === "admin"
+          {form.role === "admin" || form.role === "super_admin"
             ? renderAdminBody()
             : form.role === "trainer"
               ? renderTrainerBody()
-              : renderStaffBody()}
+              : form.role === "user"
+                ? renderMemberBody()
+                : renderStaffBody()}
         </div>
 
         <SheetFooter className="mt-6 gap-2 sm:justify-between">
@@ -1048,10 +1419,12 @@ export function AddUserWizard({ open, onOpenChange, onCreated }: AddUserWizardPr
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating…
+                  {isEdit ? "Saving…" : "Creating…"}
                 </>
+              ) : isEdit ? (
+                `Save ${form.role === "super_admin" ? "super admin" : form.role}`
               ) : (
-                `Create ${form.role}`
+                `Create ${form.role === "super_admin" ? "super admin" : form.role}`
               )}
             </Button>
           )}

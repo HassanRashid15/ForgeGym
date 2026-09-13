@@ -6,60 +6,24 @@ import { Button } from "@/components/ui/button";
 import { getNameInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Dumbbell,
-  Flame,
   Calendar,
   CreditCard,
   ArrowRight,
-  Clock,
   Target,
   TrendingUp,
-  Zap,
+  Building2,
+  MapPin,
+  ExternalLink,
 } from "lucide-react";
 
-const weekStats = [
-  { label: "Sessions", value: "12", hint: "this week", icon: Dumbbell },
-  { label: "Calories", value: "2.4k", hint: "burned", icon: Flame },
-  { label: "Classes", value: "8", hint: "attended", icon: Calendar },
-  { label: "Streak", value: "5", hint: "days", icon: Zap },
-];
-
-const upcoming = [
-  {
-    name: "Power HIIT",
-    when: "Today · 5:00 PM",
-    room: "Studio A",
-    intensity: "High",
-    href: "/classes/power-hiit",
-    image: "/images/class-hiit.jpg",
-  },
-  {
-    name: "Flow Yoga",
-    when: "Tomorrow · 7:00 AM",
-    room: "Studio B",
-    intensity: "Low",
-    href: "/classes/power-yoga",
-    image: "/images/class-yoga.jpg",
-  },
-  {
-    name: "Spin Surge",
-    when: "Wed · 6:00 PM",
-    room: "Cycle Room",
-    intensity: "High",
-    href: "/classes/spin-revolution",
-    image: "/images/class-spin.jpg",
-  },
-];
-
-const activity = [
-  { title: "Chest & Triceps session", time: "2 hours ago", meta: "48 min · PR on bench" },
-  { title: "Booked Spin Surge", time: "Yesterday", meta: "Wed 6:00 PM" },
-  { title: "Weekly goal hit", time: "2 days ago", meta: "8 / 8 workouts" },
-];
-
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const firstName = (user?.name || "Athlete").trim().split(/\s+/)[0];
+  const isCustomer = !isAdmin && user?.role !== "trainer" && user?.role !== "staff";
+  const hasGym = Boolean(user?.gymOwnerId && user?.gymName);
+  const membershipLabel = (user?.membershipStatus || "active").replace(/_/g, " ");
+  const planLabel = user?.membershipType || "Basic";
+  const gymHref = user?.gymOwnerId ? `/gyms/${user.gymOwnerId}` : null;
 
   return (
     <div className="relative min-h-full">
@@ -75,32 +39,36 @@ export default function DashboardPage() {
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-20"
-            style={{ backgroundImage: "url('/images/hero-gym.jpg')" }}
+            style={{
+              backgroundImage: `url('${user?.gymMainImageUrl || "/images/hero-gym.jpg"}')`,
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />
           <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                Member hub
+                {isCustomer ? "Member hub" : "Dashboard"}
               </p>
               <h1 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl md:text-6xl">
                 LET&apos;S GO,{" "}
                 <span className="text-gradient">{firstName.toUpperCase()}</span>
               </h1>
               <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-                Your week is stacking up. Stay consistent — the next session is already waiting.
+                {hasGym && isCustomer
+                  ? `Training with ${user?.gymName}${user?.gymCity ? ` in ${user.gymCity}` : ""}. Stay consistent — your next session is waiting.`
+                  : "Your week is stacking up. Stay consistent — the next session is already waiting."}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild className="gap-2">
-                <Link href="/dashboard/schedule">
-                  <Calendar className="h-4 w-4" />
-                  View schedule
+                <Link href="/dashboard/progress">
+                  <TrendingUp className="h-4 w-4" />
+                  Log progress
                 </Link>
               </Button>
               <Button asChild variant="outline" className="gap-2">
-                <Link href="/dashboard/classes">
-                  Browse classes
+                <Link href="/profile">
+                  Open profile
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -108,10 +76,83 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {isCustomer && hasGym && (
+          <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+            <div className="grid md:grid-cols-[minmax(0,280px)_1fr]">
+              <div className="relative min-h-[160px] bg-muted/40 md:min-h-full">
+                {user?.gymMainImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.gymMainImageUrl}
+                    alt={user.gymName || "Gym"}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[160px] items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-card">
+                    <Building2 className="h-12 w-12 text-primary/70" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col justify-between gap-4 p-5 sm:p-6">
+                <div>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                    Your gym
+                  </p>
+                  <h2 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl">
+                    {user?.gymName}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                    {user?.gymCity && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-primary" />
+                        {user.gymCity}
+                      </span>
+                    )}
+                    {user?.gymType && (
+                      <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium">
+                        {user.gymType}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold capitalize text-emerald-600 dark:text-emerald-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      {membershipLabel}
+                    </span>
+                    <span className="rounded-full border border-primary/30 px-2.5 py-0.5 text-xs font-medium capitalize text-primary">
+                      {planLabel} plan
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {gymHref && (
+                    <Button asChild className="gap-2">
+                      <Link href={gymHref}>
+                        View gym page
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  )}
+                  <Button asChild variant="outline" className="gap-2">
+                    <Link href="/profile?tab=membership">
+                      <CreditCard className="h-4 w-4" />
+                      Gym association
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
-          {weekStats.map((stat) => (
-            <div
+          {[
+            { label: "Progress", value: "Live", hint: "log workouts", icon: TrendingUp, href: "/dashboard/progress" },
+            { label: "Classes", value: "Soon", hint: "booking", icon: Calendar, href: "/dashboard/classes" },
+            { label: "Payments", value: "Soon", hint: "online billing", icon: CreditCard, href: "/dashboard/membership" },
+            { label: "Profile", value: "Ready", hint: "your gym", icon: Target, href: "/profile" },
+          ].map((stat) => (
+            <Link
               key={stat.label}
+              href={stat.href}
               className="bg-card p-5 transition-colors hover:bg-muted/40 sm:p-6"
             >
               <div className="mb-4 flex items-center justify-between">
@@ -120,62 +161,75 @@ export default function DashboardPage() {
                   {stat.hint}
                 </span>
               </div>
-              <p className="font-display text-4xl tracking-wide text-foreground sm:text-5xl">
+              <p className="font-display text-3xl tracking-wide text-foreground sm:text-4xl">
                 {stat.value}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
-            </div>
+            </Link>
           ))}
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <section className="space-y-4">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <h2 className="font-display text-2xl tracking-wide text-foreground sm:text-3xl">
-                  UP NEXT
-                </h2>
-                <p className="text-sm text-muted-foreground">Classes on your calendar</p>
-              </div>
-              <Link
-                href="/dashboard/schedule"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Full schedule
-              </Link>
+            <div>
+              <h2 className="font-display text-2xl tracking-wide text-foreground sm:text-3xl">
+                WHAT&apos;S LIVE
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Core features ready now — classes & payments ship next
+              </p>
             </div>
 
             <div className="space-y-3">
-              {upcoming.map((item) => (
+              {[
+                {
+                  title: "Workout progress",
+                  body: "Log focus, sets, reps, and track your week.",
+                  href: "/dashboard/progress",
+                  badge: "Live",
+                },
+                {
+                  title: "Gym association",
+                  body: "See your gym, trainer, and membership status.",
+                  href: "/profile?tab=membership",
+                  badge: "Live",
+                },
+                {
+                  title: "Class booking",
+                  body: "Browse schedules and reserve spots.",
+                  href: "/dashboard/classes",
+                  badge: "Coming soon",
+                },
+                {
+                  title: "Online payments",
+                  body: "Pay monthly fees and manage plans online.",
+                  href: "/dashboard/membership",
+                  badge: "Coming soon",
+                },
+              ].map((item) => (
                 <Link
-                  key={item.name}
+                  key={item.title}
                   href={item.href}
-                  className="group flex overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/40 hover:bg-muted/30"
+                  className="group flex items-center justify-between gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:bg-muted/30 sm:p-5"
                 >
-                  <div
-                    className="relative hidden w-28 shrink-0 bg-cover bg-center sm:block"
-                    style={{ backgroundImage: `url('${item.image}')` }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent to-card" />
-                  </div>
-                  <div className="flex flex-1 items-center justify-between gap-4 p-4 sm:p-5">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate font-semibold tracking-tight text-foreground">
-                          {item.name}
-                        </h3>
-                        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                          {item.intensity}
-                        </span>
-                      </div>
-                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        {item.when}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{item.room}</p>
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold tracking-tight text-foreground">
+                        {item.title}
+                      </h3>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          item.badge === "Live"
+                            ? "bg-emerald-500/15 text-emerald-500"
+                            : "bg-primary/15 text-primary"
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                    <p className="text-sm text-muted-foreground">{item.body}</p>
                   </div>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                 </Link>
               ))}
             </div>
@@ -195,19 +249,24 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
                 </div>
               </div>
-              <div className="mb-4 flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-600 dark:text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Active
+                  {membershipLabel}
                 </span>
-                <span className="rounded-full border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary">
-                  Basic plan
+                <span className="rounded-full border border-primary/30 px-2.5 py-1 text-xs font-medium capitalize text-primary">
+                  {planLabel} plan
                 </span>
               </div>
+              {hasGym && isCustomer && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Member of <span className="font-medium text-foreground">{user?.gymName}</span>
+                  {user?.gymCity ? ` · ${user.gymCity}` : ""}
+                </p>
+              )}
               <Button asChild variant="outline" size="sm" className="w-full gap-2">
-                <Link href="/dashboard/membership">
-                  <CreditCard className="h-4 w-4" />
-                  Manage membership
+                <Link href="/profile">
+                  Edit profile
                 </Link>
               </Button>
             </section>
@@ -216,43 +275,19 @@ export default function DashboardPage() {
               <div className="mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4 text-primary" />
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Weekly goal
+                  Early access
                 </h2>
               </div>
-              <p className="font-display text-3xl tracking-wide text-foreground">8 / 8</p>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-full rounded-full bg-gradient-to-r from-primary to-accent" />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Goal complete — keep the streak alive.
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                You’re in the launch wave. Class booking and online payments unlock next —
+                your gym + progress tracking are live now.
               </p>
-            </section>
-
-            <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recent
-                  </h2>
-                </div>
-                <Link href="/dashboard/progress" className="text-xs text-primary hover:underline">
-                  Progress
+              <Button asChild size="sm" className="mt-4 w-full gap-2">
+                <Link href="/dashboard/progress">
+                  <TrendingUp className="h-4 w-4" />
+                  Open Progress
                 </Link>
-              </div>
-              <ul className="space-y-4">
-                {activity.map((item) => (
-                  <li
-                    key={item.title}
-                    className="border-b border-border pb-3 last:border-0 last:pb-0"
-                  >
-                    <p className="text-sm font-medium text-foreground">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.time} · {item.meta}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+              </Button>
             </section>
           </div>
         </div>

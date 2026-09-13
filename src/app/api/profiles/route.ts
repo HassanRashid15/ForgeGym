@@ -1,5 +1,54 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/supabase/server";
+import {
+  createSupabaseServiceClient,
+  requireAuth,
+} from "@/lib/supabase/server";
+import { pickAllowedProfileFields } from "@/lib/profiles/allowlist";
+import { jsonError } from "@/lib/api/errors";
+import { notify } from "@/lib/notify-actions";
+
+/** Keep public.gyms catalog media in sync when profile media URLs change. */
+async function syncGymCatalogMedia(
+  userId: string,
+  profile: {
+    gym_main_image_url?: string | null;
+    gym_optional_images_urls?: string[] | null;
+    gym_video_url?: string | null;
+    gym_video_file_url?: string | null;
+    gym_monthly_fee?: string | null;
+    gym_trainer_fee?: string | null;
+  },
+) {
+  const service = createSupabaseServiceClient();
+  if (!service) return;
+
+  const patch: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if ("gym_main_image_url" in profile) {
+    patch.main_image_url = profile.gym_main_image_url ?? null;
+  }
+  if ("gym_optional_images_urls" in profile) {
+    patch.optional_images_urls = profile.gym_optional_images_urls ?? null;
+  }
+  if ("gym_video_url" in profile) {
+    patch.video_url = profile.gym_video_url ?? null;
+  }
+  if ("gym_video_file_url" in profile) {
+    patch.video_file_url = profile.gym_video_file_url ?? null;
+  }
+  if ("gym_monthly_fee" in profile) {
+    patch.monthly_fee = profile.gym_monthly_fee ?? null;
+  }
+  if ("gym_trainer_fee" in profile) {
+    patch.trainer_fee = profile.gym_trainer_fee ?? null;
+  }
+
+  if (Object.keys(patch).length <= 1) return;
+
+  await service.from("gyms").update(patch as never).eq("owner_user_id", userId);
+}
 
 /** GET /api/profiles — current user's profile */
 export async function GET(request: Request) {
@@ -15,7 +64,7 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return jsonError(error.message, 400);
   }
 
   return NextResponse.json({ profile: data });
@@ -27,7 +76,8 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
 
   const { supabase, user } = auth;
-  const body = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const allowed = pickAllowedProfileFields(body);
 
   const { data: existing } = await supabase
     .from("profiles")
@@ -41,7 +91,7 @@ export async function POST(request: Request) {
 
   const todayDate = new Date().toISOString().split("T")[0];
   const fallbackName =
-    body.full_name ||
+    (typeof allowed.full_name === "string" && allowed.full_name) ||
     user.user_metadata?.full_name ||
     user.email?.split("@")[0] ||
     "Member";
@@ -56,13 +106,13 @@ export async function POST(request: Request) {
       membership_status: "active",
       membership_type: "basic",
       join_date: todayDate,
-      ...body,
-    })
+      ...allowed,
+    } as never)
     .select()
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return jsonError(error.message, 400);
   }
 
   return NextResponse.json({ profile: data }, { status: 201 });
@@ -77,30 +127,31 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => null);
 
   if (!body || typeof body !== "object") {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    return jsonError("Invalid body", 400);
   }
 
-  delete body.id;
-  delete body.user_id;
-  delete body.email;
-
+  const allowed = pickAllowedProfileFields(body as Record<string, unknown>);
   const updatePayload = {
-    ...body,
+    ...allowed,
     updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
     .from("profiles")
-    .update(updatePayload)
+    .update(updatePayload as never)
     .eq("user_id", user.id)
     .select()
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return jsonError(error.message, 400);
   }
 
   if (data) {
+    await syncGymCatalogMedia(user.id, allowed);
+    if (Object.keys(allowed).length > 0) {
+      void notify.profileSaved(user.id);
+    }
     return NextResponse.json({ profile: data });
   }
 
@@ -112,7 +163,7 @@ export async function PATCH(request: Request) {
       user_id: user.id,
       email: user.email,
       full_name:
-        body.full_name ||
+        (typeof allowed.full_name === "string" && allowed.full_name) ||
         user.user_metadata?.full_name ||
         user.email?.split("@")[0] ||
         "Member",
@@ -120,12 +171,17 @@ export async function PATCH(request: Request) {
       membership_type: "basic",
       join_date: todayDate,
       ...updatePayload,
-    })
+    } as never)
     .select()
     .maybeSingle();
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 400 });
+    return jsonError(insertError.message, 400);
+  }
+
+  if (created) {
+    await syncGymCatalogMedia(user.id, allowed);
+    void notify.profileSaved(user.id);
   }
 
   return NextResponse.json({ profile: created });

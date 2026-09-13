@@ -19,6 +19,8 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
+import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
+import { GymMediaSection } from "@/components/profile/GymMediaSection";
 import { 
   User, 
   Mail, 
@@ -29,13 +31,14 @@ import {
   Save, 
   Camera,
   Shield,
-  CreditCard,
   Target,
   Dumbbell,
   Flame,
   Loader2,
   Sparkles,
   Building2,
+  Image as ImageIcon,
+  Wallet,
 } from "lucide-react";
 
 interface DatabaseProfile extends ProfileRecord {}
@@ -98,11 +101,21 @@ export default function ProfilePage() {
     gymPeakHours: "",
     gymMemberCapacity: "",
     gymServices: [] as string[],
+    gymMainImageUrl: "",
+    gymOptionalImagesUrls: [] as string[],
+    gymVideoUrl: "",
+    gymVideoFileUrl: "",
+    gymMonthlyFee: "",
+    gymTrainerFee: "",
     adminApproved: false,
     isSuperAdmin: false,
     approvalRequestedAt: "",
     adminRejectedAt: "",
     isVerified: false,
+    gymOwnerId: "",
+    preferredTrainerId: "",
+    preferredTrainerName: "",
+    associatedGymMonthlyFee: "",
   });
 
   const [initialData, setInitialData] = useState<typeof profileData | null>(null);
@@ -186,6 +199,7 @@ export default function ProfilePage() {
           membershipType: dbProfile?.membership_type || "basic",
           joinDate: dbProfile?.join_date || new Date().toISOString(),
           avatarUrl: dbProfile?.avatar_url || "",
+          gymOwnerId: dbProfile?.gym_owner_id || meta.gym_owner_id || "",
           gymName: dbProfile?.gym_name || meta.gym_name || "",
           gymType: dbProfile?.gym_type || meta.gym_type || "",
           gymCity: dbProfile?.gym_city || meta.gym_city || "",
@@ -201,17 +215,88 @@ export default function ProfilePage() {
           gymServices: Array.isArray(dbProfile?.gym_services)
             ? dbProfile.gym_services
             : (Array.isArray(meta.gym_services) ? meta.gym_services : []),
+          gymMainImageUrl: dbProfile?.gym_main_image_url || meta.gym_main_image_url || "",
+          gymOptionalImagesUrls: Array.isArray(dbProfile?.gym_optional_images_urls)
+            ? dbProfile.gym_optional_images_urls
+            : (Array.isArray(meta.gym_optional_images_urls) ? meta.gym_optional_images_urls : []),
+          gymVideoUrl: dbProfile?.gym_video_url || meta.gym_video_url || "",
+          gymVideoFileUrl: dbProfile?.gym_video_file_url || meta.gym_video_file_url || "",
+          gymMonthlyFee: dbProfile?.gym_monthly_fee || "",
+          gymTrainerFee: dbProfile?.gym_trainer_fee || "",
           adminApproved: dbProfile?.admin_approved === true,
           isSuperAdmin: dbProfile?.is_super_admin === true || isSuperAdmin === true,
           approvalRequestedAt: dbProfile?.approval_requested_at || "",
           adminRejectedAt: dbProfile?.admin_rejected_at || "",
           isVerified: dbProfile?.is_verified === true,
+          preferredTrainerId: dbProfile?.preferred_trainer_id || "",
+          preferredTrainerName: "",
+          associatedGymMonthlyFee: "",
         };
 
         setProfileData(mapped);
         setInitialData(mapped);
         setAvatarPreview(dbProfile?.avatar_url || null);
         setPendingAvatarFile(null);
+
+        const trainerId = dbProfile?.preferred_trainer_id;
+        const ownerId = dbProfile?.gym_owner_id || meta.gym_owner_id;
+        if (ownerId && isSubscribed) {
+          try {
+            const gymRes = await fetch(`/api/gyms/${encodeURIComponent(ownerId)}`);
+            if (gymRes.ok) {
+              const gymData = await gymRes.json().catch(() => ({}));
+              const fee =
+                gymData?.gym?.monthlyFee != null
+                  ? String(gymData.gym.monthlyFee)
+                  : "";
+              const gymLabel = gymData?.gym?.gymName
+                ? String(gymData.gym.gymName)
+                : "";
+              const cityLabel = gymData?.gym?.gymCity
+                ? String(gymData.gym.gymCity)
+                : "";
+              if (isSubscribed) {
+                setProfileData((prev) => ({
+                  ...prev,
+                  associatedGymMonthlyFee: fee,
+                  gymName: prev.gymName || gymLabel,
+                  gymCity: prev.gymCity || cityLabel,
+                }));
+                setInitialData((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        associatedGymMonthlyFee: fee,
+                        gymName: prev.gymName || gymLabel,
+                        gymCity: prev.gymCity || cityLabel,
+                      }
+                    : prev,
+                );
+              }
+            }
+          } catch {
+            /* ignore gym fee lookup */
+          }
+        }
+        if (trainerId && ownerId && isSubscribed) {
+          try {
+            const res = await fetch(`/api/gyms/${encodeURIComponent(ownerId)}/trainers`);
+            const data = await res.json().catch(() => ({}));
+            const trainers = Array.isArray(data?.trainers) ? data.trainers : [];
+            const match = trainers.find((t: { userId?: string }) => t.userId === trainerId);
+            if (match && isSubscribed) {
+              const name = match.fullName
+                ? `${match.fullName}${match.specialization ? ` — ${match.specialization}` : ""}`
+                : "Preferred trainer";
+              setProfileData((prev) => ({ ...prev, preferredTrainerName: name }));
+              setInitialData((prev) =>
+                prev ? { ...prev, preferredTrainerName: name } : prev,
+              );
+            }
+          } catch {
+            /* ignore trainer label lookup */
+          }
+        }
 
         if (!isAdmin && dbProfile && !dbProfile.fitness_goal && meta.fitness_goal) {
           void updateMyProfile({
@@ -284,6 +369,12 @@ export default function ProfilePage() {
               gym_peak_hours: profileData.gymPeakHours.trim() || null,
               gym_member_capacity: profileData.gymMemberCapacity.trim() || null,
               gym_services: profileData.gymServices,
+              gym_main_image_url: profileData.gymMainImageUrl || null,
+              gym_optional_images_urls: profileData.gymOptionalImagesUrls || null,
+              gym_video_url: profileData.gymVideoUrl || null,
+              gym_video_file_url: profileData.gymVideoFileUrl || null,
+              gym_monthly_fee: profileData.gymMonthlyFee.trim() || null,
+              gym_trainer_fee: profileData.gymTrainerFee.trim() || null,
             }
           : {
               date_of_birth: profileData.dateOfBirth || null,
@@ -514,7 +605,9 @@ export default function ProfilePage() {
             ) : (
               <>
                 <TabsTrigger value="fitness">Fitness & Routine</TabsTrigger>
-                <TabsTrigger value="membership">Membership</TabsTrigger>
+                <TabsTrigger value="membership">
+                  {profileData.gymName ? `Gym: ${profileData.gymName}` : "Membership"}
+                </TabsTrigger>
               </>
             )}
             <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -736,9 +829,20 @@ export default function ProfilePage() {
               <div className="grid gap-6 md:grid-cols-2">
                 <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Building2 className="h-5 w-5 text-primary" />
-                      Gym Profile
+                    <CardTitle className="flex items-center gap-3 text-xl">
+                      <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary text-primary-foreground">
+                        {profileData.gymMainImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={profileData.gymMainImageUrl}
+                            alt={profileData.gymName || "Gym"}
+                            className="absolute inset-0 size-full object-cover"
+                          />
+                        ) : (
+                          <Building2 className="h-5 w-5" />
+                        )}
+                      </div>
+                      <span>Gym Profile</span>
                     </CardTitle>
                     <CardDescription>Saved from admin registration</CardDescription>
                   </CardHeader>
@@ -788,6 +892,34 @@ export default function ProfilePage() {
                         placeholder="Not specified"
                         className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                       />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymMonthlyFee">Monthly Gym Fee</Label>
+                        <Input
+                          id="gymMonthlyFee"
+                          value={profileData.gymMonthlyFee}
+                          onChange={(e) =>
+                            setProfileData({ ...profileData, gymMonthlyFee: e.target.value })
+                          }
+                          disabled={!isEditing}
+                          placeholder="e.g. 5000"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gymTrainerFee">Trainer Fee</Label>
+                        <Input
+                          id="gymTrainerFee"
+                          value={profileData.gymTrainerFee}
+                          onChange={(e) =>
+                            setProfileData({ ...profileData, gymTrainerFee: e.target.value })
+                          }
+                          disabled={!isEditing}
+                          placeholder="e.g. 3000"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
@@ -915,6 +1047,34 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
               </div>
+
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <ImageIcon className="h-5 w-5 text-primary" />
+                    Gym photos & video
+                  </CardTitle>
+                  <CardDescription>Main image, gallery, and video stored in gym-media</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <GymMediaSection
+                    mainImageUrl={profileData.gymMainImageUrl}
+                    optionalImagesUrls={profileData.gymOptionalImagesUrls}
+                    videoUrl={profileData.gymVideoUrl}
+                    videoFileUrl={profileData.gymVideoFileUrl}
+                    persistToDb
+                    onUpdate={(media) =>
+                      setProfileData((prev) => ({
+                        ...prev,
+                        gymMainImageUrl: media.mainImageUrl,
+                        gymOptionalImagesUrls: media.optionalImagesUrls,
+                        gymVideoUrl: media.videoUrl,
+                        gymVideoFileUrl: media.videoFileUrl,
+                      }))
+                    }
+                  />
+                </CardContent>
+              </Card>
             </TabsContent>
           )}
 
@@ -1138,183 +1298,144 @@ export default function ProfilePage() {
           {/* ════════════ Tab 3: Membership ════════════ */}
           {!isAdmin && (
           <TabsContent value="membership" className="space-y-6">
-            <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Membership Status & Plan
-                </CardTitle>
-                <CardDescription>Live database membership tier</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-xl bg-gradient-to-r from-red-950/30 via-zinc-900 to-zinc-900 border border-red-500/20 gap-4">
-                  <div>
-                    <span className="text-xs font-semibold text-primary uppercase tracking-wider">Current Plan</span>
-                    <h3 className="text-2xl font-bold capitalize mt-1 text-foreground">
-                      {profileData.membershipType} Tier
-                    </h3>
-                    <p className="text-muted-foreground text-sm mt-1">Gym Journey Hub Access</p>
+            {profileData.gymName ? (
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    Gym Association
+                  </CardTitle>
+                  <CardDescription>
+                    {profileData.gymName ? `You're associated with ${profileData.gymName}` : "You're not currently associated with any gym"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-xl bg-gradient-to-r from-red-950/30 via-zinc-900 to-zinc-900 border border-red-500/20 gap-4">
+                    <div>
+                      <span className="text-xs font-semibold text-primary uppercase tracking-wider">Associated Gym</span>
+                      <h3 className="text-2xl font-bold mt-1 text-foreground">
+                        {profileData.gymName}
+                      </h3>
+                      {profileData.gymCity && (
+                        <p className="text-muted-foreground text-sm mt-1 flex items-center gap-1">
+                          <MapPin className="h-4 w-4" />
+                          {profileData.gymCity}
+                        </p>
+                      )}
+                      <p className="text-sm mt-2 flex items-center gap-1.5 text-foreground">
+                        <Wallet className="h-4 w-4 text-primary" />
+                        <span className="text-muted-foreground">Monthly fee:</span>
+                        <span className="font-semibold">
+                          {profileData.associatedGymMonthlyFee
+                            ? `${profileData.associatedGymMonthlyFee} / month`
+                            : "Not set"}
+                        </span>
+                      </p>
+                    </div>
+                    <Badge className="bg-emerald-500 text-white px-4 py-1.5 self-start sm:self-center capitalize">
+                      {profileData.membershipStatus}
+                    </Badge>
                   </div>
-                  <Badge className="bg-emerald-500 text-white px-4 py-1.5 self-start sm:self-center capitalize">
-                    {profileData.membershipStatus}
-                  </Badge>
-                </div>
 
-                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Member Since</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {profileData.joinDate ? new Date(profileData.joinDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Recently Joined"}
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Days with Gym</span>
+                      <p className="text-lg font-bold mt-1 text-foreground">{membershipDays} days</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                      <span className="text-xs text-muted-foreground font-medium">Membership Type</span>
+                      <p className="text-lg font-bold mt-1 text-primary capitalize">{profileData.membershipType}</p>
+                    </div>
+                  </div>
+
                   <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-xs text-muted-foreground font-medium">Member Since</span>
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Dumbbell className="h-3.5 w-3.5" />
+                      Preferred Trainer
+                    </span>
                     <p className="text-lg font-bold mt-1 text-foreground">
-                      {profileData.joinDate ? new Date(profileData.joinDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Recently Joined"}
+                      {profileData.preferredTrainerName ||
+                        (profileData.preferredTrainerId ? "Selected trainer" : "None selected")}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Chosen at signup — optional, you can train without a preferred trainer.
                     </p>
                   </div>
-                  <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-xs text-muted-foreground font-medium">Days with Us</span>
-                    <p className="text-lg font-bold mt-1 text-foreground">{membershipDays} days</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-xs text-muted-foreground font-medium">Account Role</span>
-                    <p className="text-lg font-bold mt-1 text-primary capitalize">{user?.role || "Member"}</p>
-                  </div>
-                </div>
 
-                <div className="pt-2 flex flex-wrap gap-3">
-                  <Link href="/membership">
-                    <Button className="bg-[#EF1111] hover:bg-[#C90808]">Explore Upgrade Options</Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="pt-2 flex flex-wrap gap-3">
+                    {profileData.gymOwnerId && (
+                      <Link href={`/gyms/${profileData.gymOwnerId}`}>
+                        <Button className="bg-[#EF1111] hover:bg-[#C90808]">View Gym Details</Button>
+                      </Link>
+                    )}
+                    <Link href="/">
+                      <Button variant="outline">Browse Other Gyms</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    No Gym Association
+                  </CardTitle>
+                  <CardDescription>You're not currently associated with any gym</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-6 rounded-xl bg-zinc-900/60 border border-zinc-800 text-center">
+                    <p className="text-muted-foreground mb-4">
+                      To join a gym, browse available gyms and request membership approval from the gym owner.
+                    </p>
+                    <Link href="/">
+                      <Button className="bg-[#EF1111] hover:bg-[#C90808]">Browse Available Gyms</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
           )}
 
           {/* ════════════ Tab 4: Settings ════════════ */}
           <TabsContent value="settings" className="space-y-6">
-            {isAdmin && (
-              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <Building2 className="h-5 w-5 text-primary" />
-                    Gym Configuration
-                  </CardTitle>
-                  <CardDescription>
-                    Same gym data as registration — edit here or under Gym Details
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsGymName">Gym Name</Label>
-                      <Input
-                        id="settingsGymName"
-                        value={profileData.gymName}
-                        onChange={(e) => setProfileData({ ...profileData, gymName: e.target.value })}
-                        disabled={!isEditing}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsGymCity">City</Label>
-                      <Input
-                        id="settingsGymCity"
-                        value={profileData.gymCity}
-                        onChange={(e) => setProfileData({ ...profileData, gymCity: e.target.value })}
-                        disabled={!isEditing}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsGymType">Gym Type</Label>
-                      <Input
-                        id="settingsGymType"
-                        value={profileData.gymType}
-                        onChange={(e) => setProfileData({ ...profileData, gymType: e.target.value })}
-                        disabled={!isEditing}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsPeakHours">Peak Hours</Label>
-                      <Input
-                        id="settingsPeakHours"
-                        value={profileData.gymPeakHours}
-                        onChange={(e) =>
-                          setProfileData({ ...profileData, gymPeakHours: e.target.value })
-                        }
-                        disabled={!isEditing}
-                        placeholder="e.g. 5pm - 8pm"
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsPhone">Contact Phone</Label>
-                      <Input
-                        id="settingsPhone"
-                        value={profileData.phone}
-                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                        disabled={!isEditing}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="settingsCapacity">Member Capacity</Label>
-                      <Input
-                        id="settingsCapacity"
-                        value={profileData.gymMemberCapacity}
-                        onChange={(e) =>
-                          setProfileData({ ...profileData, gymMemberCapacity: e.target.value })
-                        }
-                        disabled={!isEditing}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="settingsAddress">Address</Label>
-                    <Input
-                      id="settingsAddress"
-                      value={profileData.address}
-                      onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                      disabled={!isEditing}
-                      className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                    />
-                  </div>
-                  {!isEditing && (
-                    <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                      Edit gym settings
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <Shield className="h-5 w-5 text-primary" />
-                  Account Security
-                </CardTitle>
-                <CardDescription>Manage credentials and login security</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-lg border border-zinc-800 bg-zinc-900/60">
-                  <div>
-                    <p className="font-medium text-foreground">Email Address</p>
-                    <p className="text-sm text-muted-foreground">{profileData.email}</p>
-                  </div>
-                  <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">Verified</Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-lg border border-zinc-800 bg-zinc-900/60">
-                  <div>
-                    <p className="font-medium text-foreground">Password Management</p>
-                    <p className="text-sm text-muted-foreground">Keep your password strong and updated</p>
-                  </div>
-                  <Link href="/login">
-                    <Button variant="outline" size="sm">Update Password</Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+            <ProfileSettingsTab
+              isAdmin={isAdmin}
+              isEditing={isEditing}
+              setIsEditing={setIsEditing}
+              isSaving={isSaving}
+              onSave={() => void handleSave()}
+              profileData={{
+                email: profileData.email,
+                phone: profileData.phone,
+                address: profileData.address,
+                gymName: profileData.gymName,
+                gymType: profileData.gymType,
+                gymCity: profileData.gymCity,
+                gymYearsOperating: profileData.gymYearsOperating,
+                gymOperatingDays: profileData.gymOperatingDays,
+                gymPeakHours: profileData.gymPeakHours,
+                gymMemberCapacity: profileData.gymMemberCapacity,
+                gymMonthlyFee: profileData.gymMonthlyFee,
+                gymTrainerFee: profileData.gymTrainerFee,
+                gymFacilities: profileData.gymFacilities,
+                gymServices: profileData.gymServices,
+                gymMainImageUrl: profileData.gymMainImageUrl,
+                gymOptionalImagesUrls: profileData.gymOptionalImagesUrls,
+                gymVideoUrl: profileData.gymVideoUrl,
+                gymVideoFileUrl: profileData.gymVideoFileUrl,
+              }}
+              onProfileChange={(partial) =>
+                setProfileData((prev) => ({ ...prev, ...partial }))
+              }
+            />
           </TabsContent>
         </Tabs>
       </div>

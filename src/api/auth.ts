@@ -1,6 +1,6 @@
 import { apiRequest } from "@/api/client";
 import { supabase } from "@/integrations/supabase/client";
-import type { FitnessProfileData } from "@/types/auth";
+import type { FitnessProfileData, RegisterMediaFiles } from "@/types/auth";
 
 type AuthSessionPayload = {
   user: any;
@@ -32,7 +32,35 @@ export async function registerAccount(
   password: string,
   name: string,
   fitnessData?: FitnessProfileData,
+  media?: RegisterMediaFiles,
 ) {
+  const hasFiles =
+    !!media?.mainImage ||
+    !!(media?.optionalImages && media.optionalImages.length > 0) ||
+    !!media?.videoFile;
+
+  if (hasFiles) {
+    const form = new FormData();
+    form.append("email", email);
+    form.append("password", password);
+    form.append("full_name", name);
+    form.append("fitnessData", JSON.stringify(fitnessData || {}));
+    if (media?.mainImage) form.append("gym_main_image", media.mainImage);
+    for (const file of media?.optionalImages || []) {
+      form.append("gym_optional_images", file);
+    }
+    if (media?.videoFile) form.append("gym_video_file", media.videoFile);
+
+    return apiRequest<{
+      userId: string | null;
+      requiresVerification: boolean;
+      user: { id: string; email?: string; email_confirmed_at?: string | null } | null;
+    }>("auth", "register", {
+      body: form,
+      timeoutMs: 120_000,
+    });
+  }
+
   return apiRequest<{
     userId: string | null;
     requiresVerification: boolean;
@@ -44,6 +72,21 @@ export async function registerAccount(
       full_name: name,
       fitnessData: fitnessData || {},
     },
+  });
+}
+
+/** auth.checkGym → /api/auth/check-gym */
+export async function checkGymDuplicate(input: {
+  gym_name?: string;
+  gym_city?: string;
+  phone?: string;
+}) {
+  return apiRequest<{
+    duplicate: boolean;
+    reason: string | null;
+    message?: string;
+  }>("auth", "checkGym", {
+    body: input,
   });
 }
 
@@ -94,6 +137,9 @@ export async function fetchCurrentUser() {
     gymOwnerId?: string | null;
     gymCity?: string | null;
     gymType?: string | null;
+    gymMainImageUrl?: string | null;
+    membershipStatus?: string | null;
+    membershipType?: string | null;
   }>("auth", "me");
 }
 

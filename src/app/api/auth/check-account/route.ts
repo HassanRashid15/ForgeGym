@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
+import { trackEvent } from "@/lib/monitoring";
 
 /** POST /api/auth/check-account */
 export async function POST(request: Request) {
+  const requestId = getRequestId(request);
+  const limited = await rateLimit(clientKey(request, "auth:check-account"), 30, 60_000);
+  if (!limited.allowed) {
+    trackEvent("auth.rate_limited", { route: "check-account", requestId });
+    return rateLimitedResponse(limited);
+  }
+
   const body = await request.json().catch(() => null);
   const email = body?.email?.trim()?.toLowerCase();
 
   if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    return jsonError("Email is required", 400, { requestId });
   }
 
   const supabase = createSupabaseServerClient();
@@ -16,7 +26,6 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    // RPC missing / failed — do not invent a false negative
     return NextResponse.json({ exists: null });
   }
 

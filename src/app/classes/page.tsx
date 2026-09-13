@@ -1,16 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
-import { Clock, Flame, Users, Calendar } from "lucide-react";
+import { Clock, Flame, Users, Calendar, Dumbbell } from "lucide-react";
 import { allClasses, categories } from "@/data/classes";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-// import { usePageLoading } from "@/hooks/usePageLoading";
-// import PageSkeleton from "@/components/skeletons/PageSkeleton";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
+import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 
 const scheduleData = [
   { time: "6:00 AM", mon: "Power HIIT", tue: "Yoga Flow", wed: "Power HIIT", thu: "Yoga Flow", fri: "Power HIIT", sat: "Boot Camp" },
@@ -23,179 +21,177 @@ const scheduleData = [
 export default function ClassesPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [view, setView] = useState<"classes" | "schedule">("classes");
-  // const isLoading = usePageLoading(500);
 
-  const filteredClasses = activeCategory === "All"
-    ? allClasses
-    : allClasses.filter((c) => c.category === activeCategory);
-
-  // Preloader commented out for now
-  // if (isLoading) {
-  //   return <PageSkeleton variant="classes" />;
-  // }
+  const filteredClasses =
+    activeCategory === "All"
+      ? allClasses
+      : allClasses.filter((c) => c.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden pt-32 pb-16 bg-card">
-        <InteractiveBackground variant="gradient" />
-        <div className="container mx-auto px-4 relative z-10">
-
-          <ScrollAnimate animation="fade-up">
-            <h1 className="font-display text-6xl md:text-8xl mb-4">
+      <ComingSoonOverlay
+        title="Class booking coming soon"
+        description="Preview our class experience below. Booking and schedules unlock next — join now for early access."
+        icon={Dumbbell}
+      >
+        <section className="relative overflow-hidden bg-card pb-16 pt-32">
+          <InteractiveBackground variant="gradient" />
+          <div className="container relative z-10 mx-auto px-4">
+            <h1 className="font-display mb-4 text-6xl md:text-8xl">
               OUR <span className="text-gradient">CLASSES</span>
             </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl">
-              From high-intensity training to mindful yoga, we offer classes for every fitness level and goal.
+            <p className="max-w-2xl text-lg text-muted-foreground">
+              From high-intensity training to mindful yoga, classes for every fitness level.
             </p>
-          </ScrollAnimate>
-        </div>
-      </section>
-
-      {/* View Toggle & Filters */}
-      <section className="py-8 border-b border-border sticky top-16 bg-background/80 backdrop-blur-lg z-40">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex gap-2">
-              <Button
-                variant={view === "classes" ? "default" : "secondary"}
-                onClick={() => setView("classes")}
-              >
-                Classes
-              </Button>
-              <Button
-                variant={view === "schedule" ? "default" : "secondary"}
-                onClick={() => setView("schedule")}
-              >
-                <Calendar className="w-4 h-4 mr-2" />
-                Schedule
-              </Button>
-            </div>
-            
-            {view === "classes" && (
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <Button
-                    key={category}
-                    variant={activeCategory === category ? "default" : "ghost"}
-                    size="sm"
-                    onClick={() => setActiveCategory(category)}
-                  >
-                    {category}
-                  </Button>
-                ))}
-              </div>
-            )}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Classes Grid */}
-      {view === "classes" && (
-        <section className="py-16">
+        <section className="sticky top-16 z-40 border-b border-border bg-background/80 py-8 backdrop-blur-lg">
           <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredClasses.map((classItem, index) => (
-                <ScrollAnimate
-                  key={classItem.id}
-                  animation="fade-up"
-                  delay={index * 0.1}
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+              <div className="flex gap-2">
+                <Button
+                  variant={view === "classes" ? "default" : "secondary"}
+                  onClick={() => setView("classes")}
                 >
-                  <div className="glass-card rounded-xl overflow-hidden hover-lift group h-full flex flex-col">
-                    <div className="relative h-48 overflow-hidden">
-                      <img
-                        src={classItem.image}
-                        alt={classItem.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      <div className="absolute top-4 left-4 flex gap-2">
-                        <span className="px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-full">
-                          {classItem.category}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-6 flex flex-col flex-1">
-                      <h3 className="font-display text-2xl mb-2">{classItem.name}</h3>
-                      <p className="text-muted-foreground text-sm mb-4">{classItem.description}</p>
-                      
-                      <div className="flex flex-wrap gap-4 text-sm mb-4">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Clock className="w-4 h-4 text-primary" />
-                          {classItem.duration}
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Flame className="w-4 h-4 text-primary" />
-                          {classItem.intensity}
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Users className="w-4 h-4 text-primary" />
-                          {classItem.spots} spots left
-                        </div>
-                      </div>
+                  Classes
+                </Button>
+                <Button
+                  variant={view === "schedule" ? "default" : "secondary"}
+                  onClick={() => setView("schedule")}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Schedule
+                </Button>
+              </div>
 
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {classItem.schedule.slice(0, 3).map((time, i) => (
-                          <span key={i} className="px-2 py-1 bg-secondary text-xs rounded">
-                            {time}
-                          </span>
-                        ))}
-                      </div>
-
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Instructor: <span className="text-foreground">{classItem.trainer}</span>
-                      </p>
-
-                      <Button className="w-full mt-auto" asChild>
-                        <Link href={`/classes/${classItem.id}`}>Book Class</Link>
-                      </Button>
-                    </div>
-                  </div>
-                </ScrollAnimate>
-              ))}
+              {view === "classes" ? (
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((category) => (
+                    <Button
+                      key={category}
+                      variant={activeCategory === category ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setActiveCategory(category)}
+                    >
+                      {category}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
-      )}
 
-      {/* Schedule View */}
-      {view === "schedule" && (
-        <section className="py-16">
-          <div className="container mx-auto px-4">
-            <ScrollAnimate animation="fade-up">
+        {view === "classes" ? (
+          <section className="py-16">
+            <div className="container mx-auto px-4">
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {filteredClasses.map((classItem, index) => (
+                  <ScrollAnimate
+                    key={classItem.id}
+                    animation="fade-up"
+                    delay={index * 0.1}
+                  >
+                    <div className="glass-card group flex h-full flex-col overflow-hidden rounded-xl hover-lift">
+                      <div className="relative h-48 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={classItem.image}
+                          alt={classItem.name}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                        <div className="absolute left-4 top-4 flex gap-2">
+                          <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+                            {classItem.category}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-1 flex-col p-6">
+                        <h3 className="font-display mb-2 text-2xl">{classItem.name}</h3>
+                        <p className="mb-4 text-sm text-muted-foreground">
+                          {classItem.description}
+                        </p>
+                        <div className="mb-4 flex flex-wrap gap-4 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Clock className="h-4 w-4 text-primary" />
+                            {classItem.duration}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Flame className="h-4 w-4 text-primary" />
+                            {classItem.intensity}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-4 w-4 text-primary" />
+                            {classItem.spots} spots left
+                          </div>
+                        </div>
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {classItem.schedule.slice(0, 3).map((time, i) => (
+                            <span
+                              key={i}
+                              className="rounded bg-secondary px-2 py-1 text-xs"
+                            >
+                              {time}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mb-4 text-sm text-muted-foreground">
+                          Instructor:{" "}
+                          <span className="text-foreground">{classItem.trainer}</span>
+                        </p>
+                        <Button className="mt-auto w-full" disabled>
+                          Book Class
+                        </Button>
+                      </div>
+                    </div>
+                  </ScrollAnimate>
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {view === "schedule" ? (
+          <section className="py-16">
+            <div className="container mx-auto px-4">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[800px]">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-4 px-4 font-display text-lg">Time</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Monday</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Tuesday</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Wednesday</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Thursday</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Friday</th>
-                      <th className="text-left py-4 px-4 font-display text-lg">Saturday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Time</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Monday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Tuesday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Wednesday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Thursday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Friday</th>
+                      <th className="px-4 py-4 text-left font-display text-lg">Saturday</th>
                     </tr>
                   </thead>
                   <tbody>
                     {scheduleData.map((row, index) => (
-                      <tr key={index} className="border-b border-border hover:bg-secondary/20 transition-colors">
-                        <td className="py-4 px-4 font-semibold text-primary">{row.time}</td>
-                        <td className="py-4 px-4 text-sm">{row.mon}</td>
-                        <td className="py-4 px-4 text-sm">{row.tue}</td>
-                        <td className="py-4 px-4 text-sm">{row.wed}</td>
-                        <td className="py-4 px-4 text-sm">{row.thu}</td>
-                        <td className="py-4 px-4 text-sm">{row.fri}</td>
-                        <td className="py-4 px-4 text-sm">{row.sat}</td>
+                      <tr
+                        key={index}
+                        className="border-b border-border transition-colors hover:bg-secondary/20"
+                      >
+                        <td className="px-4 py-4 font-semibold text-primary">{row.time}</td>
+                        <td className="px-4 py-4 text-sm">{row.mon}</td>
+                        <td className="px-4 py-4 text-sm">{row.tue}</td>
+                        <td className="px-4 py-4 text-sm">{row.wed}</td>
+                        <td className="px-4 py-4 text-sm">{row.thu}</td>
+                        <td className="px-4 py-4 text-sm">{row.fri}</td>
+                        <td className="px-4 py-4 text-sm">{row.sat}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </ScrollAnimate>
-          </div>
-        </section>
-      )}
+            </div>
+          </section>
+        ) : null}
+      </ComingSoonOverlay>
 
       <Footer />
     </div>

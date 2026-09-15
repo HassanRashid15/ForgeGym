@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     db
       .from("profiles")
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     membership_status?: string | null;
     membership_type?: string | null;
     admin_approved?: boolean | null;
+    is_verified?: boolean | null;
   } | null;
 
   const gymOwnerId =
@@ -92,6 +93,7 @@ export async function GET(request: Request) {
     // Strict: only true when explicitly approved (or platform super admin)
     admin_approved:
       isSuperAdmin || profile?.admin_approved === true,
+    is_verified: isSuperAdmin || profileRow?.is_verified === true,
     avatar: profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
     gymName,
     gymOwnerId,

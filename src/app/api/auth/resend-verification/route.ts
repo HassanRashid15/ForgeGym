@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
+import { verificationRedirectUrl } from "@/lib/site-url";
 
 /** POST /api/auth/resend-verification */
 export async function POST(request: Request) {
@@ -20,16 +21,13 @@ export async function POST(request: Request) {
     return jsonError("Email is required", 400, { requestId });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get("origin") || "";
-  const emailRedirectTo = siteUrl
-    ? `${siteUrl}/verification?email=${encodeURIComponent(email)}`
-    : undefined;
+  const emailRedirectTo = verificationRedirectUrl(email, request);
 
   const supabase = createSupabaseServerClient();
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
-    options: emailRedirectTo ? { emailRedirectTo } : undefined,
+    options: { emailRedirectTo },
   });
 
   if (error) {

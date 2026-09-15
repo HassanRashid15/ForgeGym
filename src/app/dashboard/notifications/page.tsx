@@ -393,7 +393,7 @@ export default function NotificationsPage() {
       </div>
 
       {/* Notifications List */}
-      <div className="space-y-5">
+      <div className="custom-scrollbar max-h-[calc(100vh-200px)] overflow-y-auto space-y-5 pr-2">
         {filteredNotifications.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">

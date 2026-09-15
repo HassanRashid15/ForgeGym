@@ -60,9 +60,21 @@ function VerificationContent() {
 
     const targetEmail = (email || queryEmail).trim().toLowerCase();
 
+    // Persist app-level verified flag while confirmation session may still exist
+    try {
+      await fetch("/api/auth/mark-verified", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch {
+      // trigger / polling may have already set is_verified
+    }
+
     // Email confirm links create a Supabase session — sign out so user logs in manually
     try {
       await supabase.auth.signOut({ scope: "local" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
       // ignore
     }

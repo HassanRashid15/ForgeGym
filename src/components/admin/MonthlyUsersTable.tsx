@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   listMonthlyMembers,
-  type MonthlyMember,
 } from "@/api/admin-users";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import { queryKeys } from "@/lib/query-keys";
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -30,37 +30,15 @@ function daysTone(days: number) {
 }
 
 export function MonthlyUsersTable() {
-  const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<MonthlyMember[]>([]);
-  const [monthlyFee, setMonthlyFee] = useState<string | null>(null);
-  const [gymName, setGymName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error, isFetching } = useQuery({
+    queryKey: queryKeys.monthlyMembers,
+    queryFn: listMonthlyMembers,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    listMonthlyMembers()
-      .then((data) => {
-        if (cancelled) return;
-        setMembers(data.members || []);
-        setMonthlyFee(data.monthlyFee);
-        setGymName(data.gymName);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load monthly users");
-        setMembers([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const members = data?.members || [];
+  const monthlyFee = data?.monthlyFee ?? null;
+  const gymName = data?.gymName ?? null;
+  const loading = isPending && !data;
 
   if (loading) {
     return (
@@ -74,7 +52,7 @@ export function MonthlyUsersTable() {
   if (error) {
     return (
       <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-4 text-sm text-destructive">
-        {error}
+        {error instanceof Error ? error.message : "Failed to load monthly users"}
       </p>
     );
   }
@@ -98,6 +76,9 @@ export function MonthlyUsersTable() {
           Members:{" "}
           <span className="font-medium text-foreground">{members.length}</span>
         </span>
+        {isFetching && data ? (
+          <span className="ml-auto text-xs text-muted-foreground">Updating…</span>
+        ) : null}
       </div>
 
       {members.length === 0 ? (

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -18,7 +19,6 @@ import {
   approveAdminAccount,
   rejectAdminAccount,
   fetchPendingAdmins,
-  type AdminListItem,
 } from "@/api/auth";
 import {
   deleteManagedUser,
@@ -35,6 +35,7 @@ import {
 import { ManagedUserDetails } from "@/components/admin/ManagedUserDetails";
 import { MembersTable } from "@/components/admin/MembersTable";
 import { OwnersSection, type FilterTab } from "@/components/admin/OwnersSection";
+import { queryKeys } from "@/lib/query-keys";
 
 function editRoleFor(user: ManagedUser): StaffCreateRole {
   if (user.is_super_admin) return "super_admin";
@@ -52,14 +53,13 @@ function editRoleFor(user: ManagedUser): StaffCreateRole {
 export default function UsersPage() {
   const { user, isLoading, isAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [mainTab, setMainTab] = useState<"members" | "owners">(
     isSuperAdmin ? "owners" : "members",
   );
 
-  const [members, setMembers] = useState<ManagedUser[]>([]);
   const [memberSearch, setMemberSearch] = useState("");
-  const [membersLoading, setMembersLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [viewing, setViewing] = useState<ManagedUser | null>(null);
@@ -67,18 +67,10 @@ export default function UsersPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<FilterTab>("all");
-  const [pending, setPending] = useState<AdminListItem[]>([]);
-  const [approved, setApproved] = useState<AdminListItem[]>([]);
-  const [rejected, setRejected] = useState<AdminListItem[]>([]);
-  const [notifications, setNotifications] = useState<
-    Array<{ id: string; title: string; message: string; created_at: string }>
-  >([]);
-  const [ownersLoading, setOwnersLoading] = useState(false);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [memberApprovingId, setMemberApprovingId] = useState<string | null>(null);
   const [memberRejectingId, setMemberRejectingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -91,50 +83,43 @@ export default function UsersPage() {
     if (isSuperAdmin) setMainTab("owners");
   }, [isSuperAdmin]);
 
-  const loadMembers = useCallback(async () => {
-    if (!isAdmin) return;
-    setMembersLoading(true);
-    try {
+  const membersQuery = useQuery({
+    queryKey: queryKeys.managedUsers,
+    queryFn: async () => {
       const data = await listManagedUsers();
-      setMembers(data.users || []);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load users");
-      setMembers([]);
-    } finally {
-      setMembersLoading(false);
-    }
-  }, [isAdmin]);
+      return data.users || [];
+    },
+    enabled: isAdmin && !isLoading,
+  });
 
-  const loadAdmins = useCallback(async () => {
-    if (!isSuperAdmin) return;
-    setOwnersLoading(true);
-    setError(null);
-    try {
-      const data = await fetchPendingAdmins();
-      setPending(data.pending || []);
-      setApproved(data.approved || []);
-      setRejected(data.rejected || []);
-      setNotifications(data.notifications || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load owners");
-    } finally {
-      setOwnersLoading(false);
-    }
-  }, [isSuperAdmin]);
+  const ownersQuery = useQuery({
+    queryKey: queryKeys.pendingAdmins,
+    queryFn: fetchPendingAdmins,
+    enabled: isSuperAdmin && !isLoading,
+  });
 
-  useEffect(() => {
-    if (!isAdmin || isLoading) return;
-    void loadMembers();
-  }, [isAdmin, isLoading, loadMembers]);
+  const members = membersQuery.data ?? [];
+  const pending = ownersQuery.data?.pending || [];
+  const approved = ownersQuery.data?.approved || [];
+  const rejected = ownersQuery.data?.rejected || [];
+  const notifications = ownersQuery.data?.notifications || [];
+  const membersLoading = membersQuery.isPending && !membersQuery.data;
+  const ownersLoading = ownersQuery.isPending && !ownersQuery.data;
+  const error =
+    ownersQuery.error instanceof Error ? ownersQuery.error.message : null;
 
-  useEffect(() => {
-    if (isSuperAdmin && mainTab === "owners") void loadAdmins();
-  }, [isSuperAdmin, mainTab, loadAdmins]);
+  const invalidateUsers = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers });
+
+  const invalidateOwners = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.pendingAdmins });
+
+  const invalidateMonthly = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.monthlyMembers });
 
   const nonTrainerMembers = useMemo(() => {
     const base = members.filter((row) => row.role !== "trainer");
     if (!isSuperAdmin) return base;
-    // Platform view: admins + super admins only (no members/staff)
     return base.filter((row) => row.is_super_admin || row.role === "admin");
   }, [members, isSuperAdmin]);
 
@@ -191,7 +176,7 @@ export default function UsersPage() {
     try {
       await deleteManagedUser(row.user_id);
       toast.success("User deleted");
-      await loadMembers();
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -204,7 +189,7 @@ export default function UsersPage() {
     try {
       await approveAdminAccount(userId);
       toast.success("Admin approved — they can sign in now.");
-      await loadAdmins();
+      await invalidateOwners();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve admin");
     } finally {
@@ -217,7 +202,7 @@ export default function UsersPage() {
     try {
       await rejectAdminAccount(userId);
       toast.success("Admin request rejected.");
-      await loadAdmins();
+      await invalidateOwners();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject admin");
     } finally {
@@ -230,7 +215,7 @@ export default function UsersPage() {
     try {
       await approveManagedMember(userId);
       toast.success("Member approved — they can sign in now.");
-      await loadMembers();
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve member");
     } finally {
@@ -243,7 +228,7 @@ export default function UsersPage() {
     try {
       await rejectManagedMember(userId);
       toast.success("Membership request rejected.");
-      await loadMembers();
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject member");
     } finally {
@@ -343,7 +328,7 @@ export default function UsersPage() {
               rejectingId={rejectingId}
               onApprove={handleApprove}
               onReject={handleReject}
-              onRefresh={loadAdmins}
+              onRefresh={() => void invalidateOwners()}
               notifications={notifications}
             />
           </TabsContent>
@@ -423,7 +408,10 @@ export default function UsersPage() {
         key={editing?.user_id ?? "create-user"}
         open={wizardOpen}
         onOpenChange={handleWizardOpenChange}
-        onCreated={() => void loadMembers()}
+        onCreated={() => {
+          void invalidateUsers();
+          void invalidateMonthly();
+        }}
         allowedRoles={wizardAllowedRoles}
         defaultRole={
           editing

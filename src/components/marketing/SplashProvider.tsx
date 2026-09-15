@@ -37,6 +37,8 @@ function unlockSplashScroll() {
   document.body.style.width = "";
   document.body.style.height = "";
   document.documentElement.style.overflow = "";
+  document.documentElement.style.overflowY = "";
+  document.body.style.overflowY = "";
 }
 
 /**

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   createSupabaseCookieClient,
   createSupabaseServerClient,
+  createSupabaseServiceClient,
 } from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
@@ -32,27 +33,29 @@ export async function POST(request: Request) {
     password,
   });
 
-  if (error) {
+  if (error || !data.user) {
     trackEvent("auth.login_failed", { requestId });
-    return jsonError(error.message, 401, { requestId });
+    return jsonError(error?.message || "Login failed", 401, { requestId });
   }
 
-  if (!data.user?.email_confirmed_at) {
+  const userId = data.user.id;
+  const service = createSupabaseServiceClient();
+  const supabase = service || createSupabaseServerClient(data.session?.access_token);
+
+  const { data: accessProfile } = await supabase
+    .from("profiles")
+    .select("login_enabled, admin_approved, gym_owner_id, is_verified")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  // App-level gate: must verify email (profiles.is_verified) before login
+  if (!data.user.email_confirmed_at || accessProfile?.is_verified !== true) {
     await cookieClient.auth.signOut();
     return jsonError("Email not confirmed", 403, {
       code: "email_not_confirmed",
       requestId,
     });
   }
-
-  const userId = data.user.id;
-  const supabase = createSupabaseServerClient(data.session?.access_token);
-
-  const { data: accessProfile } = await supabase
-    .from("profiles")
-    .select("login_enabled, admin_approved, gym_owner_id")
-    .eq("user_id", userId)
-    .maybeSingle();
 
   if ((accessProfile as { login_enabled?: boolean | null } | null)?.login_enabled === false) {
     await cookieClient.auth.signOut();

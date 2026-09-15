@@ -124,7 +124,7 @@ export async function GET(request: Request) {
   const { data: profiles, error } = await supabase
     .from("profiles")
     .select(
-      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, avatar_url",
+      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, admin_approved, avatar_url",
     )
     .eq("gym_owner_id", gymOwnerId)
     .order("created_at", { ascending: false });
@@ -149,12 +149,28 @@ export async function GET(request: Request) {
   const now = new Date();
   const members = (profiles || [])
     .filter((p) => {
+      const row = p as Record<string, unknown>;
       const roles = rolesByUser.get(p.user_id) || [];
       // Customers only — not trainers/staff/admins of this gym
-      if (roles.length === 0) return true;
-      return roles.includes("user") && !roles.some((r) =>
-        ["admin", "trainer", "staff", "moderator"].includes(r),
-      );
+      const isCustomer =
+        roles.length === 0 ||
+        (roles.includes("user") &&
+          !roles.some((r) =>
+            ["admin", "trainer", "staff", "moderator"].includes(r),
+          ));
+      if (!isCustomer) return false;
+
+      // Billable members only — exclude pending / rejected / unapproved
+      const membershipStatus = String(p.membership_status || "").toLowerCase();
+      const accountStatus = String(row.account_status || "").toLowerCase();
+      const approved = row.admin_approved === true;
+      const isPending =
+        !approved ||
+        membershipStatus === "pending" ||
+        accountStatus === "pending" ||
+        membershipStatus === "rejected" ||
+        accountStatus === "rejected";
+      return !isPending;
     })
     .map((p) => {
       const row = p as Record<string, unknown>;
@@ -163,8 +179,9 @@ export async function GET(request: Request) {
         (typeof p.created_at === "string" && p.created_at) ||
         null;
       const period = monthlyPeriod(associatedAt, now);
+      // Prefer membership_status — account_status defaults to "active" in DB
       const status = String(
-        row.account_status || p.membership_status || "active",
+        p.membership_status || row.account_status || "active",
       ).toLowerCase();
 
       return {

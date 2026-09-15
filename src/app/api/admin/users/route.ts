@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase/server";
 import { randomBytes } from "crypto";
 import { notify } from "@/lib/notify-actions";
+import { verificationRedirectUrl } from "@/lib/site-url";
 
 type AppStaffRole = "user" | "moderator" | "admin" | "trainer" | "staff";
 
@@ -426,11 +427,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    request.headers.get("origin") ||
-    "http://localhost:3000";
-  const emailRedirectTo = `${siteUrl}/verification?email=${encodeURIComponent(email)}`;
+  const emailRedirectTo = verificationRedirectUrl(email, request);
 
   let userId: string | null = null;
   let requiresVerification = false;

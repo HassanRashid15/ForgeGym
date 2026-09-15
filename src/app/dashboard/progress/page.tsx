@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addProgressExercise,
   deleteProgressExercise,
@@ -19,6 +20,7 @@ import {
   lastNDateISOs,
   localDateISO,
 } from "@/lib/progress-catalog";
+import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +30,6 @@ import { Label } from "@/components/ui/label";
 import {
   Award,
   BarChart3,
-  Calendar,
   Clock,
   Dumbbell,
   Filter,
@@ -65,10 +66,8 @@ function emptyCatalog(name: string): CatalogExercise {
 export default function ProgressPage() {
   const today = localDateISO();
   const defaultRange = lastNDateISOs(6);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  const [days, setDays] = useState<ProgressDayView[]>([]);
-  const [stats, setStats] = useState<ProgressStats>(emptyStats);
   const [selectedDate, setSelectedDate] = useState(today);
   const [dateFrom, setDateFrom] = useState(defaultRange[0]);
   const [dateTo, setDateTo] = useState(defaultRange[defaultRange.length - 1]);
@@ -92,6 +91,26 @@ export default function ProgressPage() {
   const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [demoSearchUrl, setDemoSearchUrl] = useState<string | null>(null);
+
+  const progressQuery = useQuery({
+    queryKey: queryKeys.progress(dateFrom, dateTo),
+    queryFn: () => getProgress({ from: dateFrom, to: dateTo }),
+  });
+
+  const days = progressQuery.data?.days ?? [];
+  const stats = progressQuery.data?.stats ?? emptyStats;
+  const loading = progressQuery.isPending && !progressQuery.data;
+
+  const invalidateProgress = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.progress(dateFrom, dateTo) });
+
+  useEffect(() => {
+    if (!progressQuery.data?.days?.length) return;
+    setSelectedDate((prev) => {
+      if (progressQuery.data!.days.some((d) => d.date === prev)) return prev;
+      return progressQuery.data!.days[progressQuery.data!.days.length - 1]?.date || today;
+    });
+  }, [progressQuery.data, today]);
 
   const selectedCatalogEx = useMemo(
     () => exerciseOptions.find((e) => e.name === exSelect) || null,
@@ -250,27 +269,6 @@ export default function ProgressPage() {
     setDateTo(range[range.length - 1]);
   };
 
-  const load = useCallback(async () => {
-    try {
-      const data = await getProgress({ from: dateFrom, to: dateTo });
-      setDays(data.days);
-      setStats(data.stats);
-      setSelectedDate((prev) => {
-        if (data.days.some((d) => d.date === prev)) return prev;
-        return data.days[data.days.length - 1]?.date || today;
-      });
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to load progress");
-    } finally {
-      setLoading(false);
-    }
-  }, [dateFrom, dateTo, today]);
-
-  useEffect(() => {
-    setLoading(true);
-    void load();
-  }, [load]);
-
   useEffect(() => {
     if (!selectedDay) {
       setFocusSelect("");
@@ -314,7 +312,7 @@ export default function ProgressPage() {
         duration_minutes: dayDuration ? Number(dayDuration) : null,
       });
       toast.success(`${formatDayLabel(selectedDate)} set to ${focus}`);
-      await load();
+      await invalidateProgress();
     } catch (err: any) {
       toast.error(err?.message || "Could not save day focus");
     } finally {
@@ -341,7 +339,6 @@ export default function ProgressPage() {
     }
     setSaving(true);
     try {
-      // Ensure the day exists — auto-save focus so exercises can be linked
       let dayId = selectedDay?.id;
       if (!dayId) {
         const { day } = await upsertProgressDay({
@@ -364,7 +361,7 @@ export default function ProgressPage() {
       setExSelect("");
       setExCustom("");
       setWeight("");
-      await load();
+      await invalidateProgress();
     } catch (err: any) {
       toast.error(err?.message || "Could not add exercise");
     } finally {
@@ -376,7 +373,7 @@ export default function ProgressPage() {
     setSaving(true);
     try {
       await deleteProgressExercise(id);
-      await load();
+      await invalidateProgress();
     } catch (err: any) {
       toast.error(err?.message || "Could not delete exercise");
     } finally {

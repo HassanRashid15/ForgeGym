@@ -138,6 +138,62 @@
     height: 0;
   }
 
+  /* Ensure scrollbar is always visible on non-home pages */
+  html:not(.forge-splash-lock):not(.dashboard-scroll-lock) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  html:not(.forge-splash-lock):not(.dashboard-scroll-lock) body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  /* Dashboard: one scroll region inside the shell (no document scrollbar) */
+  html.dashboard-scroll-lock,
+  html.dashboard-scroll-lock body {
+    overflow: hidden !important;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  /* Prevent Radix UI scroll locking when dropdowns are open (non-splash only) */
+  html:not(.forge-splash-lock):not(.dashboard-scroll-lock) [data-radix-scroll-lock] {
+    overflow: auto !important;
+  }
+
+  /* Custom scrollbar styling (auto — only when content overflows) */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary)) hsl(var(--muted));
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 999px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.7);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary));
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
   /* Brand red scrollbars (Firefox + Chromium/WebKit) */
   * {
     scrollbar-width: thin;

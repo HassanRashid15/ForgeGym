@@ -132,6 +132,7 @@ export async function fetchCurrentUser() {
     role: "admin" | "moderator" | "customer" | "trainer" | "staff";
     isSuperAdmin?: boolean;
     admin_approved: boolean;
+    is_verified?: boolean;
     avatar: string | null;
     gymName?: string | null;
     gymOwnerId?: string | null;

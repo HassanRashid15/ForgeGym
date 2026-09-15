@@ -9,7 +9,9 @@ Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only; never expose to the client)
-- `NEXT_PUBLIC_SITE_URL` (canonical site URL for email redirects)
+- `NEXT_PUBLIC_SITE_URL` (canonical live URL for email redirects, e.g. `https://your-app.vercel.app`).
+  On Vercel, localhost values are ignored and the deploy Origin / `VERCEL_URL` is used instead.
+  Also add the same URL under Supabase Auth → URL Configuration → Redirect URLs.
 
 Optional:
 

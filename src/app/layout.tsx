@@ -8,6 +8,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import SeoManager from "@/components/marketing/SeoManager";
 import { SplashProvider } from "@/components/marketing/SplashProvider";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -90,14 +91,16 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
-            <TooltipProvider>
-              <SplashProvider>
-                <SeoManager />
-                <Toaster />
-                <Sonner />
-                {children}
-              </SplashProvider>
-            </TooltipProvider>
+            <QueryProvider>
+              <TooltipProvider>
+                <SplashProvider>
+                  <SeoManager />
+                  <Toaster />
+                  <Sonner />
+                  {children}
+                </SplashProvider>
+              </TooltipProvider>
+            </QueryProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

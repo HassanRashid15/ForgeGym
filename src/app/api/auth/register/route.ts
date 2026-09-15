@@ -8,6 +8,7 @@ import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
 import { uploadGymMediaFile } from "@/lib/gym-media";
 import { notify, notifyApprovalRequest } from "@/lib/notify-actions";
+import { verificationRedirectUrl } from "@/lib/site-url";
 
 function normalizeKey(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -271,11 +272,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    request.headers.get("origin") ||
-    "http://localhost:3000";
-  const emailRedirectTo = `${siteUrl}/verification?email=${encodeURIComponent(email)}`;
+  const emailRedirectTo = verificationRedirectUrl(email, request);
 
   // Keep auth metadata light — large media URLs still go on profile upsert
   const {
@@ -435,7 +432,10 @@ export async function POST(request: Request) {
             workout_type: fitnessData.workout_type || null,
             preferred_workout_time: fitnessData.preferred_workout_time || null,
             membership_status: adminApproved ? "active" : "pending",
+            account_status: adminApproved ? "active" : "pending",
             membership_type: "basic",
+            // Always false until they click the email verification link
+            is_verified: false,
             updated_at: new Date().toISOString(),
           } as any,
           { onConflict: "user_id" },
@@ -556,7 +556,16 @@ export async function POST(request: Request) {
     await supabase.auth.signOut();
   }
 
-  const requiresVerification = !data.user?.email_confirmed_at;
+  // Force app-level unverified even if Supabase auto-confirmed the auth user
+  if (service && userId) {
+    await service
+      .from("profiles")
+      .update({ is_verified: false, updated_at: new Date().toISOString() } as never)
+      .eq("user_id", userId);
+  }
+
+  // Public signup always requires email verification before login
+  const requiresVerification = true;
   const requiresGymApproval =
     requestedRole === "user" && !!fitnessData.gym_owner_id;
 

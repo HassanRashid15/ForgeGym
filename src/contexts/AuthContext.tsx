@@ -122,6 +122,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const needsGymMemberApproval =
         appRole === "customer" && !!me.gymOwnerId && !apiApproved;
 
+      if (!isSuperAdmin && me.is_verified !== true) {
+        meCacheRef.current = null;
+        syncedUserIdRef.current = null;
+        await supabase.auth.signOut({ scope: "local" });
+        setUser(null);
+        return;
+      }
+
       if (
         ((appRole === "admin" && !apiApproved) || needsGymMemberApproval) &&
         !isSuperAdmin
@@ -211,6 +219,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (!session.user.email_confirmed_at) {
           setUser(null);
+          syncedUserIdRef.current = null;
+          meCacheRef.current = null;
+          await supabase.auth.signOut({ scope: "local" });
           setIsLoading(false);
           bootDone = true;
           return;
@@ -267,6 +278,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!session?.user) return;
         if (!session.user.email_confirmed_at) {
           setUser(null);
+          syncedUserIdRef.current = null;
+          meCacheRef.current = null;
+          void supabase.auth.signOut({ scope: "local" });
           setIsLoading(false);
           return;
         }

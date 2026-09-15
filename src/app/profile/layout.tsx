@@ -16,6 +16,22 @@ export default async function ProfileLayout({
     redirect("/login?redirect=/profile");
   }
 
+  if (!user.email_confirmed_at) {
+    const q = user.email ? `?email=${encodeURIComponent(user.email)}` : "";
+    redirect(`/verification${q}`);
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_verified")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (profile?.is_verified !== true) {
+    const q = user.email ? `?email=${encodeURIComponent(user.email)}` : "";
+    redirect(`/verification${q}`);
+  }
+
   return (
     <ProfileClientLayout serverAuthenticated>{children}</ProfileClientLayout>
   );

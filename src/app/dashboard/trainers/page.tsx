@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -22,14 +23,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AddUserWizard } from "@/components/admin/AddUserWizard";
 import { ManagedUserDetails } from "@/components/admin/ManagedUserDetails";
 import { MembersTable } from "@/components/admin/MembersTable";
+import { queryKeys } from "@/lib/query-keys";
 
 export default function TrainersPage() {
   const { user, isLoading, isAdmin } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const [trainers, setTrainers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<ManagedUser | null>(null);
   const [viewing, setViewing] = useState<ManagedUser | null>(null);
@@ -42,24 +43,23 @@ export default function TrainersPage() {
     }
   }, [isLoading, isAdmin, user, router]);
 
-  const loadTrainers = useCallback(async () => {
-    if (!isAdmin) return;
-    setLoading(true);
-    try {
+  const usersQuery = useQuery({
+    queryKey: queryKeys.managedUsers,
+    queryFn: async () => {
       const data = await listManagedUsers();
-      setTrainers((data.users || []).filter((row) => row.role === "trainer"));
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to load trainers");
-      setTrainers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [isAdmin]);
+      return data.users || [];
+    },
+    enabled: isAdmin && !isLoading,
+  });
 
-  useEffect(() => {
-    if (!isAdmin || isLoading) return;
-    void loadTrainers();
-  }, [isAdmin, isLoading, loadTrainers]);
+  const trainers = useMemo(
+    () => (usersQuery.data || []).filter((row) => row.role === "trainer"),
+    [usersQuery.data],
+  );
+  const loading = usersQuery.isPending && !usersQuery.data;
+
+  const invalidateUsers = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -97,7 +97,7 @@ export default function TrainersPage() {
     try {
       await deleteManagedUser(row.user_id);
       toast.success("Trainer removed");
-      await loadTrainers();
+      await invalidateUsers();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
@@ -153,7 +153,6 @@ export default function TrainersPage() {
         }
       />
 
-      {/* Only mount when wizard is closed so Radix never has two dialogs */}
       {!wizardOpen && (
         <Sheet
           open={!!viewing}
@@ -185,7 +184,7 @@ export default function TrainersPage() {
         key={editing?.user_id ?? "create-trainer"}
         open={wizardOpen}
         onOpenChange={handleWizardOpenChange}
-        onCreated={() => void loadTrainers()}
+        onCreated={() => void invalidateUsers()}
         allowedRoles={["trainer"]}
         defaultRole="trainer"
         editUser={editing}

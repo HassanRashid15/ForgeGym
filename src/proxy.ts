@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Next.js 16 proxy (formerly middleware) — refreshes auth cookies and
- * gates /dashboard + /profile behind a session.
+ * gates /dashboard + /profile behind a verified session.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
@@ -43,6 +43,17 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isProtected =
     path.startsWith("/dashboard") || path.startsWith("/profile");
+  const isVerified = !!user?.email_confirmed_at;
+  const unverified = !!user && !isVerified;
+
+  if (isProtected && unverified) {
+    const verificationUrl = request.nextUrl.clone();
+    verificationUrl.pathname = "/verification";
+    verificationUrl.search = user.email
+      ? `?email=${encodeURIComponent(user.email)}`
+      : "";
+    return NextResponse.redirect(verificationUrl);
+  }
 
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone();
@@ -52,10 +63,17 @@ export async function proxy(request: NextRequest) {
   }
 
   if ((path === "/login" || path === "/register") && user) {
-    const dash = request.nextUrl.clone();
-    dash.pathname = "/dashboard";
-    dash.search = "";
-    return NextResponse.redirect(dash);
+    const dest = request.nextUrl.clone();
+    if (unverified) {
+      dest.pathname = "/verification";
+      dest.search = user.email
+        ? `?email=${encodeURIComponent(user.email)}`
+        : "";
+    } else {
+      dest.pathname = "/dashboard";
+      dest.search = "";
+    }
+    return NextResponse.redirect(dest);
   }
 
   return response;

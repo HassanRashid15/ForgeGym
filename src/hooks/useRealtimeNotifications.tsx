@@ -1,9 +1,20 @@
 /**
  * Real-time Notifications Hook
  * Subscribes to both `notifications` and `admin_notifications`.
+ * Use NotificationsRealtimeProvider in the authenticated shell so only one
+ * channel is created (avoids "cannot add callbacks after subscribe").
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { Notification } from "@/lib/notifications";
@@ -75,24 +86,28 @@ function mapUserPayload(row: {
   };
 }
 
-export function useRealtimeNotifications(options?: {
-  enabled?: boolean;
-  onNewNotification?: (notification: Notification) => void;
-  onNotificationUpdate?: (notification: Notification) => void;
-}) {
+type RealtimeNotificationsValue = {
+  notifications: Notification[];
+  unreadCount: number;
+  isConnected: boolean;
+  error: Error | null;
+  refresh: () => void;
+};
+
+const NotificationsRealtimeContext =
+  createContext<RealtimeNotificationsValue | null>(null);
+
+function useRealtimeNotificationsState(enabled: boolean): RealtimeNotificationsValue {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-
-  const { enabled = true, onNewNotification, onNotificationUpdate } = options || {};
-
-  // Keep callbacks in refs so the subscription effect does not re-run every render
-  const onNewRef = useRef(onNewNotification);
-  const onUpdateRef = useRef(onNotificationUpdate);
-  onNewRef.current = onNewNotification;
-  onUpdateRef.current = onNotificationUpdate;
+  const instanceId = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `i-${Math.random().toString(36).slice(2)}`,
+  );
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
@@ -108,14 +123,21 @@ export function useRealtimeNotifications(options?: {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!user?.id || !enabled) return;
+    if (!user?.id || !enabled) {
+      setIsConnected(false);
+      return;
+    }
 
     let cancelled = false;
+    // Unique name every mount — Supabase reuses channels by topic; attaching
+    // `.on()` after `.subscribe()` throws if the old channel is still alive.
+    const channelName = `notifications:${user.id}:${instanceId.current}`;
 
     void fetchNotifications();
 
-    const subscription = supabase
-      .channel(`notifications:${user.id}`)
+    const channel = supabase.channel(channelName);
+
+    channel
       .on(
         "postgres_changes",
         {
@@ -133,7 +155,6 @@ export function useRealtimeNotifications(options?: {
           if (newNotification.unread) {
             setUnreadCount((prev) => prev + 1);
           }
-          onNewRef.current?.(newNotification);
         },
       )
       .on(
@@ -162,8 +183,6 @@ export function useRealtimeNotifications(options?: {
               return Math.max(0, prev - 1);
             });
           }
-
-          onUpdateRef.current?.(updated);
         },
       )
       .on(
@@ -204,7 +223,6 @@ export function useRealtimeNotifications(options?: {
           if (newNotification.unread) {
             setUnreadCount((prev) => prev + 1);
           }
-          onNewRef.current?.(newNotification);
         },
       )
       .on(
@@ -241,8 +259,6 @@ export function useRealtimeNotifications(options?: {
               return Math.max(0, prev - 1);
             });
           }
-
-          onUpdateRef.current?.(updated);
         },
       )
       .on(
@@ -272,7 +288,8 @@ export function useRealtimeNotifications(options?: {
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(subscription);
+      setIsConnected(false);
+      void supabase.removeChannel(channel);
     };
   }, [user?.id, enabled, fetchNotifications]);
 
@@ -280,25 +297,110 @@ export function useRealtimeNotifications(options?: {
     void fetchNotifications();
   }, [fetchNotifications]);
 
-  return {
-    notifications,
-    unreadCount,
-    isConnected,
-    error,
-    refresh,
-  };
+  return useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      isConnected,
+      error,
+      refresh,
+    }),
+    [notifications, unreadCount, isConnected, error, refresh],
+  );
 }
 
-/** Header badge — unread count only (lightweight; does not load full inbox). */
+/** One realtime subscription for the whole authenticated shell. */
+export function NotificationsRealtimeProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const { user } = useAuth();
+  const value = useRealtimeNotificationsState(!!user?.id);
+
+  return (
+    <NotificationsRealtimeContext.Provider value={value}>
+      {children}
+    </NotificationsRealtimeContext.Provider>
+  );
+}
+
+export function useRealtimeNotifications(options?: {
+  enabled?: boolean;
+  onNewNotification?: (notification: Notification) => void;
+  onNotificationUpdate?: (notification: Notification) => void;
+}) {
+  const ctx = useContext(NotificationsRealtimeContext);
+  // Only open a local channel when outside the shared provider
+  const local = useRealtimeNotificationsState(
+    !ctx && (options?.enabled ?? true),
+  );
+  const value = ctx ?? local;
+
+  const onNewRef = useRef(options?.onNewNotification);
+  const onUpdateRef = useRef(options?.onNotificationUpdate);
+  onNewRef.current = options?.onNewNotification;
+  onUpdateRef.current = options?.onNotificationUpdate;
+
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const seededRef = useRef(false);
+  const prevByIdRef = useRef<Map<string, Notification>>(new Map());
+
+  useEffect(() => {
+    if (!onNewRef.current && !onUpdateRef.current) return;
+
+    if (!seededRef.current) {
+      for (const n of value.notifications) {
+        seenIdsRef.current.add(n.id);
+        prevByIdRef.current.set(n.id, n);
+      }
+      seededRef.current = true;
+      return;
+    }
+
+    for (const n of value.notifications) {
+      if (!seenIdsRef.current.has(n.id)) {
+        seenIdsRef.current.add(n.id);
+        onNewRef.current?.(n);
+      } else {
+        const prev = prevByIdRef.current.get(n.id);
+        if (
+          prev &&
+          (prev.unread !== n.unread ||
+            prev.dismissed !== n.dismissed ||
+            prev.title !== n.title ||
+            prev.message !== n.message)
+        ) {
+          onUpdateRef.current?.(n);
+        }
+      }
+      prevByIdRef.current.set(n.id, n);
+    }
+  }, [value.notifications]);
+
+  return value;
+}
+
+/** Header badge — prefers shared provider; otherwise a count-only channel. */
 export function useUnreadCount() {
+  const ctx = useContext(NotificationsRealtimeContext);
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const instanceId = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `u-${Math.random().toString(36).slice(2)}`,
+  );
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (ctx || !user?.id) {
+      if (!ctx) setIsConnected(false);
+      return;
+    }
 
     let cancelled = false;
+    const channelName = `unread-count:${user.id}:${instanceId.current}`;
 
     const fetchInitialCount = async () => {
       try {
@@ -311,8 +413,9 @@ export function useUnreadCount() {
 
     void fetchInitialCount();
 
-    const subscription = supabase
-      .channel(`unread-count:${user.id}`)
+    const channel = supabase.channel(channelName);
+
+    channel
       .on(
         "postgres_changes",
         {
@@ -382,9 +485,14 @@ export function useUnreadCount() {
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(subscription);
+      setIsConnected(false);
+      void supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [ctx, user?.id]);
+
+  if (ctx) {
+    return { unreadCount: ctx.unreadCount, isConnected: ctx.isConnected };
+  }
 
   return { unreadCount, isConnected };
 }

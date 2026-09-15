@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  createSupabaseServerClient,
+  createSupabaseServiceClient,
+} from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
 
-/** POST /api/auth/check-verified — RPC only (no password probe). */
+/** POST /api/auth/check-verified — profiles.is_verified only (app gate). */
 export async function POST(request: Request) {
   const requestId = getRequestId(request);
   const limited = await rateLimit(clientKey(request, "auth:check-verified"), 20, 60_000);
@@ -20,8 +23,18 @@ export async function POST(request: Request) {
     return jsonError("Email is required", 400, { requestId });
   }
 
-  const supabase = createSupabaseServerClient();
+  const service = createSupabaseServiceClient();
+  if (service) {
+    const { data } = await service
+      .from("profiles")
+      .select("is_verified")
+      .ilike("email", email)
+      .maybeSingle();
 
+    return NextResponse.json({ verified: data?.is_verified === true });
+  }
+
+  const supabase = createSupabaseServerClient();
   const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
     "check_user_verified",
     { user_email: email },
@@ -31,6 +44,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ verified: rpcData });
   }
 
-  // Do not probe sign-in — avoids credential enumeration side-channels
   return NextResponse.json({ verified: false });
 }

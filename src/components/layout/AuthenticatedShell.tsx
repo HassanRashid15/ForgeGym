@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUnreadCount } from "@/hooks/useRealtimeNotifications";
+import { useRealtimeNotifications, NotificationsRealtimeProvider } from "@/hooks/useRealtimeNotifications";
 import {
   Sidebar,
   SidebarContent,
@@ -37,6 +38,15 @@ import {
   ChevronsUpDown,
   Loader2,
   Wallet,
+  AlertTriangle,
+  Zap,
+  RefreshCw,
+  Trophy,
+  Clock,
+  MessageSquare,
+  Shield,
+  Sparkles,
+  Tag,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getNameInitials } from "@/lib/utils";
@@ -59,6 +69,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuthGate } from "@/hooks/useAuthGate";
 
 type NavItem = {
@@ -137,10 +148,80 @@ function NavGroup({
   );
 }
 
+function getNotificationIcon(type: string) {
+  const iconMap: Record<string, React.ReactNode> = {
+    confirmation: <Calendar className="h-4 w-4 text-primary" />,
+    maintenance: <AlertTriangle className="h-4 w-4 text-destructive" />,
+    directive: <Zap className="h-4 w-4 text-amber-500" />,
+    info: <RefreshCw className="h-4 w-4 text-blue-500" />,
+    alert: <AlertTriangle className="h-4 w-4 text-destructive" />,
+    booking: <Calendar className="h-4 w-4 text-purple-500" />,
+    payment: <CreditCard className="h-4 w-4 text-green-500" />,
+    achievement: <Trophy className="h-4 w-4 text-yellow-500" />,
+    reminder: <Clock className="h-4 w-4 text-orange-500" />,
+    system: <RefreshCw className="h-4 w-4 text-blue-500" />,
+    welcome: <Sparkles className="h-4 w-4 text-pink-500" />,
+    membership: <Users className="h-4 w-4 text-indigo-500" />,
+    class_update: <Calendar className="h-4 w-4 text-cyan-500" />,
+    promotion: <Tag className="h-4 w-4 text-rose-500" />,
+    feedback: <MessageSquare className="h-4 w-4 text-teal-500" />,
+    security: <Shield className="h-4 w-4 text-red-600" />,
+  };
+  return iconMap[type] || <Bell className="h-4 w-4 text-muted-foreground" />;
+}
+
+function getNotificationLabel(type: string): string {
+  const labelMap: Record<string, string> = {
+    confirmation: "Confirmation",
+    maintenance: "Facility Alert",
+    directive: "Daily Directive",
+    info: "System",
+    alert: "Alert",
+    booking: "Booking",
+    payment: "Payment",
+    achievement: "Achievement",
+    reminder: "Reminder",
+    system: "System",
+    welcome: "Welcome",
+    membership: "Membership",
+    class_update: "Class Update",
+    promotion: "Promotion",
+    feedback: "Feedback",
+    security: "Security",
+  };
+  return labelMap[type] || "Notification";
+}
+
+function formatNotificationTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
 function ShellChrome({ children }: { children: ReactNode }) {
   const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const pathname = usePathname();
-  const { unreadCount, isConnected } = useUnreadCount();
+  const { unreadCount, isConnected, notifications } = useRealtimeNotifications({
+    enabled: !!user?.id,
+  });
+
+  // Lock document scroll so only the shell content scrolls (fixes double scrollbar + sticky nav)
+  useEffect(() => {
+    document.documentElement.classList.add("dashboard-scroll-lock");
+    return () => {
+      document.documentElement.classList.remove("dashboard-scroll-lock");
+    };
+  }, []);
 
   const gymBrand =
     user?.gymName?.trim() ||
@@ -303,8 +384,8 @@ function ShellChrome({ children }: { children: ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset>
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <SidebarInset className="h-svh max-h-svh min-h-0 overflow-hidden">
+        <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
 
@@ -371,41 +452,97 @@ function ShellChrome({ children }: { children: ReactNode }) {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 rounded-lg">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">Notifications</p>
-                      <div className={`flex items-center gap-1 text-xs ${isConnected ? "text-green-500" : "text-yellow-500"}`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-yellow-500"}`} />
-                        {isConnected ? "Live" : "Connecting..."}
-                      </div>
-                    </div>
-                    <Link
-                      href="/dashboard/notifications"
-                      className="text-xs text-primary hover:underline"
+              <DropdownMenuContent
+                align="end"
+                sideOffset={8}
+                collisionPadding={12}
+                className="w-96 rounded-lg p-0"
+              >
+                <DropdownMenuLabel className="px-3 py-2 font-normal">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">Notifications</p>
+                    <div
+                      className={`flex items-center gap-1 text-xs ${isConnected ? "text-green-500" : "text-yellow-500"}`}
                     >
-                      View all
-                    </Link>
+                      <div
+                        className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-green-500 animate-pulse" : "bg-yellow-500"}`}
+                      />
+                      {isConnected ? "Live" : "Connecting..."}
+                    </div>
                   </div>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {unreadCount > 0 ? (
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/notifications" className="cursor-pointer">
-                      <div className="flex flex-col gap-1">
-                        <p className="text-sm font-medium">System Protocols</p>
-                        <p className="text-xs text-muted-foreground">
-                          {unreadCount} unread {unreadCount === 1 ? "alert" : "alerts"}
-                        </p>
-                      </div>
-                    </Link>
-                  </DropdownMenuItem>
+                <DropdownMenuSeparator className="my-0" />
+                {notifications.length > 0 ? (
+                  <ScrollArea className="h-72">
+                    <div className="p-2">
+                      {notifications.slice(0, 5).map((notification) => (
+                        <DropdownMenuItem key={notification.id} asChild>
+                          <Link
+                            href="/dashboard/notifications"
+                            className="cursor-pointer p-3 flex gap-3 items-start rounded-md hover:bg-accent"
+                          >
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                                notification.unread ? "bg-primary/10" : "bg-muted"
+                              }`}
+                            >
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`text-xs font-medium ${
+                                    notification.unread
+                                      ? "text-primary"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {getNotificationLabel(notification.type)}
+                                </span>
+                                {notification.unread && (
+                                  <span className="w-2 h-2 rounded-full bg-primary" />
+                                )}
+                              </div>
+                              <p className="text-sm font-medium truncate">
+                                {notification.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatNotificationTime(notification.created_at)}
+                              </p>
+                            </div>
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                      {notifications.length > 5 && (
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href="/dashboard/notifications"
+                            className="cursor-pointer text-center text-sm text-primary py-2"
+                          >
+                            View {notifications.length - 5} more notifications
+                          </Link>
+                        </DropdownMenuItem>
+                      )}
+                    </div>
+                  </ScrollArea>
                 ) : (
-                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                    No new notifications
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No new notifications</p>
                   </div>
                 )}
+                <DropdownMenuSeparator className="my-0" />
+                <div className="p-2">
+                  <Link
+                    href="/dashboard/notifications"
+                    className="block w-full text-center text-sm text-primary hover:bg-accent rounded-md py-2 transition-colors"
+                  >
+                    View all notifications
+                  </Link>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -425,7 +562,11 @@ function ShellChrome({ children }: { children: ReactNode }) {
                   <ChevronDown className="hidden size-3.5 text-muted-foreground md:block" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 rounded-lg">
+              <DropdownMenuContent
+                align="end"
+                className="w-56 rounded-lg"
+                collisionPadding={12}
+              >
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col gap-0.5">
                     <p className="text-sm font-medium">{user?.name}</p>
@@ -458,7 +599,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
       </SidebarInset>
     </>
   );
@@ -490,8 +631,10 @@ export function AuthenticatedShell({
   }
 
   return (
-    <SidebarProvider>
-      <ShellChrome>{children}</ShellChrome>
+    <SidebarProvider className="h-svh max-h-svh min-h-0 overflow-hidden">
+      <NotificationsRealtimeProvider>
+        <ShellChrome>{children}</ShellChrome>
+      </NotificationsRealtimeProvider>
     </SidebarProvider>
   );
 }

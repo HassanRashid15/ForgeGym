@@ -49,6 +49,7 @@ import {
   Tag,
   Lock,
   PieChart,
+  Mail,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getNameInitials } from "@/lib/utils";
@@ -105,6 +106,7 @@ const gymOwnerItems: NavItem[] = [
 const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Statistics", url: "/dashboard/statistics", icon: PieChart },
+  { title: "Newsletter", url: "/dashboard/newsletter", icon: Mail },
 ];
 
 function isActivePath(pathname: string, url: string) {

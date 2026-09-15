@@ -8,7 +8,9 @@ export type MonitorEvent =
   | "api.error"
   | "profile.update"
   | "admin.approve"
-  | "admin.reject";
+  | "admin.reject"
+  | "newsletter.rate_limited"
+  | "newsletter.subscribed";
 
 /**
  * Lightweight production monitoring hook.

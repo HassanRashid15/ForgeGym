@@ -4,7 +4,7 @@ import {
   requireAuth,
 } from "@/lib/supabase/server";
 
-/** GET /api/auth/me — read-only role + profile (no writes) */
+/** GET /api/auth/me — role + profile (self-heals missing admin role for gym owners) */
 export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
@@ -51,6 +51,30 @@ export async function GET(request: Request) {
     is_verified?: boolean | null;
   } | null;
 
+  const metaRequested = String(
+    (user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
+  ).toLowerCase();
+
+  // Gym owners register with gym_name + requested_role=admin. If user_roles is
+  // missing, they must not be treated as customers.
+  const looksLikeGymOwner =
+    Boolean(profileRow?.gym_name?.trim()) ||
+    metaRequested === "admin" ||
+    metaRequested === "super_admin";
+
+  if (role === "customer" && (isSuperAdmin || looksLikeGymOwner)) {
+    role = "admin";
+    if (service && !roleNames.includes("admin")) {
+      const { error: healErr } = await service.from("user_roles").upsert(
+        { user_id: user.id, role: "admin" } as never,
+        { onConflict: "user_id,role" },
+      );
+      if (healErr) {
+        console.warn("me: could not self-heal admin role:", healErr.message);
+      }
+    }
+  }
+
   const gymOwnerId =
     profileRow?.gym_owner_id || (role === "admin" ? user.id : null);
 
@@ -59,7 +83,6 @@ export async function GET(request: Request) {
   let gymType = profileRow?.gym_type || null;
   let gymMainImageUrl: string | null = null;
 
-  // For members (and owners), resolve live gym branding from the gym catalog / owner profile
   if (gymOwnerId && service) {
     const [{ data: gymRow }, { data: ownerProfile }] = await Promise.all([
       service
@@ -90,9 +113,7 @@ export async function GET(request: Request) {
       email.split("@")[0],
     role,
     isSuperAdmin,
-    // Strict: only true when explicitly approved (or platform super admin)
-    admin_approved:
-      isSuperAdmin || profile?.admin_approved === true,
+    admin_approved: isSuperAdmin || profile?.admin_approved === true,
     is_verified: isSuperAdmin || profileRow?.is_verified === true,
     avatar: profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
     gymName,

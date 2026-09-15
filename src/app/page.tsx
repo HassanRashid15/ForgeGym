@@ -1,13 +1,15 @@
+import { Suspense } from "react";
 import { listApprovedGyms } from "@/lib/gyms";
 import HomePageClient from "@/components/marketing/HomePageClient";
+import { SplashScreen } from "@/components/marketing/SplashScreen";
+import { HomeBootSplash } from "@/components/marketing/HomeBootSplash";
 
 export const revalidate = 60;
 
 /**
- * SSR home — gyms are fetched on the server so the page is ready
- * the moment the client splash finishes and reveals content.
+ * Loads gyms on the server while the SSR splash is already visible.
  */
-export default async function HomePage() {
+async function HomeContent() {
   const gyms = await listApprovedGyms();
   const featuredGyms = gyms.slice(0, 6).map((g) => ({
     ownerId: g.ownerId,
@@ -18,4 +20,19 @@ export default async function HomePage() {
   }));
 
   return <HomePageClient featuredGyms={featuredGyms} />;
+}
+
+/**
+ * SSR home — SplashScreen is streamed immediately (no await ahead of it).
+ * Client keeps the preloader up for 10s, then reveals content.
+ */
+export default async function HomePage() {
+  return (
+    <HomeBootSplash>
+      <SplashScreen />
+      <Suspense fallback={null}>
+        <HomeContent />
+      </Suspense>
+    </HomeBootSplash>
+  );
 }

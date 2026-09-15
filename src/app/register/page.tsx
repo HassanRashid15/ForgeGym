@@ -132,6 +132,8 @@ function RegisterContent() {
                   gymName: detailData.gym.gymName,
                   gymType: detailData.gym.gymType,
                   gymCity: detailData.gym.gymCity,
+                  monthlyFee: detailData.gym.monthlyFee ?? null,
+                  trainerFee: detailData.gym.trainerFee ?? null,
                 },
                 ...list,
               ];

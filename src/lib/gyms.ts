@@ -15,6 +15,8 @@ export type GymListItem = {
   gymMainImageUrl: string | null;
   latitude: number | null;
   longitude: number | null;
+  monthlyFee: string | null;
+  trainerFee: string | null;
 };
 
 /** Public gym detail — no email/phone/address PII. */
@@ -37,7 +39,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
   const { data: gymRows, error: gymError } = await service
     .from("gyms")
     .select(
-      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, owner_display_name, avatar_url, main_image_url, latitude, longitude",
+      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, owner_display_name, avatar_url, main_image_url, latitude, longitude, monthly_fee, trainer_fee",
     )
     .eq("is_published", true)
     .order("name", { ascending: true });
@@ -92,6 +94,8 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
             row.main_image_url || profile?.gym_main_image_url || null,
           latitude: typeof row.latitude === "number" ? row.latitude : null,
           longitude: typeof row.longitude === "number" ? row.longitude : null,
+          monthlyFee: (row as { monthly_fee?: string | null }).monthly_fee || null,
+          trainerFee: (row as { trainer_fee?: string | null }).trainer_fee || null,
         };
       });
     }
@@ -110,7 +114,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
   const { data: profiles, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude",
+      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee",
     )
     .in("user_id", adminIds)
     .eq("admin_approved", true)
@@ -137,6 +141,8 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
       gymMainImageUrl: p.gym_main_image_url || null,
       latitude: typeof p.gym_latitude === "number" ? p.gym_latitude : null,
       longitude: typeof p.gym_longitude === "number" ? p.gym_longitude : null,
+      monthlyFee: (p as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
+      trainerFee: (p as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
     }));
 }
 

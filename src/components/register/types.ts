@@ -5,6 +5,8 @@ export type PublicGym = {
   gymName: string;
   gymType?: string | null;
   gymCity?: string | null;
+  monthlyFee?: string | null;
+  trainerFee?: string | null;
 };
 
 export type RegisterStep1Errors = {

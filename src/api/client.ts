@@ -22,7 +22,20 @@ export class ApiError extends Error {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  // 1. Read directly from Supabase localStorage key (avoids auth lock hangs)
+  // Prefer live session (matches setSession after /api/auth/login)
+  try {
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]);
+    if (result && "data" in result && result.data.session?.access_token) {
+      return result.data.session.access_token;
+    }
+  } catch {
+    // fall through
+  }
+
+  // Fallback: read Supabase auth storage (supports nested session shapes)
   try {
     if (typeof window !== "undefined") {
       const storageKey = Object.keys(window.localStorage).find(
@@ -35,25 +48,13 @@ async function getAccessToken(): Promise<string | null> {
           const token =
             parsed?.access_token ||
             parsed?.currentSession?.access_token ||
-            parsed?.session?.access_token;
+            parsed?.session?.access_token ||
+            parsed?.user?.access_token;
           if (typeof token === "string" && token.length > 20) {
             return token;
           }
         }
       }
-    }
-  } catch {
-    // fall through
-  }
-
-  // 2. Official session API (short-circuit — never hang forever)
-  try {
-    const result = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
-    ]);
-    if (result && "data" in result && result.data.session?.access_token) {
-      return result.data.session.access_token;
     }
   } catch {
     // fall through
@@ -136,6 +137,7 @@ export async function apiRequest<T>(
     const response = await fetch(url, {
       method: endpoint.method,
       headers,
+      credentials: "include",
       body:
         options.body === undefined
           ? undefined

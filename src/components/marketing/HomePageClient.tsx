@@ -4,13 +4,40 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-import { ArrowRight, Zap, Users, Clock, Trophy, Star, ChevronRight, ChevronDown, Building2, MapPin, Dumbbell } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  Zap,
+  Users,
+  Clock,
+  Trophy,
+  Star,
+  ChevronRight,
+  Building2,
+  MapPin,
+  Dumbbell,
+  Salad,
+  LineChart,
+} from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
-import TypingText from "@/components/marketing/TypingText";
-import { useSplash } from "@/components/marketing/SplashProvider";
+
+const heroHighlights = [
+  {
+    icon: Dumbbell,
+    title: "Expert Workouts",
+    detail: "For all fitness levels",
+  },
+  {
+    icon: Salad,
+    title: "Nutrition Guidance",
+    detail: "Eat better, perform better",
+  },
+  {
+    icon: LineChart,
+    title: "Track Progress",
+    detail: "See your results",
+  },
+] as const;
 
 export type FeaturedGym = {
   ownerId: string;
@@ -90,96 +117,75 @@ export default function HomePageClient({
 }: {
   featuredGyms?: FeaturedGym[];
 }) {
-  const { splashReady } = useSplash();
-  const [scrollY, setScrollY] = useState(0);
-
-  useEffect(() => {
-    if (!splashReady) {
-      setScrollY(0);
-      return;
-    }
-
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
-    };
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [splashReady]);
-
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      {/* Hero Section with Parallax — only after splash so scroll doesn't fight the preloader */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <div 
-          className="absolute inset-0"
-          style={{ transform: `translateY(${splashReady ? scrollY * 0.5 : 0}px)` }}
+      {/* Full-bleed hero — image masks into page background for a real blend */}
+      <section className="relative flex min-h-[100svh] items-stretch overflow-x-hidden bg-background">
+        <div
+          className="pointer-events-none absolute inset-0 overflow-hidden forge-hero-media"
+          aria-hidden
         >
           <img
-            src="/images/hero-gym.jpg"
-            alt="Gym interior with dramatic lighting"
-            className="w-full h-[120%] object-cover"
+            src="/hero_sectiona.png"
+            alt=""
+            className="forge-hero-bg absolute inset-0 h-full w-full max-w-none object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/40" />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/30" />
-        </div>
-        
-        {/* Fire glow effects */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-0 w-96 h-96 bg-primary/20 rounded-full blur-[120px] animate-pulse" />
-          <div className="absolute bottom-1/4 right-0 w-80 h-80 bg-accent/20 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: "1s" }} />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/65 to-black/25 sm:from-black/85 sm:via-black/40 sm:to-transparent lg:from-black/80 lg:via-black/35 lg:to-transparent" />
         </div>
 
-        {/* Interactive particle background */}
-        <InteractiveBackground variant="particles" density={70} />
-
-        
-        <div 
-          className="container mx-auto px-4 relative z-10 pt-20"
-          style={{ transform: `translateY(${splashReady ? scrollY * 0.2 : 0}px)` }}
-        >
-          <div className="max-w-2xl">
-            <p className="text-sm md:text-base uppercase tracking-[0.3em] text-primary mb-4 animate-slide-up">
-              Unleash. Ignite. Dominate.
-            </p>
-            <h1 className="font-display text-6xl md:text-8xl leading-none mb-6 animate-slide-up">
-              FORGE YOUR
-              <span className="text-gradient block drop-shadow-[0_0_30px_hsl(0,95%,55%,0.5)] min-h-[1.1em]">
-                <TypingText
-                  phrases={["FUTURE", "STRENGTH", "LEGACY", "GREATNESS", "POWER"]}
-                />
-              </span>
+        <div className="relative z-10 flex w-full flex-1 flex-col justify-end px-4 pb-8 pt-24 sm:justify-center sm:px-8 sm:pb-16 sm:pt-28 md:px-10 lg:px-14 lg:pb-20 xl:px-20">
+          <div className="mx-auto w-full max-w-xl sm:mx-0 lg:max-w-2xl">
+            <h1 className="forge-hero-fade forge-hero-fade-delay-1 font-display text-[clamp(2.35rem,9vw,5.75rem)] leading-[0.92] tracking-wide text-white">
+              <span className="block">Your Fitness</span>
+              <span className="mt-1 block text-[#FA1818]">Journey Starts Here</span>
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 animate-slide-up" style={{ animationDelay: "0.1s" }}>
-              Sweat is your fuel. Every rep, every drop, every breath ΓÇö this is where champions are built. Push past limits with elite coaches, cutting-edge gear, and a tribe that refuses to quit.
+
+            <p className="forge-hero-fade forge-hero-fade-delay-2 mt-4 max-w-md text-[13px] leading-relaxed text-white/75 sm:mt-6 sm:text-base">
+              Get personalized workout plans, expert guidance and track your
+              progress — all in one place. Build a stronger, healthier and better
+              you.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 animate-slide-up" style={{ animationDelay: "0.2s" }}>
-              <Button variant="hero" asChild>
-                <Link href="/membership">
+            <div className="forge-hero-fade forge-hero-fade-delay-3 mt-6 flex w-full flex-col gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:items-center sm:gap-4">
+              <Button
+                asChild
+                className="h-11 w-full rounded-full bg-[#FA1818] px-7 text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_32px_rgba(250,24,24,0.35)] transition hover:scale-[1.03] hover:bg-[#e01515] hover:shadow-[0_0_40px_rgba(250,24,24,0.45)] sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
+              >
+                <Link href="/register">
                   Start Your Journey
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-              <Button variant="heroOutline" asChild>
-                <Link href="/classes">
-                  Explore Classes
-                </Link>
+              <Button
+                asChild
+                variant="outline"
+                className="h-11 w-full rounded-full border-white/70 bg-transparent px-7 text-xs font-bold uppercase tracking-wider text-white hover:border-white hover:bg-white/10 hover:text-white sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
+              >
+                <Link href="/#features">Explore Features</Link>
               </Button>
             </div>
+
+            <ul className="forge-hero-fade forge-hero-fade-delay-4 mt-7 grid w-full grid-cols-1 gap-3 border-t border-white/15 pt-6 sm:mt-10 sm:max-w-2xl sm:grid-cols-3 sm:gap-5 sm:pt-8 md:mt-12 md:gap-6">
+              {heroHighlights.map(({ icon: Icon, title, detail }) => (
+                <li key={title} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FA1818]/15 text-[#FA1818] ring-1 ring-[#FA1818]/35 sm:h-9 sm:w-9">
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.25} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">{title}</p>
+                    <p className="text-xs text-white/55">{detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
-        
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce z-10">
-          <ChevronDown className="w-8 h-8 text-primary" />
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-card">
+      <section id="features" className="scroll-mt-20 bg-background py-24">
         <div className="container mx-auto px-4">
           <ScrollAnimate animation="fade-up" className="text-center mb-16">
             <h2 className="font-display text-5xl md:text-6xl mb-4">WHY CHOOSE FORGE</h2>

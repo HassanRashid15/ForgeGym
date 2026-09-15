@@ -47,6 +47,8 @@ import {
   Shield,
   Sparkles,
   Tag,
+  Lock,
+  PieChart,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getNameInitials } from "@/lib/utils";
@@ -70,19 +72,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthGate } from "@/hooks/useAuthGate";
 
 type NavItem = {
   title: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
+  comingSoon?: boolean;
 };
 
 const trainItems: NavItem[] = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Classes", url: "/dashboard/classes", icon: Dumbbell },
-  { title: "Schedule", url: "/dashboard/schedule", icon: Calendar },
-  { title: "Membership", url: "/dashboard/membership", icon: CreditCard },
+  { title: "Classes", url: "/dashboard/classes", icon: Dumbbell, comingSoon: true },
+  { title: "Schedule", url: "/dashboard/schedule", icon: Calendar, comingSoon: true },
+  { title: "Membership", url: "/dashboard/membership", icon: CreditCard, comingSoon: true },
   { title: "Progress", url: "/dashboard/progress", icon: BarChart3 },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
@@ -95,12 +99,12 @@ const accountItems: NavItem[] = [
 const gymOwnerItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Trainers", url: "/dashboard/trainers", icon: Dumbbell },
-  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
   { title: "Monthly Fee", url: "/dashboard/monthly-fee", icon: Wallet },
 ];
 
 const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
+  { title: "Statistics", url: "/dashboard/statistics", icon: PieChart },
 ];
 
 function isActivePath(pathname: string, url: string) {
@@ -127,6 +131,35 @@ function NavGroup({
           {items.map((item) => {
             const active = isActivePath(pathname, item.url);
             const Icon = item.icon;
+
+            if (item.comingSoon) {
+              return (
+                <SidebarMenuItem key={`${label}-${item.url}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <SidebarMenuButton
+                        type="button"
+                        aria-disabled
+                        tooltip="Coming soon"
+                        className="cursor-not-allowed text-sidebar-foreground/55 hover:bg-transparent hover:text-sidebar-foreground/55"
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        {/* Direct SVG so icon-rail mode still shows the glyph */}
+                        <Icon className="text-sidebar-foreground/50" />
+                        <span className="truncate">{item.title}</span>
+                        <span className="ml-auto flex size-5 shrink-0 items-center justify-center rounded-md bg-muted/70 text-muted-foreground">
+                          <Lock className="size-3" strokeWidth={2.5} />
+                        </span>
+                      </SidebarMenuButton>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center" sideOffset={8}>
+                      Coming soon
+                    </TooltipContent>
+                  </Tooltip>
+                </SidebarMenuItem>
+              );
+            }
+
             return (
               <SidebarMenuItem key={`${label}-${item.url}`}>
                 <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
@@ -135,8 +168,8 @@ function NavGroup({
                     prefetch={false}
                     className="group-data-[collapsible=icon]:justify-center"
                   >
-                    <Icon className="shrink-0" />
-                    <span>{item.title}</span>
+                    <Icon />
+                    <span className="truncate">{item.title}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -308,23 +341,35 @@ function ShellChrome({ children }: { children: ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton
                     size="lg"
-                    className="h-10 data-[size=lg]:h-10 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-0"
+                    tooltip={user?.name || "Account"}
+                    className={cn(
+                      "h-10 data-[size=lg]:h-10 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
+                      // Icon rail: only the avatar square — hide every other child
+                      "group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!gap-0 group-data-[collapsible=icon]:!overflow-hidden group-data-[collapsible=icon]:!p-0",
+                      "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:[&>*:not([data-sidebar-avatar])]:!hidden",
+                      "group-data-[collapsible=icon]:[&>[data-sidebar-avatar]]:!flex",
+                    )}
                   >
-                    <Avatar className="size-8 shrink-0 rounded-lg">
-                      <AvatarImage src={user?.avatar} alt={user?.name} />
-                      <AvatarFallback className="rounded-lg bg-primary/15 text-xs font-semibold text-primary">
-                        {getNameInitials(user?.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                      <span className="truncate font-semibold">
+                    <div
+                      data-sidebar-avatar
+                      className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary"
+                    >
+                      <Avatar className="size-8 rounded-lg">
+                        <AvatarImage src={user?.avatar} alt={user?.name || "Account"} />
+                        <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">
+                          {getNameInitials(user?.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold text-sidebar-foreground">
                         {user?.name || "Member"}
                       </span>
-                      <span className="truncate text-xs capitalize text-muted-foreground">
+                      <span className="truncate text-xs capitalize text-white">
                         {user?.role || "customer"}
                       </span>
                     </div>
-                    <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
+                    <ChevronsUpDown className="ml-auto size-4 shrink-0" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent

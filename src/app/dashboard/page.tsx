@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { AdminDashboardHome } from "@/components/admin/AdminDashboardHome";
+import { SuperAdminDashboardHome } from "@/components/admin/SuperAdminDashboardHome";
 import { Button } from "@/components/ui/button";
 import { getNameInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,12 +16,32 @@ import {
   Building2,
   MapPin,
   ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (isSuperAdmin) {
+    return <SuperAdminDashboardHome />;
+  }
+
+  if (isAdmin) {
+    return <AdminDashboardHome />;
+  }
+
   const firstName = (user?.name || "Athlete").trim().split(/\s+/)[0];
-  const isCustomer = !isAdmin && user?.role !== "trainer" && user?.role !== "staff";
+  const isCustomer = user?.role !== "trainer" && user?.role !== "staff";
   const hasGym = Boolean(user?.gymOwnerId && user?.gymName);
   const membershipLabel = (user?.membershipStatus || "active").replace(/_/g, " ");
   const planLabel = user?.membershipType || "Basic";
@@ -143,6 +165,8 @@ export default function DashboardPage() {
           </section>
         )}
 
+        {isCustomer && hasGym && <CustomerTrainerFeeCard />}
+
         <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
           {[
             { label: "Progress", value: "Live", hint: "log workouts", icon: TrendingUp, href: "/dashboard/progress" },
@@ -186,6 +210,12 @@ export default function DashboardPage() {
                   title: "Workout progress",
                   body: "Log focus, sets, reps, and track your week.",
                   href: "/dashboard/progress",
+                  badge: "Live",
+                },
+                {
+                  title: "Want a trainer?",
+                  body: "Add a trainer from your dashboard — monthly fee adjusts automatically.",
+                  href: "/dashboard",
                   badge: "Live",
                 },
                 {
@@ -265,9 +295,7 @@ export default function DashboardPage() {
                 </p>
               )}
               <Button asChild variant="outline" size="sm" className="w-full gap-2">
-                <Link href="/profile">
-                  Edit profile
-                </Link>
+                <Link href="/profile">Edit profile</Link>
               </Button>
             </section>
 

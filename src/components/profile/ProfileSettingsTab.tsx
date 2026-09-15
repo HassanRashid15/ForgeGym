@@ -154,6 +154,9 @@ export function ProfileSettingsTab({
                     placeholder="e.g. 5000"
                     className={fieldCls(isEditing)}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    What members pay monthly — used on Monthly Fee billing.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="settingsTrainerFee">Trainer fee</Label>
@@ -165,6 +168,9 @@ export function ProfileSettingsTab({
                     placeholder="e.g. 3000"
                     className={fieldCls(isEditing)}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    Added to a member&apos;s monthly fee when they choose a trainer.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="settingsDays">Operating days / week</Label>

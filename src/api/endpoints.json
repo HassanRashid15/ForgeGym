@@ -76,6 +76,16 @@
       "method": "GET",
       "path": "/api/admin/monthly-members",
       "description": "List gym monthly members with fee and days left"
+    },
+    "platformSettings": {
+      "method": "GET",
+      "path": "/api/admin/platform-settings",
+      "description": "Get platform facility fee from database"
+    },
+    "updatePlatformSettings": {
+      "method": "PATCH",
+      "path": "/api/admin/platform-settings",
+      "description": "Save platform facility fee to database"
     }
   },
   "profiles": {

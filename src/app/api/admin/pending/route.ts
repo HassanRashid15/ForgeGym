@@ -217,6 +217,8 @@ export async function POST(request: Request) {
         admin_rejected_at: null,
         approval_requested_at: null,
         is_super_admin: false,
+        account_status: "active",
+        membership_status: "active",
         updated_at: new Date().toISOString(),
       } as any)
       .eq("user_id", userId)
@@ -256,6 +258,8 @@ export async function POST(request: Request) {
       admin_approved: false,
       admin_rejected_at: new Date().toISOString(),
       approval_requested_at: null,
+      account_status: "rejected",
+      membership_status: "rejected",
       updated_at: new Date().toISOString(),
     } as any)
     .eq("user_id", userId)

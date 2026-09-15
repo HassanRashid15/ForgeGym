@@ -22,6 +22,8 @@ import {
   XCircle,
   MapPin,
   Building2,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import type { AdminListItem } from "@/api/auth";
 
@@ -48,8 +50,11 @@ export function OwnersSection({
   filtered,
   approvingId,
   rejectingId,
+  deletingId,
   onApprove,
   onReject,
+  onEdit,
+  onDelete,
   onRefresh,
 }: {
   loading: boolean;
@@ -65,8 +70,11 @@ export function OwnersSection({
   filtered: AdminListItem[];
   approvingId: string | null;
   rejectingId: string | null;
+  deletingId: string | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onEdit: (admin: AdminListItem) => void;
+  onDelete: (admin: AdminListItem) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -152,6 +160,10 @@ export function OwnersSection({
                 <TableBody>
                   {filtered.map((admin) => {
                     const status = getStatus(admin);
+                    const busy =
+                      approvingId === admin.user_id ||
+                      rejectingId === admin.user_id ||
+                      deletingId === admin.user_id;
                     return (
                       <TableRow key={admin.user_id}>
                         <TableCell>
@@ -206,40 +218,64 @@ export function OwnersSection({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {status !== "approved" && (
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            {status !== "approved" && (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => onApprove(admin.user_id)}
+                              >
+                                {approvingId === admin.user_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="mr-1 h-4 w-4" />
+                                    Approve
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {status !== "rejected" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() => onReject(admin.user_id)}
+                              >
+                                {rejectingId === admin.user_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <XCircle className="mr-1 h-4 w-4" />
+                                    Reject
+                                  </>
+                                )}
+                              </Button>
+                            )}
                             <Button
-                              size="sm"
-                              className="mr-2"
-                              disabled={approvingId === admin.user_id}
-                              onClick={() => onApprove(admin.user_id)}
+                              size="icon"
+                              variant="ghost"
+                              title="Edit"
+                              disabled={busy}
+                              onClick={() => onEdit(admin)}
                             >
-                              {approvingId === admin.user_id ? (
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-destructive"
+                              title="Delete"
+                              disabled={busy}
+                              onClick={() => onDelete(admin)}
+                            >
+                              {deletingId === admin.user_id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <>
-                                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                                  Approve
-                                </>
+                                <Trash2 className="h-4 w-4" />
                               )}
                             </Button>
-                          )}
-                          {status !== "rejected" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={rejectingId === admin.user_id}
-                              onClick={() => onReject(admin.user_id)}
-                            >
-                              {rejectingId === admin.user_id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <XCircle className="mr-1 h-4 w-4" />
-                                  Reject
-                                </>
-                              )}
-                            </Button>
-                          )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

@@ -21,6 +21,9 @@ import {
   localDateISO,
 } from "@/lib/progress-catalog";
 import { queryKeys } from "@/lib/query-keys";
+import { useAuth } from "@/contexts/AuthContext";
+import { AdminGymProgress } from "@/components/admin/AdminGymProgress";
+import { SuperAdminPlatformProgress } from "@/components/admin/SuperAdminPlatformProgress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +67,29 @@ function emptyCatalog(name: string): CatalogExercise {
 }
 
 export default function ProgressPage() {
+  const { isAdmin, isSuperAdmin, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (isSuperAdmin) {
+    return <SuperAdminPlatformProgress />;
+  }
+
+  if (isAdmin) {
+    return <AdminGymProgress />;
+  }
+
+  return <MemberProgressPage />;
+}
+
+function MemberProgressPage() {
   const today = localDateISO();
   const defaultRange = lastNDateISOs(6);
   const queryClient = useQueryClient();

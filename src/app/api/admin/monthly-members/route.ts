@@ -4,6 +4,7 @@ import {
   requireAuth,
 } from "@/lib/supabase/server";
 import { getGymByOwnerId } from "@/lib/gyms";
+import { formatCombinedFee } from "@/lib/fees";
 
 function daysUntil(date: Date, now = new Date()): number {
   const start = new Date(now);
@@ -68,7 +69,9 @@ async function requireApprovedAdmin(request: Request) {
 
   const { data: profile } = await db
     .from("profiles")
-    .select("admin_approved, is_super_admin, email, gym_name, gym_owner_id, gym_city, gym_monthly_fee")
+    .select(
+      "admin_approved, is_super_admin, email, gym_name, gym_owner_id, gym_city, gym_monthly_fee, gym_trainer_fee",
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -105,26 +108,30 @@ async function requireApprovedAdmin(request: Request) {
     gymOwnerId,
     gymMonthlyFee:
       (profile as { gym_monthly_fee?: string | null } | null)?.gym_monthly_fee || null,
+    gymTrainerFee:
+      (profile as { gym_trainer_fee?: string | null } | null)?.gym_trainer_fee || null,
   };
 }
 
 /**
  * GET /api/admin/monthly-members
  * Gym members with monthly fee + days left in current billing month (admin only).
+ * Members with a preferred trainer are billed gym fee + trainer fee.
  */
 export async function GET(request: Request) {
   const auth = await requireApprovedAdmin(request);
   if ("error" in auth) return auth.error;
 
-  const { supabase, gymOwnerId, gymMonthlyFee } = auth;
+  const { supabase, gymOwnerId, gymMonthlyFee, gymTrainerFee } = auth;
 
   const gym = await getGymByOwnerId(gymOwnerId);
-  const monthlyFee = gym?.monthlyFee || gymMonthlyFee || null;
+  const baseMonthlyFee = gym?.monthlyFee || gymMonthlyFee || null;
+  const trainerFee = gym?.trainerFee || gymTrainerFee || null;
 
   const { data: profiles, error } = await supabase
     .from("profiles")
     .select(
-      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, admin_approved, avatar_url",
+      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, admin_approved, avatar_url, preferred_trainer_id",
     )
     .eq("gym_owner_id", gymOwnerId)
     .order("created_at", { ascending: false });
@@ -151,7 +158,6 @@ export async function GET(request: Request) {
     .filter((p) => {
       const row = p as Record<string, unknown>;
       const roles = rolesByUser.get(p.user_id) || [];
-      // Customers only — not trainers/staff/admins of this gym
       const isCustomer =
         roles.length === 0 ||
         (roles.includes("user") &&
@@ -160,7 +166,6 @@ export async function GET(request: Request) {
           ));
       if (!isCustomer) return false;
 
-      // Billable members only — exclude pending / rejected / unapproved
       const membershipStatus = String(p.membership_status || "").toLowerCase();
       const accountStatus = String(row.account_status || "").toLowerCase();
       const approved = row.admin_approved === true;
@@ -179,10 +184,17 @@ export async function GET(request: Request) {
         (typeof p.created_at === "string" && p.created_at) ||
         null;
       const period = monthlyPeriod(associatedAt, now);
-      // Prefer membership_status — account_status defaults to "active" in DB
       const status = String(
         p.membership_status || row.account_status || "active",
       ).toLowerCase();
+      const preferredTrainerId =
+        (row.preferred_trainer_id as string | null) || null;
+      const hasTrainer = Boolean(preferredTrainerId);
+      const monthlyFee = formatCombinedFee(
+        baseMonthlyFee,
+        trainerFee,
+        hasTrainer,
+      );
 
       return {
         userId: p.user_id,
@@ -193,6 +205,10 @@ export async function GET(request: Request) {
         membershipStatus: status,
         membershipType: p.membership_type || "basic",
         monthlyFee,
+        gymMonthlyFee: baseMonthlyFee,
+        trainerFee,
+        hasTrainer,
+        preferredTrainerId,
         associatedAt,
         periodStart: period.periodStart,
         periodEnd: period.periodEnd,
@@ -201,7 +217,8 @@ export async function GET(request: Request) {
     });
 
   return NextResponse.json({
-    monthlyFee,
+    monthlyFee: baseMonthlyFee,
+    trainerFee,
     gymName: gym?.gymName || null,
     members,
   });

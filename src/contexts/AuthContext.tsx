@@ -107,6 +107,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (gen !== syncGenRef.current) return;
 
       if (!me) {
+        // /api/auth/me failed (timeout/network) — do not force customer.
+        // Prefer JWT requested_role for gym owners until a successful me sync.
+        const metaRole = String(
+          sessionUser.user_metadata?.requested_role || "",
+        ).toLowerCase();
+        const fallbackRole =
+          isSeededSuper || metaRole === "admin" || metaRole === "super_admin"
+            ? "admin"
+            : keepAdmin
+              ? "admin"
+              : "customer";
+        setUser({
+          id: userId,
+          email: userEmail,
+          name: fallbackName,
+          role: fallbackRole,
+          isSuperAdmin: isSeededSuper,
+          avatar:
+            (sessionUser.user_metadata?.avatar_url as string | undefined) ||
+            undefined,
+        });
         syncedUserIdRef.current = userId;
         return;
       }

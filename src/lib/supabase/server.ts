@@ -85,6 +85,7 @@ export type AuthedContext = {
 
 /**
  * Validate Bearer JWT (preferred for API) or fall back to cookie session.
+ * Invalid/stale Bearer must not block cookie auth (common after env/server switch).
  */
 export async function requireAuth(
   request: Request,
@@ -95,15 +96,10 @@ export async function requireAuth(
     const supabase = createSupabaseServerClient(accessToken);
     const { data, error } = await supabase.auth.getUser(accessToken);
 
-    if (error || !data.user) {
-      return {
-        error: jsonError("Unauthorized", 401, {
-          hint: error?.message || "Invalid or expired session",
-        }),
-      };
+    if (!error && data.user) {
+      return { supabase, user: data.user, accessToken };
     }
-
-    return { supabase, user: data.user, accessToken };
+    // Stale/wrong-project token — try cookies next
   }
 
   // Cookie session fallback (SSR / middleware-aligned)
@@ -119,7 +115,7 @@ export async function requireAuth(
     }
 
     const { data: sessionData } = await cookieClient.auth.getSession();
-    const token = sessionData.session?.access_token || "";
+    const token = sessionData.session?.access_token || accessToken || "";
     return {
       supabase: cookieClient as unknown as SupabaseClient<Database>,
       user: data.user,

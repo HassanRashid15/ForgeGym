@@ -17,10 +17,17 @@ export async function loginWithPassword(email: string, password: string) {
   });
 
   if (data.session?.access_token && data.session?.refresh_token) {
-    await supabase.auth.setSession({
+    const { error } = await supabase.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
     });
+    if (error) {
+      // Still proceed — cookies from /api/auth/login may be enough
+      console.warn("setSession after login:", error.message);
+    }
+  } else {
+    // Ensure client session exists even if response omitted tokens
+    await supabase.auth.getSession();
   }
 
   return data;
@@ -209,5 +216,26 @@ export async function rejectAdminAccount(userId: string) {
     action: "reject";
   }>("admin", "approveAdmin", {
     body: { userId, action: "reject" },
+  });
+}
+
+/** admin.platformSettings → GET /api/admin/platform-settings */
+export async function fetchPlatformSettings() {
+  return apiRequest<{
+    platformFacilityFee: string;
+    updatedAt: string | null;
+    stored: boolean;
+    warning?: string;
+  }>("admin", "platformSettings");
+}
+
+/** admin.updatePlatformSettings → PATCH /api/admin/platform-settings */
+export async function updatePlatformSettings(platformFacilityFee: string) {
+  return apiRequest<{
+    platformFacilityFee: string;
+    updatedAt: string | null;
+    stored: boolean;
+  }>("admin", "updatePlatformSettings", {
+    body: { platformFacilityFee },
   });
 }

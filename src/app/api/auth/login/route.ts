@@ -65,13 +65,45 @@ export async function POST(request: Request) {
     });
   }
 
-  const { data: roleData } = await supabase
+  const { data: roleRows } = await supabase
     .from("user_roles")
     .select("role")
-    .eq("user_id", userId)
-    .maybeSingle();
+    .eq("user_id", userId);
 
-  const role = roleData?.role;
+  const roleNames = (roleRows || []).map((r) => r.role);
+  let role: string | undefined;
+  if (roleNames.includes("admin")) role = "admin";
+  else if (roleNames.includes("trainer")) role = "trainer";
+  else if (roleNames.includes("staff")) role = "staff";
+  else if (roleNames.includes("moderator")) role = "moderator";
+  else if (roleNames.includes("user")) role = "user";
+  else role = roleNames[0];
+
+  // Same self-heal as /api/auth/me — gym owners must not fall through as customers
+  if (!role || role === "user") {
+    const metaRequested = String(
+      (data.user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
+    ).toLowerCase();
+    const { data: ownerProfile } = await supabase
+      .from("profiles")
+      .select("gym_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const looksLikeGymOwner =
+      Boolean((ownerProfile as { gym_name?: string | null } | null)?.gym_name?.trim()) ||
+      metaRequested === "admin" ||
+      metaRequested === "super_admin";
+    if (looksLikeGymOwner) {
+      role = "admin";
+      if (service) {
+        await service.from("user_roles").upsert(
+          { user_id: userId, role: "admin" } as never,
+          { onConflict: "user_id,role" },
+        );
+      }
+    }
+  }
+
   const gymOwnerId = (accessProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id;
   const isApproved = accessProfile?.admin_approved === true;
 

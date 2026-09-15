@@ -19,6 +19,7 @@ import {
   approveAdminAccount,
   rejectAdminAccount,
   fetchPendingAdmins,
+  type AdminListItem,
 } from "@/api/auth";
 import {
   deleteManagedUser,
@@ -176,12 +177,43 @@ export default function UsersPage() {
     try {
       await deleteManagedUser(row.user_id);
       toast.success("User deleted");
-      await Promise.all([invalidateUsers(), invalidateMonthly()]);
+      await Promise.all([invalidateUsers(), invalidateMonthly(), invalidateOwners()]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const ownerAsManaged = (admin: AdminListItem): ManagedUser => {
+    const existing = members.find((m) => m.user_id === admin.user_id);
+    if (existing) return existing;
+    return {
+      user_id: admin.user_id,
+      full_name: admin.full_name,
+      email: admin.email,
+      phone: admin.phone,
+      membership_status:
+        admin.status === "approved"
+          ? "active"
+          : admin.status === "rejected"
+            ? "rejected"
+            : "pending",
+      membership_type: null,
+      created_at: admin.created_at,
+      role: "admin",
+      admin_approved: admin.admin_approved,
+      gym_name: admin.gym_name,
+      account_status: admin.status || "pending",
+    };
+  };
+
+  const handleEditOwner = (admin: AdminListItem) => {
+    openEdit(ownerAsManaged(admin));
+  };
+
+  const handleDeleteOwner = async (admin: AdminListItem) => {
+    await handleDeleteUser(ownerAsManaged(admin));
   };
 
   const handleApprove = async (userId: string) => {
@@ -326,8 +358,11 @@ export default function UsersPage() {
               filtered={filteredOwners}
               approvingId={approvingId}
               rejectingId={rejectingId}
+              deletingId={deletingId}
               onApprove={handleApprove}
               onReject={handleReject}
+              onEdit={handleEditOwner}
+              onDelete={(admin) => void handleDeleteOwner(admin)}
               onRefresh={() => void invalidateOwners()}
               notifications={notifications}
             />
@@ -411,6 +446,7 @@ export default function UsersPage() {
         onCreated={() => {
           void invalidateUsers();
           void invalidateMonthly();
+          void invalidateOwners();
         }}
         allowedRoles={wizardAllowedRoles}
         defaultRole={

@@ -192,6 +192,11 @@ export type MonthlyMember = {
   membershipStatus: string;
   membershipType: string;
   monthlyFee: string | null;
+  /** Gym base fee before trainer add-on */
+  gymMonthlyFee?: string | null;
+  trainerFee?: string | null;
+  hasTrainer?: boolean;
+  preferredTrainerId?: string | null;
   associatedAt: string | null;
   periodStart: string | null;
   periodEnd: string | null;
@@ -202,6 +207,7 @@ export type MonthlyMember = {
 export async function listMonthlyMembers() {
   return apiRequest<{
     monthlyFee: string | null;
+    trainerFee: string | null;
     gymName: string | null;
     members: MonthlyMember[];
   }>("admin", "monthlyMembers");

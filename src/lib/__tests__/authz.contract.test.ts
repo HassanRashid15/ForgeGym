@@ -23,4 +23,14 @@ describe("authz contracts", () => {
   it("maps customer default when role metadata is empty", () => {
     expect(resolveRole(undefined, undefined)).toBe("customer");
   });
+
+  it("does not upgrade customer from JWT requested_role metadata", () => {
+    expect(resolveRole("customer", "admin")).toBe("customer");
+    expect(resolveRole("user", "admin")).toBe("customer");
+  });
+
+  it("uses metadata only when API role is missing", () => {
+    expect(resolveRole(undefined, "admin")).toBe("admin");
+    expect(resolveRole(null, "trainer")).toBe("trainer");
+  });
 });

@@ -37,6 +37,7 @@ export function MonthlyUsersTable() {
 
   const members = data?.members || [];
   const monthlyFee = data?.monthlyFee ?? null;
+  const trainerFee = data?.trainerFee ?? null;
   const gymName = data?.gymName ?? null;
   const loading = isPending && !data;
 
@@ -70,6 +71,12 @@ export function MonthlyUsersTable() {
           <span className="font-medium text-foreground">
             {monthlyFee ? `${monthlyFee}/mo` : "Not set"}
           </span>
+          {trainerFee ? (
+            <span className="text-muted-foreground">
+              {" "}
+              · trainer +{trainerFee}
+            </span>
+          ) : null}
         </span>
         <span className="hidden text-zinc-700 sm:inline">|</span>
         <span className="text-muted-foreground">
@@ -132,7 +139,14 @@ export function MonthlyUsersTable() {
                     </div>
                   </td>
                   <td className="px-3 py-2.5 tabular-nums font-medium whitespace-nowrap">
-                    {m.monthlyFee ? `${m.monthlyFee}/mo` : "—"}
+                    <div className="leading-tight">
+                      <span>{m.monthlyFee ? `${m.monthlyFee}/mo` : "—"}</span>
+                      {m.hasTrainer ? (
+                        <p className="text-[10px] font-normal text-muted-foreground">
+                          + trainer
+                        </p>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
                     {formatDateTime(m.associatedAt)}

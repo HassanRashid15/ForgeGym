@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
 import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
+import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
+import { formatCombinedFee } from "@/lib/fees";
 import { 
   User, 
   Mail, 
@@ -116,6 +118,7 @@ export default function ProfilePage() {
     preferredTrainerId: "",
     preferredTrainerName: "",
     associatedGymMonthlyFee: "",
+    associatedGymTrainerFee: "",
   });
 
   const [initialData, setInitialData] = useState<typeof profileData | null>(null);
@@ -231,6 +234,7 @@ export default function ProfilePage() {
           preferredTrainerId: dbProfile?.preferred_trainer_id || "",
           preferredTrainerName: "",
           associatedGymMonthlyFee: "",
+          associatedGymTrainerFee: "",
         };
 
         setProfileData(mapped);
@@ -249,6 +253,10 @@ export default function ProfilePage() {
                 gymData?.gym?.monthlyFee != null
                   ? String(gymData.gym.monthlyFee)
                   : "";
+              const trainerFee =
+                gymData?.gym?.trainerFee != null
+                  ? String(gymData.gym.trainerFee)
+                  : "";
               const gymLabel = gymData?.gym?.gymName
                 ? String(gymData.gym.gymName)
                 : "";
@@ -259,6 +267,7 @@ export default function ProfilePage() {
                 setProfileData((prev) => ({
                   ...prev,
                   associatedGymMonthlyFee: fee,
+                  associatedGymTrainerFee: trainerFee,
                   gymName: prev.gymName || gymLabel,
                   gymCity: prev.gymCity || cityLabel,
                 }));
@@ -267,6 +276,7 @@ export default function ProfilePage() {
                     ? {
                         ...prev,
                         associatedGymMonthlyFee: fee,
+                        associatedGymTrainerFee: trainerFee,
                         gymName: prev.gymName || gymLabel,
                         gymCity: prev.gymCity || cityLabel,
                       }
@@ -921,6 +931,9 @@ export default function ProfilePage() {
                         />
                       </div>
                     </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      These fees are yours to set. Members with a trainer are billed monthly + trainer.
+                    </p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="gymOperatingDays">Operating Days / Week</Label>
@@ -1326,11 +1339,22 @@ export default function ProfilePage() {
                         <Wallet className="h-4 w-4 text-primary" />
                         <span className="text-muted-foreground">Monthly fee:</span>
                         <span className="font-semibold">
-                          {profileData.associatedGymMonthlyFee
-                            ? `${profileData.associatedGymMonthlyFee} / month`
-                            : "Not set"}
+                          {(() => {
+                            const total = formatCombinedFee(
+                              profileData.associatedGymMonthlyFee,
+                              profileData.associatedGymTrainerFee,
+                              Boolean(profileData.preferredTrainerId),
+                            );
+                            return total ? `${total} / month` : "Not set";
+                          })()}
                         </span>
                       </p>
+                      {profileData.preferredTrainerId &&
+                        profileData.associatedGymTrainerFee && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Includes trainer fee ({profileData.associatedGymTrainerFee})
+                          </p>
+                        )}
                     </div>
                     <Badge className="bg-emerald-500 text-white px-4 py-1.5 self-start sm:self-center capitalize">
                       {profileData.membershipStatus}
@@ -1354,6 +1378,19 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  <CustomerTrainerFeeCard
+                    compact
+                    onTrainerChange={(id) => {
+                      setProfileData((prev) => ({
+                        ...prev,
+                        preferredTrainerId: id,
+                        preferredTrainerName: id
+                          ? prev.preferredTrainerName || "Selected trainer"
+                          : "",
+                      }));
+                    }}
+                  />
+
                   <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
                     <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                       <Dumbbell className="h-3.5 w-3.5" />
@@ -1364,7 +1401,7 @@ export default function ProfilePage() {
                         (profileData.preferredTrainerId ? "Selected trainer" : "None selected")}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Chosen at signup — optional, you can train without a preferred trainer.
+                      Change above anytime — monthly fee adjusts with trainer.
                     </p>
                   </div>
 

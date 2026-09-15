@@ -83,6 +83,7 @@ export type ProfileUpdatePayload = Partial<{
   gym_video_file_url: string | null;
   gym_monthly_fee: string | null;
   gym_trainer_fee: string | null;
+  preferred_trainer_id: string | null;
 }>;
 
 /** GET profiles.get → /api/profiles */

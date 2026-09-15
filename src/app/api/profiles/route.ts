@@ -131,6 +131,48 @@ export async function PATCH(request: Request) {
   }
 
   const allowed = pickAllowedProfileFields(body as Record<string, unknown>);
+
+  // Customers may only assign trainers that belong to their gym
+  if ("preferred_trainer_id" in allowed) {
+    const raw = allowed.preferred_trainer_id;
+    const trainerId =
+      raw === null || raw === undefined || raw === ""
+        ? null
+        : String(raw).trim();
+    allowed.preferred_trainer_id = trainerId;
+
+    if (trainerId) {
+      const service = createSupabaseServiceClient();
+      const db = service || supabase;
+      const { data: me } = await db
+        .from("profiles")
+        .select("gym_owner_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const gymOwnerId = me?.gym_owner_id || null;
+      if (!gymOwnerId) {
+        return jsonError("Join a gym before selecting a trainer", 400);
+      }
+      const { data: trainerProfile } = await db
+        .from("profiles")
+        .select("user_id, gym_owner_id")
+        .eq("user_id", trainerId)
+        .maybeSingle();
+      const { data: trainerRoles } = await db
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", trainerId);
+      const isTrainer = (trainerRoles || []).some((r) => r.role === "trainer");
+      if (
+        !trainerProfile ||
+        !isTrainer ||
+        trainerProfile.gym_owner_id !== gymOwnerId
+      ) {
+        return jsonError("Selected trainer is not available at your gym", 400);
+      }
+    }
+  }
+
   const updatePayload = {
     ...allowed,
     updated_at: new Date().toISOString(),

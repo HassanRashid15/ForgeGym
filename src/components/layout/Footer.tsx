@@ -24,7 +24,7 @@ const Footer = () => {
           <div>
             <Link href="/" className="flex items-center gap-2 mb-4" suppressHydrationWarning>
               <img 
-                src={theme === "light" ? "/navlogolight.png" : "/gym.png"} 
+                src={theme === "light" ? "/forge_white.png" : "/preloader_logo.png"} 
                 alt="FORGE Gym" 
                 className="w-32 h-12 object-contain"
               />

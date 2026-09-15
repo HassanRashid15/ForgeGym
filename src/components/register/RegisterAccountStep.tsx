@@ -22,6 +22,7 @@ import {
   Dumbbell,
 } from "lucide-react";
 import type { AccountType, PublicGym, RegisterStep1Errors } from "./types";
+import { feeBreakdownLabel, formatCombinedFee } from "@/lib/fees";
 
 const inputCls = (hasError: boolean) =>
   `h-11 rounded-xl text-white placeholder:text-zinc-500 focus-visible:ring-red-500 transition-colors ${
@@ -189,10 +190,10 @@ export function RegisterAccountStep({
   }, [trainers, preferredTrainerId, setPreferredTrainerId, setPreferredTrainerLabel]);
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-4">
+    <form onSubmit={onSubmit} noValidate className="min-w-0 space-y-4">
       <div className="space-y-2">
         <Label className="text-zinc-300 font-medium text-sm">Register as</Label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => {
@@ -267,8 +268,8 @@ export function RegisterAccountStep({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="firstName" className="text-zinc-300 font-medium text-sm">
             First Name
           </Label>
@@ -289,7 +290,7 @@ export function RegisterAccountStep({
           </div>
           {errors.firstName && <p className="text-xs text-red-400">{errors.firstName}</p>}
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="lastName" className="text-zinc-300 font-medium text-sm">
             Last Name
           </Label>
@@ -312,8 +313,8 @@ export function RegisterAccountStep({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="email" className="text-zinc-300 font-medium text-sm">
             Email
           </Label>
@@ -339,7 +340,7 @@ export function RegisterAccountStep({
             <p className="text-xs text-emerald-400">Email available</p>
           )}
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="phone" className="text-zinc-300 font-medium text-sm">
             Phone Number
           </Label>
@@ -480,8 +481,40 @@ export function RegisterAccountStep({
                 </select>
               </div>
               <p className="text-[11px] text-zinc-500 leading-relaxed">
-                Optional — pick a trainer if you want one, or leave this blank.
+                Optional — pick a trainer if you want one. Monthly fee auto-adjusts
+                (gym fee + trainer fee).
               </p>
+              {(() => {
+                const gym = gyms.find((g) => g.ownerId === selectedGymOwnerId);
+                const monthly = gym?.monthlyFee?.trim() || null;
+                const trainer = gym?.trainerFee?.trim() || null;
+                if (!monthly && !trainer) return null;
+                const withTrainer = Boolean(preferredTrainerId);
+                const total = formatCombinedFee(monthly, trainer, withTrainer);
+                return (
+                  <div className="rounded-xl border border-zinc-700 bg-zinc-900/80 px-3 py-2.5 text-xs text-zinc-300 space-y-1">
+                    <p className="flex justify-between gap-2">
+                      <span>Gym monthly</span>
+                      <span className="font-medium text-white">{monthly || "—"}</span>
+                    </p>
+                    <p className="flex justify-between gap-2">
+                      <span>Trainer fee</span>
+                      <span className="font-medium text-white">
+                        {withTrainer ? trainer || "—" : "Not added"}
+                      </span>
+                    </p>
+                    <p className="flex justify-between gap-2 border-t border-zinc-700 pt-1.5 text-sm text-white">
+                      <span>Estimated total</span>
+                      <span className="font-semibold text-red-400">
+                        {total || "—"}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      {feeBreakdownLabel(monthly, trainer, withTrainer)}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -505,8 +538,8 @@ export function RegisterAccountStep({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="password" className="text-zinc-300 font-medium text-sm">
             Password
           </Label>
@@ -534,7 +567,7 @@ export function RegisterAccountStep({
           </div>
           {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
         </div>
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <Label htmlFor="confirmPassword" className="text-zinc-300 font-medium text-sm">
             Confirm Password
           </Label>

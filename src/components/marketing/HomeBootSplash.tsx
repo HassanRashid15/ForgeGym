@@ -45,8 +45,8 @@ type HomeBootSplashProps = {
 };
 
 /**
- * Keeps the SSR preloader visible for 10s, then fades and reveals home content.
- * Logo fade-in delay matches mobile CustomSplashScreen.
+ * Keeps the SSR preloader visible for ~10s, then fades and reveals home content.
+ * Logo fade-in runs once from SSR CSS — do not restart it on hydrate.
  */
 export function HomeBootSplash({ children }: HomeBootSplashProps) {
   const [phase, setPhase] = useState<"show" | "fade" | "done">("show");
@@ -68,13 +68,8 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
     lockSplashScroll();
     document.getElementById("forge-instant-splash")?.remove();
 
-    // Restart logo fade-in so the 450ms delay is visible
-    const logo = document.querySelector<HTMLElement>(".forge-splash-logo");
-    if (logo) {
-      logo.style.animation = "none";
-      void logo.offsetWidth;
-      logo.style.animation = "";
-    }
+    // Do not restart .forge-splash-logo animation here — SSR already starts it.
+    // Resetting on hydrate made the logo fade in twice.
 
     const block = (e: Event) => e.preventDefault();
     blockRef.current = block;

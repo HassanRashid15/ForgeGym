@@ -107,7 +107,7 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: base,
-    logo: `${base}/forge-mark.png`,
+    logo: `${base}/favicon/android-chrome-512x512.png`,
     description: DEFAULT_DESCRIPTION,
   };
 }

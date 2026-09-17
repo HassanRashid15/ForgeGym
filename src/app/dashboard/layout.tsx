@@ -1,6 +1,14 @@
 import { redirect } from "next/navigation";
 import { createSupabaseCookieClient } from "@/lib/supabase/server";
 import DashboardClientLayout from "./DashboardClientLayout";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata = buildPageMetadata({
+  title: "Dashboard",
+  description: "Forge Gym member and gym-owner dashboard.",
+  path: "/dashboard",
+  noIndex: true,
+});
 
 export default async function DashboardLayout({
   children,

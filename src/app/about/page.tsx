@@ -1,13 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Target, Heart, Users, Award, ArrowRight } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-// import { usePageLoading } from "@/hooks/usePageLoading";
-// import PageSkeleton from "@/components/skeletons/PageSkeleton";
+import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 
 const values = [
@@ -34,20 +34,39 @@ const values = [
 ];
 
 const timeline = [
-  { year: "2009", title: "The Beginning", description: "Forge was founded with a single location and a vision to create a different kind of gym." },
-  { year: "2012", title: "First Expansion", description: "We opened our second location due to overwhelming demand from our growing community." },
-  { year: "2016", title: "Innovation", description: "Launched our signature HIIT program that would become one of the most popular classes." },
-  { year: "2020", title: "Digital Transformation", description: "Introduced our mobile app and online training to reach members anywhere." },
-  { year: "2024", title: "Today", description: "Now with 5 locations and 50+ trainers, we continue to grow while staying true to our values." },
+  {
+    year: "Idea",
+    title: "The vision",
+    description:
+      "Forge started as a simple idea: give gym owners a modern hub for members, trainers, and day-to-day ops.",
+  },
+  {
+    year: "Build",
+    title: "Platform first",
+    description:
+      "We focused on real workflows — profiles, approvals, attendance, and gym pages — before chasing vanity metrics.",
+  },
+  {
+    year: "Now",
+    title: "Soft launch",
+    description:
+      "We're opening with partner gyms first. Live numbers reflect the network as it grows — no inflated claims.",
+  },
 ];
 
 export default function AboutPage() {
-  // const isLoading = usePageLoading(500);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Preloader commented out for now
-  // if (isLoading) {
-  //   return <PageSkeleton variant="about" />;
-  // }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <PageSkeleton variant="about" />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -78,17 +97,21 @@ export default function AboutPage() {
                 FORGING STRONGER <span className="text-gradient">FUTURES</span>
               </h2>
               <p className="text-muted-foreground mb-6">
-                Forge was born from a simple belief: everyone deserves access to world-class fitness facilities and expert guidance. We saw too many gyms focused on selling memberships rather than transforming lives.
+                Forge was born from a simple belief: gyms deserve software that helps people train —
+                not just sell memberships. We saw too many tools that looked big on paper and broke
+                on the floor.
               </p>
               <p className="text-muted-foreground mb-6">
-                So in 2009, we set out to create something different. A gym where the equipment is always top-notch, the trainers are true professionals, and the community is welcoming to everyone — from first-timers to elite athletes.
+                So we built a hub for owners, trainers, and members: clear gym pages, approval flows,
+                progress tracking, and room to grow features like classes and billing in later phases.
               </p>
               <p className="text-muted-foreground mb-8">
-                Today, Forge stands as a testament to what's possible when you put people first. With over 10,000 active members and 50+ certified trainers, we've become one of the most respected fitness brands in the country.
+                Today Forge is in soft launch with partner gyms. The stats you see on the site are
+                live — they grow as the network grows.
               </p>
               <Button variant="outline" asChild>
-                <Link href="/membership">
-                  Join Our Community
+                <Link href="/gyms">
+                  Browse partner gyms
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
@@ -173,27 +196,21 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { value: "5", label: "Locations" },
-              { value: "50+", label: "Expert Trainers" },
-              { value: "10K+", label: "Active Members" },
-              { value: "1M+", label: "Workouts Completed" },
-            ].map((stat, index) => (
-              <ScrollAnimate
-                key={stat.label}
-                animation="fade-up"
-                delay={index * 0.1}
-                className="text-center"
-              >
-                <div className="font-display text-5xl md:text-7xl text-primary mb-2">{stat.value}</div>
-                <p className="text-muted-foreground">{stat.label}</p>
-              </ScrollAnimate>
-            ))}
-          </div>
+      {/* Soft launch note */}
+      <section className="border-y border-border bg-card py-20">
+        <div className="container mx-auto max-w-2xl px-4 text-center">
+          <ScrollAnimate animation="fade-up">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
+              Soft launch
+            </p>
+            <h2 className="font-display mb-4 text-4xl tracking-normal md:text-5xl">
+              Honest numbers only
+            </h2>
+            <p className="text-muted-foreground">
+              Member, trainer, and gym counts on Forge update from live data. We&apos;re growing with
+              real partners — check the home page for current figures.
+            </p>
+          </ScrollAnimate>
         </div>
       </section>
 
@@ -205,11 +222,12 @@ export default function AboutPage() {
               BECOME PART OF <span className="text-gradient">OUR STORY</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-              Join thousands of members who have made Forge their fitness home.
+              Join a partner gym on Forge and train with a platform built for the floor — not
+              marketing fiction.
             </p>
             <Button variant="hero" asChild>
-              <Link href="/membership">
-                Start Your Journey
+              <Link href="/gyms">
+                Find a gym
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>

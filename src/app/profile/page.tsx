@@ -23,6 +23,7 @@ import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
 import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
 import { formatCombinedFee } from "@/lib/fees";
+import { ProfileSkeleton } from "@/components/loading/ProfileSkeleton";
 import { 
   User, 
   Mail, 
@@ -65,6 +66,7 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("profile");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -355,8 +357,13 @@ export default function ProfilePage() {
 
       // Upload new avatar to Supabase Storage bucket first (if picked)
       if (pendingAvatarFile) {
-        const uploaded = await uploadMyAvatar(pendingAvatarFile);
-        nextAvatarUrl = uploaded.avatar_url;
+        setIsUploadingAvatar(true);
+        try {
+          const uploaded = await uploadMyAvatar(pendingAvatarFile);
+          nextAvatarUrl = uploaded.avatar_url;
+        } finally {
+          setIsUploadingAvatar(false);
+        }
       }
 
       const dbPayload: any = {
@@ -485,18 +492,13 @@ export default function ProfilePage() {
   const bmiValue = calculateBmi();
   const membershipDays = getMembershipDays();
 
-  // Show spinner while profile data is still fetching
+  // Show skeleton while profile data is still fetching
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 bg-background min-h-[400px]">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse">Loading profile from database…</p>
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   return (
-    <div className="flex-1 space-y-6 p-6">
+    <div className="flex-1 space-y-6 p-4 md:p-6 lg:p-8">
       {/* Profile Header */}
       <div className="bg-gradient-to-r from-red-600/15 via-red-900/10 to-background border border-border/40 rounded-lg p-6">
         <div className="flex flex-col md:flex-row items-center gap-6">
@@ -522,11 +524,15 @@ export default function ProfilePage() {
                 type="button"
                 size="icon"
                 className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md"
-                disabled={isSaving}
+                disabled={isSaving || isUploadingAvatar}
                 onClick={() => avatarInputRef.current?.click()}
                 title="Upload profile photo"
               >
-                <Camera className="h-4 w-4 text-white" />
+                {isUploadingAvatar ? (
+                  <Loader2 className="h-4 w-4 text-white animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4 text-white" />
+                )}
               </Button>
             </div>
             <div className="text-center md:text-left flex-1">
@@ -581,17 +587,19 @@ export default function ProfilePage() {
               <Button 
                 variant={isEditing ? "outline" : "default"}
                 onClick={() => (isEditing ? handleCancel() : setIsEditing(true))}
-                disabled={isSaving}
+                disabled={isSaving || isUploadingAvatar}
               >
                 {isEditing ? "Cancel" : <><Edit className="h-4 w-4 mr-2" /> Edit Profile</>}
               </Button>
               {isEditing && (
                 <Button 
                   onClick={handleSave} 
-                  disabled={isSaving}
+                  disabled={isSaving || isUploadingAvatar}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
-                  {isSaving ? (
+                  {isUploadingAvatar ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading avatar...</>
+                  ) : isSaving ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
                   ) : (
                     <><Save className="h-4 w-4 mr-2" /> Save Changes</>
@@ -1067,10 +1075,11 @@ export default function ProfilePage() {
                     <ImageIcon className="h-5 w-5 text-primary" />
                     Gym photos & video
                   </CardTitle>
-                  <CardDescription>Main image, gallery, and video stored in gym-media</CardDescription>
+                  <CardDescription>Logo, main image, gallery, and video stored in gym-media</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <GymMediaSection
+                    logoUrl={profileData.avatarUrl}
                     mainImageUrl={profileData.gymMainImageUrl}
                     optionalImagesUrls={profileData.gymOptionalImagesUrls}
                     videoUrl={profileData.gymVideoUrl}
@@ -1079,6 +1088,7 @@ export default function ProfilePage() {
                     onUpdate={(media) =>
                       setProfileData((prev) => ({
                         ...prev,
+                        avatarUrl: media.logoUrl,
                         gymMainImageUrl: media.mainImageUrl,
                         gymOptionalImagesUrls: media.optionalImagesUrls,
                         gymVideoUrl: media.videoUrl,
@@ -1445,6 +1455,7 @@ export default function ProfilePage() {
           <TabsContent value="settings" className="space-y-6">
             <ProfileSettingsTab
               isAdmin={isAdmin}
+              isSuperAdmin={isSuperAdmin || profileData.isSuperAdmin}
               isEditing={isEditing}
               setIsEditing={setIsEditing}
               isSaving={isSaving}
@@ -1464,6 +1475,7 @@ export default function ProfilePage() {
                 gymTrainerFee: profileData.gymTrainerFee,
                 gymFacilities: profileData.gymFacilities,
                 gymServices: profileData.gymServices,
+                avatarUrl: profileData.avatarUrl,
                 gymMainImageUrl: profileData.gymMainImageUrl,
                 gymOptionalImagesUrls: profileData.gymOptionalImagesUrls,
                 gymVideoUrl: profileData.gymVideoUrl,

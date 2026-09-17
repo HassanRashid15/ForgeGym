@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Building2, Shield, Image as ImageIcon } from "lucide-react";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
+import { NewsletterPreferenceCard } from "@/components/profile/NewsletterPreferenceCard";
 
 export type ProfileSettingsFormSlice = {
   email: string;
@@ -26,6 +27,7 @@ export type ProfileSettingsFormSlice = {
   gymTrainerFee: string;
   gymFacilities: string[];
   gymServices: string[];
+  avatarUrl: string;
   gymMainImageUrl: string;
   gymOptionalImagesUrls: string[];
   gymVideoUrl: string;
@@ -34,6 +36,7 @@ export type ProfileSettingsFormSlice = {
 
 type ProfileSettingsTabProps = {
   isAdmin: boolean;
+  isSuperAdmin?: boolean;
   isEditing: boolean;
   setIsEditing: (v: boolean) => void;
   profileData: ProfileSettingsFormSlice;
@@ -47,6 +50,7 @@ const fieldCls = (editing: boolean) =>
 
 export function ProfileSettingsTab({
   isAdmin,
+  isSuperAdmin = false,
   isEditing,
   setIsEditing,
   profileData,
@@ -60,6 +64,8 @@ export function ProfileSettingsTab({
 
   return (
     <div className="space-y-6">
+      {!isSuperAdmin && <NewsletterPreferenceCard />}
+
       {isAdmin && (
         <>
           <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
@@ -324,6 +330,7 @@ export function ProfileSettingsTab({
             </CardHeader>
             <CardContent>
               <GymMediaSection
+                logoUrl={profileData.avatarUrl || ""}
                 mainImageUrl={profileData.gymMainImageUrl}
                 optionalImagesUrls={profileData.gymOptionalImagesUrls}
                 videoUrl={profileData.gymVideoUrl}
@@ -331,6 +338,7 @@ export function ProfileSettingsTab({
                 persistToDb
                 onUpdate={(media) =>
                   patch({
+                    avatarUrl: media.logoUrl,
                     gymMainImageUrl: media.mainImageUrl,
                     gymOptionalImagesUrls: media.optionalImagesUrls,
                     gymVideoUrl: media.videoUrl,

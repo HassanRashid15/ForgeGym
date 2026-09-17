@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, LogOut, User, Settings, LayoutDashboard } from "lucide-react";
+import { Menu, X, LogOut, User, Settings, LayoutDashboard, Loader2 } from "lucide-react";
 import ThemeToggle from "@/components/marketing/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNameInitials } from "@/lib/utils";
@@ -31,8 +31,12 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
   const { theme } = useTheme();
+
+  // Pages that should use light theme styling
+  const lightThemePages = ['/gyms', '/trainers', '/contact', '/about'];
+  const isLightThemePage = lightThemePages.some(page => pathname === page || pathname.startsWith(`${page}/`)) && theme === 'light';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -41,6 +45,18 @@ const Navbar = () => {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     setIsOpen(false);
@@ -55,26 +71,41 @@ const Navbar = () => {
         suppressHydrationWarning
       >
         <div
-          className={`pointer-events-auto w-full max-w-none origin-top rounded-none transition-[width,max-width,margin,padding,border-radius,background-color,border-color,backdrop-filter,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width,border-radius,margin] ${
+          className={`pointer-events-auto w-full max-w-none origin-top rounded-none transition-[width,max-width,margin,padding,padding-left,padding-right,border-radius,background-color,border-color,backdrop-filter,box-shadow] duration-300 ease-out will-change-[width,border-radius,margin,padding] ${
             scrolled || isOpen
               ? "border-b border-white/10 bg-black/40 backdrop-blur-md xl:mt-5 xl:w-[min(92%,72rem)] xl:rounded-full xl:border xl:border-white/10 xl:px-6 xl:shadow-lg xl:shadow-black/20"
               : "mt-0 border-b border-transparent bg-transparent backdrop-blur-none"
           } ${isOpen ? "!mt-0 !w-full !max-w-none !rounded-none !border-b !border-white/10 !px-0" : ""}`}
         >
-          <div className="mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:h-20 sm:px-6">
+          <div className={`mx-auto flex h-16 w-full max-w-7xl items-center transition-all duration-500 ease-out ${scrolled ? 'px-4' : 'px-0'} sm:h-20 ${scrolled ? 'sm:px-6' : 'sm:px-0'}`}>
             <div className="relative flex h-full w-full min-w-0 items-center justify-between gap-3">
-              <Link
-                href="/"
-                className="group flex shrink-0 items-center gap-2"
-                suppressHydrationWarning
-                onClick={closeMenu}
-              >
-                <img
-                  src={theme === "light" ? "/forge.png" : "/forge.png"}
-                  alt="FORGE Gym"
-                  className="h-10 w-28 object-contain sm:h-12 sm:w-32"
-                />
-              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="p-2 text-white lg:hidden"
+                  onClick={() => setIsOpen((o) => !o)}
+                  aria-label={isOpen ? "Close menu" : "Open menu"}
+                  aria-expanded={isOpen}
+                >
+                  {isOpen ? (
+                    <X className="h-6 w-6" />
+                  ) : (
+                    <Menu className="h-6 w-6" />
+                  )}
+                </button>
+                <Link
+                  href="/"
+                  className="group flex shrink-0 items-center gap-2"
+                  suppressHydrationWarning
+                  onClick={closeMenu}
+                >
+                  <img
+                    src={isLightThemePage ? "/forge_white.png" : "/forge.png"}
+                    alt="FORGE Gym"
+                    className="h-10 w-28 object-contain sm:h-12 sm:w-32"
+                  />
+                </Link>
+              </div>
 
               <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 lg:flex xl:gap-6">
                 {navLinks.map((link) => (
@@ -83,14 +114,18 @@ const Navbar = () => {
                     href={link.path}
                     suppressHydrationWarning
                     className={`nav-link text-sm font-medium transition-colors ${
-                      link.path === "/"
+                      isLightThemePage
+                        ? pathname === link.path || pathname.startsWith(`${link.path}/`)
+                          ? "text-primary"
+                          : "text-black/80 hover:text-black"
+                        : link.path === "/"
                         ? pathname === "/"
                           ? "text-primary"
-                          : ""
+                          : "text-white/80 hover:text-white"
                         : pathname === link.path ||
                             pathname.startsWith(`${link.path}/`)
                           ? "text-primary"
-                          : ""
+                          : "text-white/80 hover:text-white"
                     }`}
                   >
                     {link.name}
@@ -98,9 +133,11 @@ const Navbar = () => {
                 ))}
               </div>
 
-              <div className="hidden items-center gap-2 lg:flex">
+              <div className="flex items-center gap-2">
                 <ThemeToggle />
-                {isAuthenticated ? (
+                {isLoading ? (
+                  <div className="h-9 w-9 rounded-full bg-primary/10 animate-pulse" />
+                ) : isAuthenticated ? (
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -158,13 +195,13 @@ const Navbar = () => {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                ) : (
+                ) : isAuthenticated === false ? (
                   <>
                     <Button
                       variant="ghost"
                       size={scrolled ? "default" : "lg"}
                       asChild
-                      className="transition-all duration-300"
+                      className="transition-all duration-300 hidden lg:inline-flex"
                       suppressHydrationWarning
                     >
                       <Link href="/login" suppressHydrationWarning>
@@ -175,7 +212,7 @@ const Navbar = () => {
                       variant="default"
                       size={scrolled ? "default" : "lg"}
                       asChild
-                      className="transition-all duration-300"
+                      className="transition-all duration-300 hidden lg:inline-flex"
                       suppressHydrationWarning
                     >
                       <Link href="/register" suppressHydrationWarning>
@@ -183,24 +220,7 @@ const Navbar = () => {
                       </Link>
                     </Button>
                   </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 lg:hidden">
-                <ThemeToggle />
-                <button
-                  type="button"
-                  className="p-2 text-foreground"
-                  onClick={() => setIsOpen((o) => !o)}
-                  aria-label={isOpen ? "Close menu" : "Open menu"}
-                  aria-expanded={isOpen}
-                >
-                  {isOpen ? (
-                    <X className="h-6 w-6" />
-                  ) : (
-                    <Menu className="h-6 w-6" />
-                  )}
-                </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -210,7 +230,11 @@ const Navbar = () => {
       {/* Mobile menu — full width, height follows content */}
       {isOpen && (
         <div
-          className="fixed inset-x-0 top-16 z-40 border-b border-white/10 bg-black lg:hidden sm:top-20"
+          className={`fixed inset-x-0 top-16 z-50 border-b lg:hidden sm:top-20 ${
+            isLightThemePage
+              ? "border-black/10 bg-white"
+              : "border-white/10 bg-black"
+          }`}
           role="dialog"
           aria-modal="true"
           aria-label="Mobile navigation"
@@ -222,7 +246,11 @@ const Navbar = () => {
                   key={link.path}
                   href={link.path}
                   className={`rounded-lg px-3 py-3 text-lg font-medium transition-colors ${
-                    pathname === link.path
+                    isLightThemePage
+                      ? pathname === link.path
+                        ? "bg-black/5 text-primary"
+                        : "text-black/80 hover:bg-black/5 hover:text-black"
+                      : pathname === link.path
                       ? "bg-white/5 text-primary"
                       : "text-white/80 hover:bg-white/5 hover:text-white"
                   }`}
@@ -233,72 +261,32 @@ const Navbar = () => {
               ))}
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4">
-              {isAuthenticated ? (
-                <>
-                  <div className="mb-1 flex items-center gap-3 px-1">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={user?.avatar} alt={user?.name} />
-                      <AvatarFallback className="text-sm font-semibold tracking-wide">
-                        {getNameInitials(user?.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex min-w-0 flex-col">
-                      <p className="truncate text-sm font-medium text-white">
-                        {user?.name}
-                      </p>
-                      <p className="truncate text-xs capitalize text-white/50">
-                        {user?.role}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    className="justify-start text-white"
-                    asChild
-                  >
-                    <Link href="/dashboard" onClick={closeMenu}>
-                      <LayoutDashboard className="mr-2 h-4 w-4" />
-                      Dashboard
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="justify-start text-white"
-                    asChild
-                  >
-                    <Link href="/profile" onClick={closeMenu}>
-                      <User className="mr-2 h-4 w-4" />
-                      Profile
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="justify-start text-white"
-                    asChild
-                  >
-                    <Link href="/settings" onClick={closeMenu}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Settings
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="justify-start text-destructive"
-                    onClick={() => {
-                      logout();
-                      closeMenu();
-                    }}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </Button>
-                </>
-              ) : (
+            <div className={`mt-4 flex flex-col gap-3 border-t pt-4 ${
+              isLightThemePage ? "border-black/10" : "border-white/10"
+            }`}>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : isAuthenticated ? (
+                <Button
+                  variant="ghost"
+                  className={`justify-start text-destructive`}
+                  onClick={() => {
+                    logout();
+                    closeMenu();
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Log out
+                </Button>
+              ) : isAuthenticated === false ? (
                 <>
                   <Button
                     variant="ghost"
-                    className="w-full text-white"
+                    className={`w-full ${
+                      isLightThemePage ? "text-black" : "text-white"
+                    }`}
                     asChild
                     suppressHydrationWarning
                   >
@@ -321,7 +309,7 @@ const Navbar = () => {
                     </Link>
                   </Button>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

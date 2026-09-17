@@ -78,10 +78,16 @@ export function useSuperAdminPlatformStats(enabled = true) {
     const supabaseClient = supabase;
     const channelName = `super-admin-platform:${user.id}:${instanceId.current}`;
     const channel = supabaseClient.channel(channelName);
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.pendingAdmins });
+      // Debounce realtime storms — one refetch per 8s window
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        void queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.pendingAdmins });
+      }, 8000);
     };
 
     channel
@@ -103,6 +109,7 @@ export function useSuperAdminPlatformStats(enabled = true) {
       .subscribe();
 
     return () => {
+      if (timer) clearTimeout(timer);
       void supabaseClient.removeChannel(channel);
     };
   }, [active, user?.id, queryClient]);

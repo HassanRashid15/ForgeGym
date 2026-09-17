@@ -72,6 +72,7 @@ function RegisterContent() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isStepTransitioning, setIsStepTransitioning] = useState(false);
   const [errors, setErrors] = useState<{
     accountType?: string;
     firstName?: string;
@@ -212,6 +213,8 @@ function RegisterContent() {
   const [gymTrainerFee, setGymTrainerFee] = useState("");
   const [gymMainImage, setGymMainImage] = useState<File | null>(null);
   const [gymMainImagePreview, setGymMainImagePreview] = useState<string>("");
+  const [gymLogo, setGymLogo] = useState<File | null>(null);
+  const [gymLogoPreview, setGymLogoPreview] = useState<string>("");
   const [gymOptionalImages, setGymOptionalImages] = useState<File[]>([]);
   const [gymOptionalImagesPreviews, setGymOptionalImagesPreviews] = useState<string[]>([]);
   const [gymVideoUrl, setGymVideoUrl] = useState("");
@@ -286,6 +289,27 @@ function RegisterContent() {
   }, [gymName, gymCity, phone, accountType, currentStep]);
 
   // ── Image upload handlers ──────────────────────────────────────────────────────
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Logo must be under 5MB");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        toast.error("Only image files are allowed");
+        return;
+      }
+      setGymLogo(file);
+      setGymLogoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleLogoRemove = () => {
+    setGymLogo(null);
+    setGymLogoPreview("");
+  };
+
   const handleMainImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -623,6 +647,8 @@ function RegisterContent() {
       return;
     }
 
+    setIsStepTransitioning(true);
+
     if (isAdminAccount) {
       const detected =
         formatCityLocation(addressCity, addressRegion) ||
@@ -640,7 +666,10 @@ function RegisterContent() {
       }
     }
 
-    setCurrentStep(2);
+    setTimeout(() => {
+      setCurrentStep(2);
+      setIsStepTransitioning(false);
+    }, 300);
   };
 
   // ── Step 2 validation, save, & advance ──────────────────────────────────────
@@ -696,7 +725,11 @@ function RegisterContent() {
       }
     }
 
-    setCurrentStep(3);
+    setIsStepTransitioning(true);
+    setTimeout(() => {
+      setCurrentStep(3);
+      setIsStepTransitioning(false);
+    }, 300);
   };
 
   // ── Step 3 validation, create account & save everything ─────────────────────
@@ -787,6 +820,7 @@ function RegisterContent() {
         isAdminAccount
           ? {
               mainImage: gymMainImage,
+              logo: gymLogo,
               optionalImages: gymOptionalImages,
               videoFile: gymVideoFile,
             }
@@ -795,11 +829,13 @@ function RegisterContent() {
 
       toast.success(
         isAdminAccount
-          ? "Admin account created! Check your email to verify, then wait for super admin approval."
+          ? "Admin account created! Verify email, then wait for super admin approval — your 1-month free trial starts when they approve."
           : "Account created! Verify your email, then wait for gym admin approval.",
       );
       if (isAdminAccount) {
-        toast.message("Super admins were notified to approve your account.");
+        toast.message(
+          "Super admins were notified. After approval you’ll get 30 days free on the platform.",
+        );
       } else {
         toast.message("Your selected gym was notified to approve your membership.");
       }
@@ -813,7 +849,13 @@ function RegisterContent() {
 
 
   const handleBack = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
+    if (currentStep > 1 && !isStepTransitioning) {
+      setIsStepTransitioning(true);
+      setTimeout(() => {
+        setCurrentStep(currentStep - 1);
+        setIsStepTransitioning(false);
+      }, 300);
+    }
   };
 
   // ── Shared select style ──────────────────────────────────────────────────────
@@ -847,7 +889,7 @@ function RegisterContent() {
           {/* Heading */}
           {currentStep <= 3 && (
             <header className="mb-6">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-[.38em] text-red-500">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-red-500">
                 {currentStep === 1
                   ? ""
                   : currentStep === 2
@@ -980,7 +1022,7 @@ function RegisterContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Gym Type
                     </Label>
                     <CapsuleRow
@@ -1092,7 +1134,7 @@ function RegisterContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Years Operating
                     </Label>
                     <CapsuleRow
@@ -1142,57 +1184,109 @@ function RegisterContent() {
                     </div>
                   </div>
 
-                  {/* Gym Main Image Upload */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="gymMainImage" className="text-zinc-300 font-medium text-sm">
-                      Gym Main Image <span className="text-zinc-500 font-normal">(Required)</span>
-                    </Label>
-                    <div className="relative">
-                      <input
-                        id="gymMainImage"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleMainImageChange}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="gymMainImage"
-                        className={`flex items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
-                          gymMainImagePreview
-                            ? "border-red-500/50 bg-red-500/5"
-                            : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
-                        }`}
-                      >
-                        {gymMainImagePreview ? (
-                          <div className="relative w-full h-full">
-                            <img
-                              src={gymMainImagePreview}
-                              alt="Gym main image preview"
-                              className="w-full h-full object-cover rounded-xl"
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleMainImageRemove();
-                              }}
-                              className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white rounded-full p-1.5 transition-colors"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-2 text-zinc-400">
-                            <ImageIcon className="h-8 w-8" />
-                            <span className="text-sm">Click to upload main image</span>
-                            <span className="text-xs text-zinc-500">Max 5MB • JPG, PNG, WebP</span>
-                          </div>
-                        )}
-                      </label>
+                  {/* Gym Logo + Main Image */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px_1fr]">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="gymLogo" className="text-zinc-300 font-medium text-sm">
+                        Gym Logo <span className="text-zinc-500 font-normal">(Optional)</span>
+                      </Label>
+                      <div className="relative">
+                        <input
+                          id="gymLogo"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoChange}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="gymLogo"
+                          className={`flex items-center justify-center aspect-square rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                            gymLogoPreview
+                              ? "border-red-500/50 bg-red-500/5"
+                              : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+                          }`}
+                        >
+                          {gymLogoPreview ? (
+                            <div className="relative w-full h-full">
+                              <img
+                                src={gymLogoPreview}
+                                alt="Gym logo preview"
+                                className="w-full h-full object-cover rounded-xl"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleLogoRemove();
+                                }}
+                                className="absolute top-1.5 right-1.5 bg-black/70 hover:bg-black/90 text-white rounded-full p-1 transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1.5 text-zinc-400 px-2 text-center">
+                              <ImageIcon className="h-6 w-6" />
+                              <span className="text-xs">Upload logo</span>
+                              <span className="text-[10px] text-zinc-500">Max 5MB</span>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                      <p className="text-[11px] text-zinc-500">Shown on gym cards & listings</p>
                     </div>
-                    {step2Errors.gymMainImage && (
-                      <p className="text-xs text-red-400">{step2Errors.gymMainImage}</p>
-                    )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="gymMainImage" className="text-zinc-300 font-medium text-sm">
+                        Gym Main Image <span className="text-zinc-500 font-normal">(Required)</span>
+                      </Label>
+                      <div className="relative">
+                        <input
+                          id="gymMainImage"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleMainImageChange}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="gymMainImage"
+                          className={`flex items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
+                            gymMainImagePreview
+                              ? "border-red-500/50 bg-red-500/5"
+                              : "border-zinc-700 bg-zinc-900/50 hover:border-zinc-600"
+                          }`}
+                        >
+                          {gymMainImagePreview ? (
+                            <div className="relative w-full h-full">
+                              <img
+                                src={gymMainImagePreview}
+                                alt="Gym main image preview"
+                                className="w-full h-full object-cover rounded-xl"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleMainImageRemove();
+                                }}
+                                className="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white rounded-full p-1.5 transition-colors"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 text-zinc-400">
+                              <ImageIcon className="h-8 w-8" />
+                              <span className="text-sm">Click to upload main image</span>
+                              <span className="text-xs text-zinc-500">Max 5MB • JPG, PNG, WebP</span>
+                            </div>
+                          )}
+                        </label>
+                      </div>
+                      {step2Errors.gymMainImage && (
+                        <p className="text-xs text-red-400">{step2Errors.gymMainImage}</p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Gym Optional Images Upload */}
@@ -1512,7 +1606,7 @@ function RegisterContent() {
               {/* Activity Level */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Activity Level
                   </Label>
                   {activityLevel && (
@@ -1536,7 +1630,7 @@ function RegisterContent() {
               {/* Fitness Goal */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Fitness Goal
                   </Label>
                   {fitnessGoal && (
@@ -1585,6 +1679,7 @@ function RegisterContent() {
                 <Button
                   type="button"
                   onClick={handleBack}
+                  disabled={isStepTransitioning}
                   variant="outline"
                   className="flex-1 h-12 rounded-xl border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                 >
@@ -1592,11 +1687,21 @@ function RegisterContent() {
                 </Button>
                 <Button
                   type="submit"
+                  disabled={isStepTransitioning}
                   className="flex-1 h-12 rounded-xl bg-[#EF1111] text-sm font-bold text-white hover:bg-[#C90808]"
                   style={{ boxShadow: "0 10px 40px rgba(239,17,17,0.35)" }}
                 >
-                  Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  {isStepTransitioning ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </div>
             </form>
@@ -1608,7 +1713,7 @@ function RegisterContent() {
               {isAdminAccount ? (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Facilities{" "}
                       {gymFacilities.length > 0 && (
                         <span className="text-red-400 normal-case font-normal">
@@ -1628,7 +1733,7 @@ function RegisterContent() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                         Operating Days / Week
                       </Label>
                       {gymOperatingDays && (
@@ -1652,7 +1757,7 @@ function RegisterContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Peak Hours
                     </Label>
                     <CapsuleRow
@@ -1670,7 +1775,7 @@ function RegisterContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Member Capacity
                     </Label>
                     <CapsuleRow
@@ -1688,7 +1793,7 @@ function RegisterContent() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Services Offered{" "}
                       {gymServices.length > 0 && (
                         <span className="text-red-400 normal-case font-normal">
@@ -1711,7 +1816,7 @@ function RegisterContent() {
               {/* Experience Level & Workout Type */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Experience Level
                   </Label>
                   <CapsuleRow
@@ -1728,7 +1833,7 @@ function RegisterContent() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Workout Type
                   </Label>
                   <CapsuleRow
@@ -1748,7 +1853,7 @@ function RegisterContent() {
 
               {/* Target Areas */}
               <div className="space-y-2">
-                <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                   Target Areas{" "}
                   {targetAreas.length > 0 && (
                     <span className="text-red-400 normal-case font-normal">
@@ -1769,7 +1874,7 @@ function RegisterContent() {
               {/* Workout Days */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Workout Days / Week
                   </Label>
                   {workoutDays && (
@@ -1793,7 +1898,7 @@ function RegisterContent() {
               {/* Workout Duration */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Workout Duration
                   </Label>
                   {workoutDuration && (
@@ -1817,7 +1922,7 @@ function RegisterContent() {
               {/* Preferred Workout Time */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-[.25em]">
+                  <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                     Preferred Workout Time
                   </Label>
                   {preferredTime && (
@@ -1845,6 +1950,7 @@ function RegisterContent() {
                 <Button
                   type="button"
                   onClick={handleBack}
+                  disabled={isStepTransitioning}
                   variant="outline"
                   className="flex-1 h-12 rounded-xl border-zinc-700 text-zinc-300 hover:bg-zinc-800"
                 >
@@ -1971,11 +2077,12 @@ function RegisterContent() {
                 <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-center space-y-2">
                   <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    Super Admin Approval
+                    Super Admin Approval + Free Trial
                   </p>
                   <p className="text-xs text-zinc-300">
-                    After verifying your email, you will stay on the login screen until a super admin
-                    approves your admin account.
+                    After verifying your email, wait for super admin approval. When they approve,
+                    your <span className="font-semibold text-white">1-month free trial</span> starts
+                    automatically — countdown shows on your dashboard and theirs.
                   </p>
                 </div>
               )}

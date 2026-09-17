@@ -42,6 +42,7 @@ export async function registerAccount(
   media?: RegisterMediaFiles,
 ) {
   const hasFiles =
+    !!media?.logo ||
     !!media?.mainImage ||
     !!(media?.optionalImages && media.optionalImages.length > 0) ||
     !!media?.videoFile;
@@ -52,6 +53,7 @@ export async function registerAccount(
     form.append("password", password);
     form.append("full_name", name);
     form.append("fitnessData", JSON.stringify(fitnessData || {}));
+    if (media?.logo) form.append("gym_logo", media.logo);
     if (media?.mainImage) form.append("gym_main_image", media.mainImage);
     for (const file of media?.optionalImages || []) {
       form.append("gym_optional_images", file);
@@ -148,6 +150,14 @@ export async function fetchCurrentUser() {
     gymMainImageUrl?: string | null;
     membershipStatus?: string | null;
     membershipType?: string | null;
+    trial?: {
+      offered: boolean;
+      status: "pending_approval" | "active" | "expired" | "none";
+      startsAt: string | null;
+      endsAt: string | null;
+      daysLeft: number | null;
+      label: string;
+    } | null;
   }>("auth", "me");
 }
 
@@ -165,6 +175,12 @@ export type AdminListItem = {
   gym_name?: string | null;
   gym_type?: string | null;
   gym_city?: string | null;
+  trial_offered?: boolean;
+  trial_starts_at?: string | null;
+  trial_ends_at?: string | null;
+  trial_status?: "pending_approval" | "active" | "expired" | "none";
+  trial_days_left?: number | null;
+  trial_label?: string;
 };
 
 export type AdminNotification = {

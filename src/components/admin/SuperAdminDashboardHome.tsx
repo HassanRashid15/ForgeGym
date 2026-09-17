@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowRight,
   Building2,
@@ -54,7 +55,7 @@ export function SuperAdminDashboardHome() {
     setActingId(userId);
     try {
       await approveAdminAccount(userId);
-      toast.success("Gym owner approved — saved in database.");
+      toast.success("Gym owner approved — 1-month free trial started.");
       await refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve");
@@ -92,7 +93,7 @@ export function SuperAdminDashboardHome() {
           <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   Platform
                 </p>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
@@ -130,9 +131,10 @@ export function SuperAdminDashboardHome() {
         </section>
 
         {loading ? (
-          <div className="flex min-h-[20vh] items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading live stats…
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-full rounded-xl" />
+            ))}
           </div>
         ) : (
           <>
@@ -410,6 +412,9 @@ export function SuperAdminDashboardHome() {
                               <p className="truncate text-xs text-muted-foreground">
                                 {row.gym_name || "Gym"}
                                 {row.gym_city ? ` · ${row.gym_city}` : ""}
+                              </p>
+                              <p className="text-[11px] text-primary">
+                                Approving starts 1-month free trial
                               </p>
                             </div>
                             <div className="flex gap-1.5">

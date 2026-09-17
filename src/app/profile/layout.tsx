@@ -1,6 +1,14 @@
 import { redirect } from "next/navigation";
 import { createSupabaseCookieClient } from "@/lib/supabase/server";
 import ProfileClientLayout from "./ProfileClientLayout";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata = buildPageMetadata({
+  title: "Profile",
+  description: "Manage your Forge Gym profile and settings.",
+  path: "/profile",
+  noIndex: true,
+});
 
 export default async function ProfileLayout({
   children,

@@ -107,7 +107,7 @@ export function SplashScreen({
                 className={`${className} flex min-w-[4.5rem] flex-col items-center px-3 sm:min-w-[5.5rem] sm:px-4`}
               >
                 <Icon />
-                <span className="mt-2 text-[10px] font-bold tracking-[0.15em] text-white sm:text-[11px]">
+                <span className="mt-2 text-[10px] font-bold tracking-wide text-white sm:text-[11px]">
                   {label}
                 </span>
               </div>

@@ -1,5 +1,3 @@
-"use client";
-
 import { ComingSoon } from "@/components/ComingSoon";
 import { Calendar } from "lucide-react";
 
@@ -7,15 +5,13 @@ export default function SchedulePage() {
   return (
     <ComingSoon
       title="Schedule"
-      description="Your personal class schedule is coming soon. Until then, log workouts on Progress and stay connected with your gym."
+      description="Weekly timetable and upcoming sessions. This ships in the next phase."
       icon={Calendar}
       features={[
-        "Weekly class calendar",
-        "Reminders before sessions",
-        "Sync with booked classes",
+        "Week view of class times",
+        "Reminders for upcoming sessions",
+        "Gym-wide schedule sync",
       ]}
-      backHref="/dashboard/progress"
-      backLabel="Go to Progress"
     />
   );
 }

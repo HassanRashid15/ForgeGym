@@ -1,4 +1,5 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import { pickSocialLinksFromRow } from "@/lib/social-links";
 
 export type GymListItem = {
   ownerId: string;
@@ -280,7 +281,7 @@ export async function getGymTrainers(ownerId: string): Promise<GymTrainerPublic[
   const { data: profiles, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, avatar_url, specialization, trainer_bio, bio, years_experience, certifications, account_status, membership_status",
+      "user_id, full_name, avatar_url, specialization, trainer_bio, bio, years_experience, certifications, account_status, membership_status, admin_approved",
     )
     .eq("gym_owner_id", ownerId)
     .order("full_name", { ascending: true });
@@ -302,6 +303,7 @@ export async function getGymTrainers(ownerId: string): Promise<GymTrainerPublic[
       const status = String(p.account_status || p.membership_status || "active").toLowerCase();
       return status !== "inactive" && status !== "rejected";
     })
+    .filter((p) => (p as { admin_approved?: boolean | null }).admin_approved !== false)
     .map((p) => ({
       userId: p.user_id,
       fullName: p.full_name,
@@ -320,6 +322,7 @@ export type PublicTrainerListItem = GymTrainerPublic & {
   gymCity: string | null;
   gymMainImageUrl: string | null;
   skills: string[] | null;
+  instagramUrl: string | null;
 };
 
 export async function listAllPublicTrainers(): Promise<PublicTrainerListItem[]> {
@@ -335,7 +338,7 @@ export async function listAllPublicTrainers(): Promise<PublicTrainerListItem[]> 
   const { data: profiles, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, avatar_url, specialization, trainer_bio, bio, years_experience, certifications, skills, gym_owner_id, account_status, membership_status",
+      "user_id, full_name, avatar_url, specialization, trainer_bio, bio, years_experience, certifications, skills, gym_owner_id, account_status, membership_status, admin_approved, instagram_url",
     )
     .in("gym_owner_id", ownerIds)
     .order("full_name", { ascending: true });
@@ -357,6 +360,7 @@ export async function listAllPublicTrainers(): Promise<PublicTrainerListItem[]> 
       const status = String(p.account_status || p.membership_status || "active").toLowerCase();
       return status !== "inactive" && status !== "rejected";
     })
+    .filter((p) => (p as { admin_approved?: boolean | null }).admin_approved !== false)
     .map((p) => {
       const ownerId = String(p.gym_owner_id || "");
       const gym = gymByOwner.get(ownerId);
@@ -373,12 +377,13 @@ export async function listAllPublicTrainers(): Promise<PublicTrainerListItem[]> 
         gymName: gym?.gymName || "Gym",
         gymCity: gym?.gymCity || null,
         gymMainImageUrl: gym?.gymMainImageUrl || null,
+        instagramUrl: (p.instagram_url as string | null) || null,
       };
     })
     .filter((t) => t.gymOwnerId && gymByOwner.has(t.gymOwnerId));
 }
 
-/** Public trainer profile by user id (no email/phone PII). */
+/** Public trainer profile by user id (coaching info only — no HR/PII). */
 export type PublicTrainerDetail = GymTrainerPublic & {
   gymOwnerId: string | null;
   gymName: string | null;
@@ -387,20 +392,14 @@ export type PublicTrainerDetail = GymTrainerPublic & {
   skills: string[] | null;
   languages: string[] | null;
   education: string | null;
-  certificationNumber: string | null;
   availability: string | null;
   workingDays: string | null;
   workingHours: string | null;
-  employmentType: string | null;
-  branchDepartment: string | null;
-  department: string | null;
-  maxClientCapacity: string | null;
-  assignedMembers: string[] | null;
-  ptSessions: string | null;
-  leaveInfo: string | null;
-  gender: string | null;
-  joinDate: string | null;
-  accountStatus: string | null;
+  instagramUrl: string | null;
+  facebookUrl: string | null;
+  twitterUrl: string | null;
+  youtubeUrl: string | null;
+  tiktokUrl: string | null;
 };
 
 export async function getPublicTrainerById(
@@ -420,7 +419,7 @@ export async function getPublicTrainerById(
   const { data: profile, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, avatar_url, gender, specialization, trainer_bio, bio, years_experience, certifications, certification_number, skills, languages, education, availability, working_days, working_hours, employment_type, branch_department, department, max_client_capacity, assigned_members, pt_sessions, leave_info, join_date, gym_owner_id, account_status, membership_status",
+      "user_id, full_name, avatar_url, specialization, trainer_bio, bio, years_experience, certifications, skills, languages, education, availability, working_days, working_hours, gym_owner_id, account_status, membership_status, admin_approved, instagram_url, facebook_url, twitter_url, youtube_url, tiktok_url",
     )
     .eq("user_id", trainerId)
     .maybeSingle();
@@ -433,6 +432,7 @@ export async function getPublicTrainerById(
     row.account_status || row.membership_status || "active",
   ).toLowerCase();
   if (status === "inactive" || status === "rejected") return null;
+  if (row.admin_approved === false) return null;
 
   let gymName: string | null = null;
   let gymCity: string | null = null;
@@ -441,25 +441,25 @@ export async function getPublicTrainerById(
   if (gymOwnerId) {
     const { data: gymRow } = await service
       .from("gyms")
-      .select("name, city, main_image_url")
+      .select("name, city, main_image_url, is_published")
       .eq("owner_user_id", gymOwnerId)
       .maybeSingle();
-    if (gymRow?.name) {
+    if (gymRow?.name && (gymRow as { is_published?: boolean }).is_published !== false) {
       gymName = gymRow.name;
       gymCity = gymRow.city || null;
       gymMainImageUrl = gymRow.main_image_url || null;
     }
-    const { data: owner } = await service
-      .from("profiles")
-      .select("gym_name, gym_city, gym_main_image_url")
-      .eq("user_id", gymOwnerId)
-      .maybeSingle();
     if (!gymName) {
-      gymName = owner?.gym_name || null;
-      gymCity = owner?.gym_city || null;
-    }
-    if (!gymMainImageUrl) {
-      gymMainImageUrl = owner?.gym_main_image_url || null;
+      const { data: owner } = await service
+        .from("profiles")
+        .select("gym_name, gym_city, gym_main_image_url, admin_approved")
+        .eq("user_id", gymOwnerId)
+        .maybeSingle();
+      if (owner?.admin_approved === true) {
+        gymName = owner?.gym_name || null;
+        gymCity = owner?.gym_city || null;
+        gymMainImageUrl = owner?.gym_main_image_url || null;
+      }
     }
   }
 
@@ -478,22 +478,9 @@ export async function getPublicTrainerById(
     skills: (row.skills as string[] | null) || null,
     languages: (row.languages as string[] | null) || null,
     education: (row.education as string | null) || null,
-    certificationNumber: (row.certification_number as string | null) || null,
     availability: (row.availability as string | null) || null,
     workingDays: (row.working_days as string | null) || null,
     workingHours: (row.working_hours as string | null) || null,
-    employmentType: (row.employment_type as string | null) || null,
-    branchDepartment: (row.branch_department as string | null) || null,
-    department: (row.department as string | null) || null,
-    maxClientCapacity: (row.max_client_capacity as string | null) || null,
-    assignedMembers: (row.assigned_members as string[] | null) || null,
-    ptSessions: (row.pt_sessions as string | null) || null,
-    leaveInfo: (row.leave_info as string | null) || null,
-    gender: (row.gender as string | null) || null,
-    joinDate: (row.join_date as string | null) || null,
-    accountStatus:
-      (row.account_status as string | null) ||
-      (row.membership_status as string | null) ||
-      null,
+    ...pickSocialLinksFromRow(row),
   };
 }

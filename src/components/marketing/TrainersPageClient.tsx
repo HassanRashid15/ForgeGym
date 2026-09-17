@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -9,12 +10,24 @@ import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import { getNameInitials } from "@/lib/utils";
 import type { PublicTrainerListItem } from "@/lib/gyms";
+import { TrainerCardSkeleton } from "@/components/loading/TrainerCardSkeleton";
+import { normalizeSocialUrl } from "@/lib/social-links";
 
 type TrainersPageClientProps = {
   trainers: PublicTrainerListItem[];
 };
 
 export default function TrainersPageClient({ trainers }: TrainersPageClientProps) {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate initial loading for better UX
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -38,7 +51,13 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
       {/* Trainers Grid */}
       <section className="py-16">
         <div className="container mx-auto px-4">
-          {trainers.length === 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-12 md:grid-cols-2">
+              {[1, 2, 3, 4].map((i) => (
+                <TrainerCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : trainers.length === 0 ? (
             <p className="text-center text-muted-foreground">
               Trainers from published gyms will appear here.
             </p>
@@ -156,13 +175,17 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
                           )}
 
                           <div className="mt-auto flex items-center gap-3 pt-4">
-                            <a
-                              href="#"
-                              className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors hover:bg-primary hover:text-primary-foreground"
-                              aria-label="Instagram"
-                            >
-                              <Instagram className="h-5 w-5" />
-                            </a>
+                            {normalizeSocialUrl(trainer.instagramUrl) ? (
+                              <a
+                                href={normalizeSocialUrl(trainer.instagramUrl)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors hover:bg-primary hover:text-primary-foreground"
+                                aria-label="Instagram"
+                              >
+                                <Instagram className="h-5 w-5" />
+                              </a>
+                            ) : null}
                             <a
                               href="/contact"
                               className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors hover:bg-primary hover:text-primary-foreground"

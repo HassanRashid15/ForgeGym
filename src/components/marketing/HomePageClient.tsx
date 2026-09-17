@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import NewsletterSection from "@/components/marketing/NewsletterSection";
+import { HomePromotionsSection } from "@/components/marketing/HomePromotionsSection";
 import {
   ArrowRight,
   Zap,
   Users,
   Clock,
   Trophy,
-  Star,
   ChevronRight,
   Building2,
   MapPin,
@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
+import { TextType } from "@/components/marketing/TextType";
+import { HomeStatsSection } from "@/components/marketing/HomeStatsSection";
+import type { PlatformPublicStats } from "@/lib/platform-stats";
 
 const heroHighlights = [
   {
@@ -46,6 +49,9 @@ export type FeaturedGym = {
   gymType: string | null;
   gymCity: string | null;
   gymMainImageUrl: string | null;
+  avatarUrl: string | null;
+  memberCount?: number;
+  monthlyFee?: string | null;
 };
 
 const features = [
@@ -92,31 +98,12 @@ const classes = [
   },
 ];
 
-const testimonials = [
-  {
-    name: "Sarah Mitchell",
-    role: "Member since 2022",
-    content: "Forge completely transformed my fitness journey. The trainers are incredible and the community is so supportive.",
-    rating: 5,
-  },
-  {
-    name: "David Chen",
-    role: "Member since 2021",
-    content: "Best gym I've ever been to. The equipment is top-notch and the classes are challenging but fun.",
-    rating: 5,
-  },
-  {
-    name: "Emily Rodriguez",
-    role: "Member since 2023",
-    content: "I've lost 30 pounds and gained so much confidence. Forge isn't just a gym, it's a lifestyle.",
-    rating: 5,
-  },
-];
-
 export default function HomePageClient({
   featuredGyms = [],
+  platformStats,
 }: {
   featuredGyms?: FeaturedGym[];
+  platformStats?: PlatformPublicStats;
 }) {
   return (
     <div className="min-h-screen bg-background">
@@ -137,10 +124,40 @@ export default function HomePageClient({
         </div>
 
         <div className="relative z-10 flex w-full flex-1 flex-col justify-end px-4 pb-8 pt-24 sm:justify-center sm:px-8 sm:pb-16 sm:pt-28 md:px-10 lg:px-14 lg:pb-20 xl:px-20">
-          <div className="mx-auto w-full max-w-xl sm:mx-0 lg:max-w-2xl">
-            <h1 className="forge-hero-fade forge-hero-fade-delay-1 font-display text-[clamp(2.35rem,9vw,5.75rem)] leading-[0.92] tracking-wide text-white">
+          <div className="mx-auto w-full max-w-xl sm:mx-0 sm:max-w-2xl lg:max-w-3xl">
+            <h1 className="forge-hero-fade forge-hero-fade-delay-1 font-display text-[clamp(2.35rem,9vw,5.75rem)] leading-[0.92] tracking-normal text-white">
               <span className="block">Your Fitness</span>
-              <span className="mt-1 block text-[#FA1818]">Journey Starts Here</span>
+              <span className="relative mt-1 block min-h-[1.05em] text-[#FA1818]">
+                {/* Invisible spacer = longest phrase so nothing clips & height stays fixed */}
+                <span className="invisible block whitespace-nowrap" aria-hidden>
+                  Never Skip The Grind
+                </span>
+                <span className="absolute left-0 top-0 whitespace-nowrap">
+                  <TextType
+                    as="span"
+                    text={[
+                      "Journey Starts Here",
+                      "Get Stronger Daily",
+                      "Build Real Strength",
+                      "Never Skip The Grind",
+                      "Train With Purpose",
+                      "Push Past Limits",
+                      "Own Your Progress",
+                      "Forge Your Future",
+                    ]}
+                    typingSpeed={50}
+                    deletingSpeed={28}
+                    pauseDuration={2200}
+                    initialDelay={400}
+                    loop
+                    showCursor
+                    cursorCharacter="|"
+                    cursorClassName="text-[#FA1818]"
+                    className="inline whitespace-nowrap"
+                    startOnVisible
+                  />
+                </span>
+              </span>
             </h1>
 
             <p className="forge-hero-fade forge-hero-fade-delay-2 mt-4 max-w-md text-[13px] leading-relaxed text-white/75 sm:mt-6 sm:text-base">
@@ -152,7 +169,7 @@ export default function HomePageClient({
             <div className="forge-hero-fade forge-hero-fade-delay-3 mt-6 flex w-full flex-col gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:items-center sm:gap-4">
               <Button
                 asChild
-                className="h-11 w-full rounded-full bg-[#FA1818] px-7 text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_32px_rgba(250,24,24,0.35)] transition hover:scale-[1.03] hover:bg-[#e01515] hover:shadow-[0_0_40px_rgba(250,24,24,0.45)] sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
+                className="h-11 w-full rounded-full bg-[#FA1818] px-7 text-xs font-bold uppercase tracking-wide text-white shadow-[0_0_32px_rgba(250,24,24,0.35)] transition hover:scale-[1.03] hover:bg-[#e01515] hover:shadow-[0_0_40px_rgba(250,24,24,0.45)] sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
               >
                 <Link href="/register">
                   Start Your Journey
@@ -162,7 +179,7 @@ export default function HomePageClient({
               <Button
                 asChild
                 variant="outline"
-                className="h-11 w-full rounded-full border-white/70 bg-transparent px-7 text-xs font-bold uppercase tracking-wider text-white hover:border-white hover:bg-white/10 hover:text-white sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
+                className="h-11 w-full rounded-full border-white/70 bg-transparent px-7 text-xs font-bold uppercase tracking-wide text-white hover:border-white hover:bg-white/10 hover:text-white sm:h-12 sm:w-auto sm:px-8 sm:text-sm"
               >
                 <Link href="/#features">Explore Features</Link>
               </Button>
@@ -236,58 +253,98 @@ export default function HomePageClient({
                   </Button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                   {featuredGyms.map((gym) => (
                     <Link
                       key={gym.ownerId}
                       href={`/gyms/${gym.ownerId}`}
                       className="group"
                     >
-                      <div className="glass-card hover-lift flex h-full flex-col overflow-hidden rounded-2xl">
-                        <div className="relative aspect-[16/10] overflow-hidden bg-secondary/30">
+                      <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_50px_-28px_hsl(var(--primary)/0.45)]">
+                        <div className="relative aspect-[16/10] overflow-hidden bg-muted">
                           {gym.gymMainImageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={gym.gymMainImageUrl}
                               alt={gym.gymName}
-                              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                              className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"
                             />
                           ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-secondary/40 to-background">
+                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-background">
                               <Building2 className="h-10 w-10 text-primary/70" />
                             </div>
                           )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-90" />
                           {gym.gymType && (
-                            <span className="absolute right-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                            <span className="absolute left-3 top-3 rounded-md bg-background/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground backdrop-blur-sm">
                               {gym.gymType}
+                            </span>
+                          )}
+                          {gym.monthlyFee && (
+                            <span className="absolute right-3 top-3 rounded-md bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">
+                              {gym.monthlyFee}
+                              <span className="font-medium opacity-80">/mo</span>
                             </span>
                           )}
                         </div>
 
-                        <div className="flex flex-1 flex-col p-6">
-                          <h3 className="font-display mb-2 text-xl font-bold transition-colors group-hover:text-primary">
-                            {gym.gymName}
-                          </h3>
+                        <div className="relative -mt-8 flex flex-1 flex-col px-5 pb-5 pt-0">
+                          <div className="mb-4 flex items-end gap-3">
+                            {gym.avatarUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={gym.avatarUrl}
+                                alt={`${gym.gymName} logo`}
+                                className="h-14 w-14 shrink-0 rounded-xl border-2 border-card object-cover shadow-md"
+                              />
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-card bg-primary/10 shadow-md">
+                                <Building2 className="h-6 w-6 text-primary" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1 pb-1">
+                              <h3 className="font-display text-xl font-bold leading-tight tracking-normal transition-colors group-hover:text-primary sm:text-2xl">
+                                {gym.gymName}
+                              </h3>
+                            </div>
+                          </div>
 
                           {gym.gymCity && (
-                            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              <span>{gym.gymCity}</span>
+                            <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                              <span className="truncate">{gym.gymCity}</span>
                             </div>
                           )}
 
-                          <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-4">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Users className="h-4 w-4" />
-                              <span>Active Members</span>
+                          <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <Users className="h-3.5 w-3.5" />
+                              </span>
+                              <div className="leading-tight">
+                                {(gym.memberCount ?? 0) > 0 ? (
+                                  <>
+                                    <p className="text-sm font-semibold text-foreground">
+                                      {(gym.memberCount ?? 0).toLocaleString()}
+                                    </p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                      Active members
+                                    </p>
+                                  </>
+                                ) : (
+                                  <p className="text-sm font-medium text-muted-foreground">
+                                    Be the first member
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1 text-primary transition-all group-hover:gap-2">
-                              <span className="text-sm font-medium">Visit</span>
+                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-all group-hover:gap-2">
+                              Visit
                               <ChevronRight className="h-4 w-4" />
-                            </div>
+                            </span>
                           </div>
                         </div>
-                      </div>
+                      </article>
                     </Link>
                   ))}
                 </div>
@@ -363,61 +420,23 @@ export default function HomePageClient({
       </section>
 
       {/* Stats Section */}
-      <section className="py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { value: "10K+", label: "Active Members" },
-              { value: "50+", label: "Expert Trainers" },
-              { value: "100+", label: "Weekly Classes" },
-              { value: "15", label: "Years of Excellence" },
-            ].map((stat, index) => (
-              <ScrollAnimate
-                key={stat.label}
-                animation="fade-up"
-                delay={index * 0.1}
-                className="text-center"
-              >
-                <div className="font-display text-5xl md:text-7xl text-primary mb-2">{stat.value}</div>
-                <p className="text-muted-foreground">{stat.label}</p>
-              </ScrollAnimate>
-            ))}
-          </div>
-        </div>
-      </section>
+      <HomeStatsSection stats={platformStats} />
 
-      {/* Testimonials */}
+      {/* Soft launch */}
       <section className="py-24">
         <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="text-center mb-16">
-            <h2 className="font-display text-5xl md:text-6xl mb-4">MEMBER STORIES</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Real results from real people who chose to transform their lives at Forge.
+          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
+              Soft launch
+            </p>
+            <h2 className="font-display mb-4 text-5xl tracking-normal md:text-6xl">
+              Built with real gyms
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Forge is opening with partner gyms first — honest numbers, real coaches, and room to
+              grow. Join early and help shape what comes next.
             </p>
           </ScrollAnimate>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((testimonial, index) => (
-              <ScrollAnimate
-                key={testimonial.name}
-                animation="fade-up"
-                delay={index * 0.15}
-              >
-                <div className="glass-card rounded-xl p-8 hover-lift h-full">
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 text-primary fill-primary" />
-                    ))}
-                  </div>
-                  <p className="text-foreground mb-6 italic">"{testimonial.content}"</p>
-                  <div>
-                    <p className="font-semibold">{testimonial.name}</p>
-                    <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                  </div>
-                </div>
-              </ScrollAnimate>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -433,17 +452,20 @@ export default function HomePageClient({
               READY TO <span className="text-gradient">TRANSFORM</span>?
             </h2>
             <p className="text-muted-foreground text-lg mb-8">
-              Join thousands of members who have already started their fitness journey. Your first week is on us.
+              Find a partner gym near you and start training with Forge. New members get a clear path
+              from signup to approval — no inflated promises.
             </p>
             <Button variant="hero" size="xl" asChild>
-              <Link href="/membership">
-                Get Started Free
+              <Link href="/gyms">
+                Browse gyms
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>
           </ScrollAnimate>
         </div>
       </section>
+
+      <HomePromotionsSection />
 
       <NewsletterSection />
 

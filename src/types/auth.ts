@@ -16,6 +16,15 @@ export interface User {
   gymMainImageUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
+  /** Gym-owner free trial (set after superadmin approval) */
+  trial?: {
+    offered: boolean;
+    status: "pending_approval" | "active" | "expired" | "none";
+    startsAt: string | null;
+    endsAt: string | null;
+    daysLeft: number | null;
+    label: string;
+  } | null;
 }
 
 export type RegisterAccountType = "admin" | "customer";
@@ -63,6 +72,7 @@ export interface FitnessProfileData {
 }
 
 export type RegisterMediaFiles = {
+  logo?: File | null;
   mainImage?: File | null;
   optionalImages?: File[];
   videoFile?: File | null;

@@ -20,6 +20,7 @@ async function parseRegisterBody(request: Request): Promise<{
   fullName: string;
   fitnessData: Record<string, any>;
   roleHint?: string;
+  logo: File | null;
   mainImage: File | null;
   optionalImages: File[];
   videoFile: File | null;
@@ -43,6 +44,7 @@ async function parseRegisterBody(request: Request): Promise<{
       }
     }
 
+    const logo = form.get("gym_logo");
     const mainImage = form.get("gym_main_image");
     const videoFile = form.get("gym_video_file");
     const optionalImages = form
@@ -55,6 +57,7 @@ async function parseRegisterBody(request: Request): Promise<{
       fullName,
       fitnessData,
       roleHint: String(form.get("role") || ""),
+      logo: logo instanceof File ? logo : null,
       mainImage: mainImage instanceof File ? mainImage : null,
       optionalImages,
       videoFile: videoFile instanceof File ? videoFile : null,
@@ -68,6 +71,7 @@ async function parseRegisterBody(request: Request): Promise<{
     fullName: body?.full_name?.trim() || body?.name?.trim() || "",
     fitnessData: body?.fitnessData || {},
     roleHint: body?.role,
+    logo: null,
     mainImage: null,
     optionalImages: [],
     videoFile: null,
@@ -326,6 +330,15 @@ export async function POST(request: Request) {
   // Upload gym media with service role (signup has no session yet)
   if (userId && service && requestedRole === "admin") {
     try {
+      if (parsed.logo) {
+        fitnessData.avatar_url = await uploadGymMediaFile(
+          service,
+          userId,
+          parsed.logo,
+          "logo",
+        );
+      }
+
       if (parsed.mainImage) {
         fitnessData.gym_main_image_url = await uploadGymMediaFile(
           service,
@@ -387,6 +400,8 @@ export async function POST(request: Request) {
             phone: fitnessData.phone || null,
             address: fitnessData.address || null,
             emergency_contact: fitnessData.emergency_contact || null,
+            avatar_url:
+              requestedRole === "admin" ? fitnessData.avatar_url || null : null,
             admin_approved: adminApproved,
             is_super_admin: false,
             approval_requested_at: needsApproval ? new Date().toISOString() : null,
@@ -434,6 +449,10 @@ export async function POST(request: Request) {
             membership_status: adminApproved ? "active" : "pending",
             account_status: adminApproved ? "active" : "pending",
             membership_type: "basic",
+            // Gym owners get a 1-month free trial after superadmin approval
+            trial_offered: requestedRole === "admin",
+            trial_starts_at: null,
+            trial_ends_at: null,
             // Always false until they click the email verification link
             is_verified: false,
             updated_at: new Date().toISOString(),
@@ -564,6 +583,12 @@ export async function POST(request: Request) {
       .eq("user_id", userId);
   }
 
+  // Auto-subscribe members & gym admins to newsletter (same as login)
+  if (email) {
+    const { subscribeEmail } = await import("@/lib/newsletter");
+    void subscribeEmail(email).catch(() => null);
+  }
+
   // Public signup always requires email verification before login
   const requiresVerification = true;
   const requiresGymApproval =
@@ -581,6 +606,11 @@ export async function POST(request: Request) {
     requiresVerification,
     requiresAdminApproval: requestedRole === "admin" || requiresGymApproval,
     requiresGymApproval,
+    freeTrialOffered: requestedRole === "admin",
+    freeTrialNote:
+      requestedRole === "admin"
+        ? "After email verification and super admin approval, you get 1 month free trial."
+        : null,
     profileSynced,
     verificationEmailSent,
     verificationError,

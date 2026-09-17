@@ -49,7 +49,7 @@ export default function ClassesPage() {
         </section>
 
         <section className="sticky top-16 z-40 border-b border-border bg-background/80 py-8 backdrop-blur-lg">
-          <div className="container mx-auto px-4">
+          <div className="container mx-auto px-4 md:px-6 lg:px-8">
             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
               <div className="flex gap-2">
                 <Button
@@ -87,7 +87,7 @@ export default function ClassesPage() {
 
         {view === "classes" ? (
           <section className="py-16">
-            <div className="container mx-auto px-4">
+            <div className="container mx-auto px-4 md:px-6 lg:px-8">
               <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
                 {filteredClasses.map((classItem, index) => (
                   <ScrollAnimate
@@ -156,7 +156,7 @@ export default function ClassesPage() {
 
         {view === "schedule" ? (
           <section className="py-16">
-            <div className="container mx-auto px-4">
+            <div className="container mx-auto px-4 md:px-6 lg:px-8">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[800px]">
                   <thead>

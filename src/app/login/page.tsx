@@ -30,6 +30,7 @@ function LoginContent() {
 
   const queryVerified = searchParams.get("verified") === "true";
   const queryEmail = searchParams.get("email") || "";
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
 
   const [email, setEmail] = useState(queryEmail);
   const [password, setPassword] = useState("");
@@ -37,14 +38,19 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const safeRedirect =
+    redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+      ? redirectTo
+      : "/dashboard";
+
   // If already logged in, redirect to dashboard — except right after email verification
   // (user must sign in manually with password)
   useEffect(() => {
     if (queryVerified) return;
     if (!isAuthLoading && user) {
-      router.replace("/dashboard");
+      window.location.assign(safeRedirect);
     }
-  }, [user, isAuthLoading, router, queryVerified]);
+  }, [user, isAuthLoading, queryVerified, safeRedirect]);
 
   // Prefill from query if present
   useEffect(() => {
@@ -139,7 +145,8 @@ function LoginContent() {
     try {
       await login(cleanEmail, password);
       toast.success("Welcome back! Let's crush it today.");
-      router.push("/dashboard");
+      // Full navigation so proxy sees refreshed auth cookies
+      window.location.assign(safeRedirect);
     } catch (error: any) {
       const msg = error instanceof Error ? error.message : "Login failed";
       const lower = msg.toLowerCase();
@@ -233,7 +240,7 @@ function LoginContent() {
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 shadow-md shadow-red-500/30">
               <Flame className="h-4 w-4 text-white" />
             </div>
-            <span className="text-sm font-bold uppercase tracking-widest text-white">Forge Gym</span>
+            <span className="text-sm font-bold uppercase tracking-wide text-white">Forge Gym</span>
           </Link>
 
           {/* Verification Banner if arrived from /verification */}
@@ -296,7 +303,7 @@ function LoginContent() {
 
           {/* Heading */}
           <header className="mb-6">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[.38em] text-red-500">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-red-500">
               Welcome back
             </p>
             <h2 className="text-[1.75rem] font-extrabold tracking-tight text-white leading-tight">

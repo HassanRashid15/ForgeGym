@@ -177,6 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         gymMainImageUrl: me.gymMainImageUrl || null,
         membershipStatus: me.membershipStatus || null,
         membershipType: me.membershipType || null,
+        trial: me.trial || null,
       };
       const prev = userRef.current;
       const unchanged =
@@ -193,7 +194,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.gymType === nextUser.gymType &&
         prev.gymMainImageUrl === nextUser.gymMainImageUrl &&
         prev.membershipStatus === nextUser.membershipStatus &&
-        prev.membershipType === nextUser.membershipType;
+        prev.membershipType === nextUser.membershipType &&
+        prev.trial?.status === nextUser.trial?.status &&
+        prev.trial?.daysLeft === nextUser.trial?.daysLeft;
       if (!unchanged) setUser(nextUser);
     } catch (error) {
       trackException(error, { action: "syncUserProfile" });

@@ -1,5 +1,41 @@
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { CacheTTL } from "@/lib/api-cache";
+
+/** Supabase SSR cookies look like `sb-<ref>-auth-token` (not legacy sb-access-token). */
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies
+    .getAll()
+    .some(
+      (c) =>
+        c.name.startsWith("sb-") &&
+        (c.name.includes("auth-token") || c.name.includes("access-token")),
+    );
+}
+
+/** Short-lived getUser cache — avoids re-hitting Supabase Auth on every /dashboard nav */
+const authUserCache = new Map<string, { user: User; at: number }>();
+
+function getCachedAuthUser(accessToken: string): User | null {
+  const hit = authUserCache.get(accessToken);
+  if (!hit) return null;
+  if (Date.now() - hit.at >= CacheTTL.authUser) {
+    authUserCache.delete(accessToken);
+    return null;
+  }
+  return hit.user;
+}
+
+function setCachedAuthUser(accessToken: string, user: User) {
+  if (authUserCache.size > 200) {
+    const now = Date.now();
+    for (const [k, v] of authUserCache) {
+      if (now - v.at >= CacheTTL.authUser) authUserCache.delete(k);
+    }
+  }
+  authUserCache.set(accessToken, { user, at: Date.now() });
+}
 
 /**
  * Next.js 16 proxy (formerly middleware) — refreshes auth cookies and
@@ -17,13 +53,12 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Check if we have auth cookies before making Supabase call
-  const hasAuthCookies = request.cookies.has('sb-access-token') || request.cookies.has('sb-refresh-token');
-  
-  // If no auth cookies and trying to access protected routes, redirect immediately
   const path = request.nextUrl.pathname;
   const isProtected = path.startsWith("/dashboard") || path.startsWith("/profile");
-  
+  const isAuthPage = path === "/login" || path === "/register";
+  const hasAuthCookies = hasSupabaseAuthCookie(request);
+
+  // Fast path: no cookies on protected route → login
   if (isProtected && !hasAuthCookies) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
@@ -31,8 +66,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If no auth cookies and on login/register pages, proceed without auth check
-  if ((path === "/login" || path === "/register") && !hasAuthCookies) {
+  // Fast path: no cookies on login/register → allow through (skip getUser)
+  if (isAuthPage && !hasAuthCookies) {
     return response;
   }
 
@@ -56,9 +91,27 @@ export async function proxy(request: NextRequest) {
       },
     });
 
+    // Prefer local JWT session; only call Auth network when cache misses
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    let user: User | null = null;
+    if (session?.access_token) {
+      user = getCachedAuthUser(session.access_token);
+      if (!user) {
+        const {
+          data: { user: fresh },
+        } = await supabase.auth.getUser();
+        user = fresh;
+        if (user) setCachedAuthUser(session.access_token, user);
+      }
+    } else {
+      const {
+        data: { user: fresh },
+      } = await supabase.auth.getUser();
+      user = fresh;
+    }
 
     const isVerified = !!user?.email_confirmed_at;
     const unverified = !!user && !isVerified;
@@ -79,7 +132,13 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    if ((path === "/login" || path === "/register") && user) {
+    // Already signed in on login/register → send to dashboard (or verification)
+    if (isAuthPage && user) {
+      // Allow staying on login right after email verification (manual sign-in)
+      if (path === "/login" && request.nextUrl.searchParams.get("verified") === "true") {
+        return response;
+      }
+
       const dest = request.nextUrl.clone();
       if (unverified) {
         dest.pathname = "/verification";
@@ -87,7 +146,11 @@ export async function proxy(request: NextRequest) {
           ? `?email=${encodeURIComponent(user.email)}`
           : "";
       } else {
-        dest.pathname = "/dashboard";
+        const redirectTo = request.nextUrl.searchParams.get("redirect");
+        dest.pathname =
+          redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+            ? redirectTo
+            : "/dashboard";
         dest.search = "";
       }
       return NextResponse.redirect(dest);
@@ -95,18 +158,15 @@ export async function proxy(request: NextRequest) {
 
     return response;
   } catch (error) {
-    // If there's an auth error (rate limit, invalid token, etc.), log it and proceed
-    // This prevents the middleware from breaking due to Supabase rate limits
-    console.error('Proxy auth error:', error);
-    
-    // If protected route and we got an error, redirect to login as a safety measure
+    console.error("Proxy auth error:", error);
+
     if (isProtected) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.searchParams.set("redirect", path);
       return NextResponse.redirect(loginUrl);
     }
-    
+
     return response;
   }
 }

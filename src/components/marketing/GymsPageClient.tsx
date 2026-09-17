@@ -21,6 +21,7 @@ import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import type { GymListItem } from "@/lib/gyms";
 import { formatDistanceKm, haversineKm } from "@/lib/geo/distance";
+import { GymCardSkeleton } from "@/components/loading/GymCardSkeleton";
 
 const NEAR_RADIUS_KM = 75;
 const CITY_GEO_CACHE_KEY = "forge_gym_city_geo_v1";
@@ -467,12 +468,19 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((gym, index) => (
-                <ScrollAnimate
-                  key={gym.ownerId}
-                  animation="fade-up"
-                  delay={Math.min(index, 8) * 0.06}
-                >
+              {resolvingCities ? (
+                <>
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <GymCardSkeleton key={i} />
+                  ))}
+                </>
+              ) : (
+                filtered.map((gym, index) => (
+                  <ScrollAnimate
+                    key={gym.ownerId}
+                    animation="fade-up"
+                    delay={Math.min(index, 8) * 0.06}
+                  >
                   <Link href={`/gyms/${gym.ownerId}`} className="group block h-full">
                     <div className="glass-card hover-lift flex h-full flex-col overflow-hidden rounded-2xl">
                       <div className="relative aspect-[16/10] overflow-hidden bg-secondary/30">
@@ -503,9 +511,23 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                       </div>
 
                       <div className="flex flex-1 flex-col p-6">
-                        <h3 className="font-display mb-2 text-xl font-bold transition-colors group-hover:text-primary">
-                          {gym.gymName}
-                        </h3>
+                        <div className="mb-2 flex items-center gap-3">
+                          {gym.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={gym.avatarUrl}
+                              alt={`${gym.gymName} logo`}
+                              className="h-11 w-11 shrink-0 rounded-xl border border-border/60 object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-primary/10">
+                              <Building2 className="h-5 w-5 text-primary" />
+                            </div>
+                          )}
+                          <h3 className="font-display text-xl font-bold transition-colors group-hover:text-primary">
+                            {gym.gymName}
+                          </h3>
+                        </div>
 
                         {gym.gymCity && (
                           <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
@@ -543,7 +565,8 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                     </div>
                   </Link>
                 </ScrollAnimate>
-              ))}
+                ))
+              )}
             </div>
           )}
         </div>

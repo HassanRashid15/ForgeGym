@@ -3,6 +3,7 @@ import {
   createSupabaseServiceClient,
   requireAuth,
 } from "@/lib/supabase/server";
+import { computeTrialInfo } from "@/lib/admin-trial";
 
 /** GET /api/auth/me — role + profile (self-heals missing admin role for gym owners) */
 export async function GET(request: Request) {
@@ -15,10 +16,9 @@ export async function GET(request: Request) {
 
   const [{ data: roles }, { data: profile }] = await Promise.all([
     db.from("user_roles").select("role").eq("user_id", user.id),
-    db
-      .from("profiles")
+    (db.from("profiles") as any)
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, trial_offered, trial_starts_at, trial_ends_at",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -49,6 +49,9 @@ export async function GET(request: Request) {
     membership_type?: string | null;
     admin_approved?: boolean | null;
     is_verified?: boolean | null;
+    trial_offered?: boolean | null;
+    trial_starts_at?: string | null;
+    trial_ends_at?: string | null;
   } | null;
 
   const metaRequested = String(
@@ -104,6 +107,15 @@ export async function GET(request: Request) {
       gymRow?.main_image_url || ownerProfile?.gym_main_image_url || null;
   }
 
+  const trial = computeTrialInfo({
+    isSuperAdmin,
+    isGymOwnerAdmin: role === "admin" && !isSuperAdmin,
+    adminApproved: isSuperAdmin || profile?.admin_approved === true,
+    trialOffered: profileRow?.trial_offered === true,
+    trialStartsAt: profileRow?.trial_starts_at || null,
+    trialEndsAt: profileRow?.trial_ends_at || null,
+  });
+
   return NextResponse.json({
     id: user.id,
     email: profile?.email || user.email,
@@ -123,5 +135,6 @@ export async function GET(request: Request) {
     gymMainImageUrl,
     membershipStatus: profileRow?.membership_status || null,
     membershipType: profileRow?.membership_type || null,
+    trial,
   });
 }

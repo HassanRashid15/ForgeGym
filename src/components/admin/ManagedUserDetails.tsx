@@ -24,7 +24,7 @@ function formatDate(value?: string | null) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1">
-      <h4 className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+      <h4 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-primary">
         {title}
       </h4>
       {children}
@@ -82,6 +82,11 @@ export function ManagedUserDetails({ user }: { user: ManagedUser }) {
             <DetailRow label="Skills" value={listValue(user.skills)} />
             <DetailRow label="Languages" value={listValue(user.languages)} />
             <DetailRow label="Bio" value={user.trainer_bio} />
+            <DetailRow label="Instagram" value={user.instagram_url} />
+            <DetailRow label="Facebook" value={user.facebook_url} />
+            <DetailRow label="X / Twitter" value={user.twitter_url} />
+            <DetailRow label="YouTube" value={user.youtube_url} />
+            <DetailRow label="TikTok" value={user.tiktok_url} />
           </Section>
           <Section title="Employment">
             <DetailRow label="Employment type" value={user.employment_type} />

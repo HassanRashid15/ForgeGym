@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { updateMyProfile } from "@/api/profiles";
 import { Button } from "@/components/ui/button";
 import { Dumbbell, Loader2, Wallet } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   feeBreakdownLabel,
@@ -139,9 +140,9 @@ export function CustomerTrainerFeeCard({
       </p>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading trainers…
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-16 w-full rounded-lg" />
         </div>
       ) : (
         <div className="space-y-3">

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient, requireAuth } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify-actions";
+import {
+  cacheGet,
+  cacheSet,
+  cacheInvalidate,
+  CacheTTL,
+  withCacheHeaders,
+} from "@/lib/api-cache";
+import { trialActivationPatch, computeTrialInfo } from "@/lib/admin-trial";
 
 async function requireSuperAdmin(request: Request) {
   const auth = await requireAuth(request);
@@ -57,6 +65,14 @@ function mapAdmin(p: any) {
   const approved = p.admin_approved === true;
   const rejected = !approved && !!p.admin_rejected_at;
   const status = approved ? "approved" : rejected ? "rejected" : "pending";
+  const trial = computeTrialInfo({
+    isGymOwnerAdmin: true,
+    isSuperAdmin: p.is_super_admin === true,
+    adminApproved: approved,
+    trialOffered: p.trial_offered === true || status !== "rejected",
+    trialStartsAt: p.trial_starts_at || null,
+    trialEndsAt: p.trial_ends_at || null,
+  });
 
   return {
     user_id: p.user_id as string,
@@ -72,6 +88,12 @@ function mapAdmin(p: any) {
     gym_type: (p.gym_type as string | null) ?? null,
     gym_city: (p.gym_city as string | null) ?? null,
     status: status as "pending" | "approved" | "rejected",
+    trial_offered: trial.offered,
+    trial_starts_at: trial.startsAt,
+    trial_ends_at: trial.endsAt,
+    trial_status: trial.status,
+    trial_days_left: trial.daysLeft,
+    trial_label: trial.label,
   };
 }
 
@@ -79,6 +101,15 @@ function mapAdmin(p: any) {
 export async function GET(request: Request) {
   const auth = await requireSuperAdmin(request);
   if ("error" in auth) return auth.error;
+
+  const cacheKey = `admin:pending:${auth.user.id}`;
+  const cached = cacheGet<Record<string, unknown>>(cacheKey);
+  if (cached) {
+    return NextResponse.json(
+      cached,
+      withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), true),
+    );
+  }
 
   const { supabase } = auth;
 
@@ -142,13 +173,18 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false })
     .limit(20);
 
-  return NextResponse.json({
+  const payload = {
     pending,
     approved,
     rejected,
     admins,
     notifications: notifications || [],
-  });
+  };
+  cacheSet(cacheKey, payload, CacheTTL.adminList);
+  return NextResponse.json(
+    payload,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), false),
+  );
 }
 
 /** POST /api/admin/pending — approve or reject { userId, action } */
@@ -210,6 +246,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "approve") {
+    const trial = trialActivationPatch();
     const { data, error } = await supabase
       .from("profiles")
       .update({
@@ -219,10 +256,15 @@ export async function POST(request: Request) {
         is_super_admin: false,
         account_status: "active",
         membership_status: "active",
+        trial_offered: true,
+        trial_starts_at: trial.trial_starts_at,
+        trial_ends_at: trial.trial_ends_at,
         updated_at: new Date().toISOString(),
       } as any)
       .eq("user_id", userId)
-      .select("user_id, full_name, email, admin_approved, admin_rejected_at")
+      .select(
+        "user_id, full_name, email, admin_approved, admin_rejected_at, trial_starts_at, trial_ends_at",
+      )
       .maybeSingle();
 
     if (error) {
@@ -248,7 +290,36 @@ export async function POST(request: Request) {
       (gymProfile as { gym_name?: string | null } | null)?.gym_name,
     );
 
-    return NextResponse.json({ approved: data, action: "approve" });
+    // Extra in-app notice that trial started
+    try {
+      const { createNotification } = await import("@/lib/notifications");
+      await createNotification({
+        user_id: userId,
+        type: "welcome",
+        title: "1-month free trial started",
+        message: `Your gym is approved. Free trial runs until ${new Date(trial.trial_ends_at).toLocaleDateString()}.`,
+        metadata: {
+          related_id: userId,
+          related_type: "trial",
+          action_url: "/dashboard",
+          priority: "high",
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+
+    cacheInvalidate("admin:pending");
+    cacheInvalidate("admin:users:");
+
+    return NextResponse.json({
+      approved: data,
+      action: "approve",
+      trial: {
+        startsAt: trial.trial_starts_at,
+        endsAt: trial.trial_ends_at,
+      },
+    });
   }
 
   // Reject: keep admin role so they stay in the list and can be approved later
@@ -277,6 +348,9 @@ export async function POST(request: Request) {
     .is("read_at", null);
 
   void notify.gymOwnerRejected(userId);
+
+  cacheInvalidate("admin:pending");
+  cacheInvalidate("admin:users:");
 
   return NextResponse.json({ rejected: data, action: "reject" });
 }

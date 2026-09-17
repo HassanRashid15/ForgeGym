@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MapPin, Phone, Mail, Clock, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-// import { usePageLoading } from "@/hooks/usePageLoading";
-// import PageSkeleton from "@/components/skeletons/PageSkeleton";
+import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 
 const contactInfo = [
@@ -38,6 +37,7 @@ const contactInfo = [
 
 export default function ContactPage() {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -46,12 +46,17 @@ export default function ContactPage() {
     message: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // const isLoading = usePageLoading(500);
 
-  // Preloader commented out for now
-  // if (isLoading) {
-  //   return <PageSkeleton variant="contact" />;
-  // }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <PageSkeleton variant="contact" />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

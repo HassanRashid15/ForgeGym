@@ -19,17 +19,15 @@ import {
   Loader2,
 } from "lucide-react";
 import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
+import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
+import { CheckInButton } from "@/components/customer/CheckInButton";
+import { DashboardSkeleton } from "@/components/loading/DashboardSkeleton";
 
 export default function DashboardPage() {
   const { user, isAdmin, isSuperAdmin, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading…
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (isSuperAdmin) {
@@ -68,7 +66,7 @@ export default function DashboardPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />
           <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                 {isCustomer ? "Member hub" : "Dashboard"}
               </p>
               <h1 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl md:text-6xl">
@@ -82,6 +80,7 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              {isCustomer && hasGym && <CheckInButton />}
               <Button asChild className="gap-2">
                 <Link href="/dashboard/progress">
                   <TrendingUp className="h-4 w-4" />
@@ -117,7 +116,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col justify-between gap-4 p-5 sm:p-6">
                 <div>
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
                     Your gym
                   </p>
                   <h2 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl">
@@ -165,32 +164,53 @@ export default function DashboardPage() {
           </section>
         )}
 
+        {isCustomer && hasGym && <MemberBillingCard />}
+
         {isCustomer && hasGym && <CustomerTrainerFeeCard />}
 
         <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
           {[
-            { label: "Progress", value: "Live", hint: "log workouts", icon: TrendingUp, href: "/dashboard/progress" },
-            { label: "Classes", value: "Soon", hint: "booking", icon: Calendar, href: "/dashboard/classes" },
-            { label: "Payments", value: "Soon", hint: "online billing", icon: CreditCard, href: "/dashboard/membership" },
-            { label: "Profile", value: "Ready", hint: "your gym", icon: Target, href: "/profile" },
-          ].map((stat) => (
-            <Link
-              key={stat.label}
-              href={stat.href}
-              className="bg-card p-5 transition-colors hover:bg-muted/40 sm:p-6"
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <stat.icon className="h-4 w-4 text-primary" />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {stat.hint}
-                </span>
+            { label: "Progress", value: "Live", hint: "log workouts", icon: TrendingUp, href: "/dashboard/progress", locked: false },
+            { label: "Classes", value: "Soon", hint: "next phase", icon: Calendar, href: "/dashboard/classes", locked: true },
+            { label: "Check-in", value: "Live", hint: "attendance", icon: MapPin, href: "/dashboard", locked: false },
+            { label: "Profile", value: "Ready", hint: "your gym", icon: Target, href: "/profile", locked: false },
+          ].map((stat) =>
+            stat.locked ? (
+              <div
+                key={stat.label}
+                className="cursor-not-allowed bg-card p-5 opacity-60 sm:p-6"
+                title="Coming soon"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <stat.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {stat.hint}
+                  </span>
+                </div>
+                <p className="font-display text-3xl tracking-normal text-muted-foreground sm:text-4xl">
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
               </div>
-              <p className="font-display text-3xl tracking-wide text-foreground sm:text-4xl">
-                {stat.value}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
-            </Link>
-          ))}
+            ) : (
+              <Link
+                key={stat.label}
+                href={stat.href}
+                className="bg-card p-5 transition-colors hover:bg-muted/40 sm:p-6"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <stat.icon className="h-4 w-4 text-primary" />
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {stat.hint}
+                  </span>
+                </div>
+                <p className="font-display text-3xl tracking-normal text-foreground sm:text-4xl">
+                  {stat.value}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
+              </Link>
+            ),
+          )}
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -213,6 +233,18 @@ export default function DashboardPage() {
                   badge: "Live",
                 },
                 {
+                  title: "Class booking",
+                  body: "Browse your gym’s schedule and reserve a spot.",
+                  href: "/dashboard/classes",
+                  badge: "Live",
+                },
+                {
+                  title: "Daily check-in",
+                  body: "Mark attendance when you arrive at the gym.",
+                  href: "/dashboard",
+                  badge: "Live",
+                },
+                {
                   title: "Want a trainer?",
                   body: "Add a trainer from your dashboard — monthly fee adjusts automatically.",
                   href: "/dashboard",
@@ -223,18 +255,6 @@ export default function DashboardPage() {
                   body: "See your gym, trainer, and membership status.",
                   href: "/profile?tab=membership",
                   badge: "Live",
-                },
-                {
-                  title: "Class booking",
-                  body: "Browse schedules and reserve spots.",
-                  href: "/dashboard/classes",
-                  badge: "Coming soon",
-                },
-                {
-                  title: "Online payments",
-                  body: "Pay monthly fees and manage plans online.",
-                  href: "/dashboard/membership",
-                  badge: "Coming soon",
                 },
               ].map((item) => (
                 <Link
@@ -307,8 +327,7 @@ export default function DashboardPage() {
                 </h2>
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                You’re in the launch wave. Class booking and online payments unlock next —
-                your gym + progress tracking are live now.
+                Check in daily, book classes, track progress, and manage your trainer fee — all live now.
               </p>
               <Button asChild size="sm" className="mt-4 w-full gap-2">
                 <Link href="/dashboard/progress">

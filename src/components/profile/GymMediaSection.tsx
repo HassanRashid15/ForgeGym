@@ -9,6 +9,7 @@ import { Upload, X, Video, Image as ImageIcon, Loader2 } from "lucide-react";
 import { uploadGymMedia, updateMyProfile } from "@/api/profiles";
 
 export type GymMediaValues = {
+  logoUrl: string;
   mainImageUrl: string;
   optionalImagesUrls: string[];
   videoUrl: string;
@@ -23,6 +24,7 @@ type GymMediaSectionProps = GymMediaValues & {
 };
 
 export function GymMediaSection({
+  logoUrl,
   mainImageUrl,
   optionalImagesUrls,
   videoUrl,
@@ -31,15 +33,22 @@ export function GymMediaSection({
   persistToDb = true,
   readOnly = false,
 }: GymMediaSectionProps) {
+  const logoInputId = useId();
   const mainInputId = useId();
   const optionalInputId = useId();
   const videoInputId = useId();
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const mainInputRef = useRef<HTMLInputElement>(null);
 
   const [uploading, setUploading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState(logoUrl);
   const [mainPreview, setMainPreview] = useState(mainImageUrl);
   const [optionalPreviews, setOptionalPreviews] = useState<string[]>(optionalImagesUrls);
   const [localVideoUrl, setLocalVideoUrl] = useState(videoUrl);
+
+  useEffect(() => {
+    setLogoPreview(logoUrl);
+  }, [logoUrl]);
 
   useEffect(() => {
     setMainPreview(mainImageUrl);
@@ -57,6 +66,7 @@ export function GymMediaSection({
     onUpdate(media);
     if (!persistToDb) return;
     await updateMyProfile({
+      avatar_url: media.logoUrl || null,
       gym_main_image_url: media.mainImageUrl || null,
       gym_optional_images_urls: media.optionalImagesUrls.length
         ? media.optionalImagesUrls
@@ -64,6 +74,59 @@ export function GymMediaSection({
       gym_video_url: media.videoUrl.trim() || null,
       gym_video_file_url: media.videoFileUrl || null,
     });
+  };
+
+  const uploadLogo = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Logo must be under 5MB");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed");
+      return;
+    }
+
+    const preview = URL.createObjectURL(file);
+    setLogoPreview(preview);
+    setUploading(true);
+    try {
+      const { url } = await uploadGymMedia(file, "logo");
+      await persist({
+        logoUrl: url,
+        mainImageUrl,
+        optionalImagesUrls,
+        videoUrl: localVideoUrl,
+        videoFileUrl,
+      });
+      setLogoPreview(url);
+      toast.success("Gym logo saved");
+    } catch (err: any) {
+      setLogoPreview(logoUrl);
+      toast.error(err?.message || "Failed to upload gym logo");
+    } finally {
+      setUploading(false);
+      URL.revokeObjectURL(preview);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  const clearLogo = async () => {
+    setUploading(true);
+    try {
+      await persist({
+        logoUrl: "",
+        mainImageUrl,
+        optionalImagesUrls,
+        videoUrl: localVideoUrl,
+        videoFileUrl,
+      });
+      setLogoPreview("");
+      toast.success("Gym logo removed");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove logo");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const uploadMain = async (file: File) => {
@@ -82,6 +145,7 @@ export function GymMediaSection({
     try {
       const { url } = await uploadGymMedia(file, "main-image");
       await persist({
+        logoUrl,
         mainImageUrl: url,
         optionalImagesUrls,
         videoUrl: localVideoUrl,
@@ -125,6 +189,7 @@ export function GymMediaSection({
         urls.push(url);
       }
       await persist({
+        logoUrl,
         mainImageUrl,
         optionalImagesUrls: urls,
         videoUrl: localVideoUrl,
@@ -152,6 +217,7 @@ export function GymMediaSection({
     try {
       const { url } = await uploadGymMedia(file, "video");
       await persist({
+        logoUrl,
         mainImageUrl,
         optionalImagesUrls,
         videoUrl: localVideoUrl,
@@ -170,6 +236,7 @@ export function GymMediaSection({
     setOptionalPreviews(nextSaved);
     try {
       await persist({
+        logoUrl,
         mainImageUrl,
         optionalImagesUrls: nextSaved,
         videoUrl: localVideoUrl,
@@ -186,6 +253,7 @@ export function GymMediaSection({
     setMainPreview("");
     try {
       await persist({
+        logoUrl,
         mainImageUrl: "",
         optionalImagesUrls,
         videoUrl: localVideoUrl,
@@ -201,6 +269,7 @@ export function GymMediaSection({
   const saveVideoUrl = async () => {
     try {
       await persist({
+        logoUrl,
         mainImageUrl,
         optionalImagesUrls,
         videoUrl: localVideoUrl,
@@ -214,6 +283,84 @@ export function GymMediaSection({
 
   return (
     <div className="space-y-6">
+      <div className="space-y-2">
+        <Label>Gym logo</Label>
+        <p className="text-xs text-muted-foreground">
+          Square mark shown on gym cards — stored in gym-media with your main image.
+        </p>
+        {readOnly ? (
+          <div className="relative h-28 w-28 overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950">
+            {logoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoPreview} alt="Gym logo" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-zinc-500">
+                <ImageIcon className="h-8 w-8" />
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <input
+              ref={logoInputRef}
+              id={logoInputId}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadLogo(file);
+              }}
+            />
+            <label
+              htmlFor={logoInputId}
+              className={`relative flex h-28 w-28 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
+                logoPreview
+                  ? "border-zinc-600"
+                  : "border-zinc-600 bg-zinc-950 hover:border-[#EF1111]/60 hover:bg-zinc-900"
+              } ${uploading ? "pointer-events-none opacity-70" : ""}`}
+            >
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoPreview} alt="Gym logo" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center gap-1 px-2 text-center text-zinc-400">
+                  {uploading ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-[#EF1111]" />
+                  ) : (
+                    <Upload className="h-5 w-5 text-[#EF1111]" />
+                  )}
+                  <span className="text-[10px]">Logo</span>
+                </div>
+              )}
+            </label>
+            {logoPreview && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  Replace
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => void clearLogo()}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="space-y-2">
         <Label>Main gym image</Label>
 

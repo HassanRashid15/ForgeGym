@@ -30,7 +30,7 @@ export function RegisterShell({ children }: RegisterShellProps) {
               <span className="text-red-500">TODAY.</span>
             </h2>
             <p className="mb-6 max-w-md text-sm text-zinc-300">
-              Join thousands of members transforming their lives every day.
+              Join partner gyms transforming training every day.
             </p>
             <div className="grid min-w-0 grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
               {[

@@ -27,6 +27,11 @@ export type ManagedUser = {
   date_of_birth?: string | null;
   emergency_contact?: string | null;
   trainer_bio?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  twitter_url?: string | null;
+  youtube_url?: string | null;
+  tiktok_url?: string | null;
   certifications?: string[] | null;
   certification_number?: string | null;
   years_experience?: string | null;
@@ -71,6 +76,11 @@ export type CreateStaffPayload = {
   skills?: string | string[];
   languages?: string | string[];
   trainer_bio?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  twitter_url?: string | null;
+  youtube_url?: string | null;
+  tiktok_url?: string | null;
   joining_date?: string | null;
   employment_type?: string | null;
   branch_department?: string | null;
@@ -112,6 +122,11 @@ export type UpdateUserPayload = {
   date_of_birth?: string | null;
   emergency_contact?: string | null;
   trainer_bio?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  twitter_url?: string | null;
+  youtube_url?: string | null;
+  tiktok_url?: string | null;
   certifications?: string | string[];
   certification_number?: string | null;
   years_experience?: string | null;

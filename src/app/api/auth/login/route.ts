@@ -44,7 +44,9 @@ export async function POST(request: Request) {
 
   const { data: accessProfile } = await supabase
     .from("profiles")
-    .select("login_enabled, admin_approved, gym_owner_id, is_verified")
+    .select(
+      "login_enabled, admin_approved, gym_owner_id, is_verified, is_super_admin, join_date, created_at, membership_type",
+    )
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -126,6 +128,45 @@ export async function POST(request: Request) {
   trackEvent("auth.login", { userId, requestId });
 
   void notify.loginSuccess(userId, new Date().toLocaleString());
+
+  // Auto-subscribe members & gym admins (not superadmin) to newsletter
+  const loginEmail = (data.user.email || email || "").toLowerCase();
+  const isSuperAdminUser =
+    accessProfile?.is_super_admin === true || email === "superadmin@forge.test";
+
+  if (loginEmail && !isSuperAdminUser) {
+    const { subscribeEmail } = await import("@/lib/newsletter");
+    void subscribeEmail(loginEmail).catch(() => null);
+  }
+
+  // Fee / renewal reminder when ≤7 days left in billing cycle
+  if (
+    role === "user" &&
+    !isSuperAdminUser &&
+    accessProfile?.gym_owner_id &&
+    accessProfile?.admin_approved === true
+  ) {
+    const { monthlyPeriod } = await import("@/lib/billing-period");
+    const { membershipTemplates, sendTemplatedNotification } = await import(
+      "@/lib/notification-templates"
+    );
+    const period = monthlyPeriod(
+      (accessProfile as { join_date?: string | null }).join_date ||
+        (accessProfile as { created_at?: string | null }).created_at,
+    );
+    if (period.daysLeft !== null && period.daysLeft <= 7 && period.periodEnd) {
+      const plan =
+        (accessProfile as { membership_type?: string | null }).membership_type ||
+        "membership";
+      void sendTemplatedNotification(
+        userId,
+        membershipTemplates.renewal(
+          plan,
+          new Date(period.periodEnd).toLocaleDateString(),
+        ),
+      ).catch(() => null);
+    }
+  }
 
   return NextResponse.json({
     user: data.user,

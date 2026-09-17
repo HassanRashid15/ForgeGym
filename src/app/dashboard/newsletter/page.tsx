@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
 interface NewsletterSubscription {
   id: string;
@@ -16,6 +17,8 @@ interface NewsletterSubscription {
   is_active: boolean;
   unsubscribed_at: string | null;
   unsubscribe_reason: string | null;
+  deletion_scheduled_at: string | null;
+  metadata: any;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +29,7 @@ export default function NewsletterPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [unsubscribingEmail, setUnsubscribingEmail] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const fetchSubscriptions = async () => {
     setLoading(true);
@@ -49,6 +53,29 @@ export default function NewsletterPage() {
   useEffect(() => {
     fetchSubscriptions();
   }, []);
+
+  // Update current time every second for countdown timers
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Calculate time remaining until deletion
+  const getTimeRemaining = (deletionScheduledAt: string | null) => {
+    if (!deletionScheduledAt) return null;
+    
+    const deletionTime = new Date(deletionScheduledAt);
+    const remaining = deletionTime.getTime() - currentTime.getTime();
+    
+    if (remaining <= 0) return null;
+    
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    
+    return { minutes, seconds, total: remaining };
+  };
 
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -75,7 +102,7 @@ export default function NewsletterPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        toast.success("User unsubscribed successfully");
+        toast.success(data.message || "User unsubscribed successfully");
         await fetchSubscriptions();
       } else {
         toast.error(data.error || "Failed to unsubscribe user");
@@ -84,6 +111,48 @@ export default function NewsletterPage() {
       toast.error("Failed to unsubscribe user");
     } finally {
       setUnsubscribingEmail(null);
+    }
+  };
+
+  const handleReactivate = async (email: string) => {
+    try {
+      const response = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success("Subscription reactivated successfully");
+        await fetchSubscriptions();
+      } else {
+        toast.error(data.error || "Failed to reactivate subscription");
+      }
+    } catch (error) {
+      toast.error("Failed to reactivate subscription");
+    }
+  };
+
+  const handleCleanup = async () => {
+    try {
+      const response = await fetch("/api/admin/newsletter/cleanup", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success(`Cleaned up ${data.deleted_count} expired subscription(s)`);
+        await fetchSubscriptions();
+      } else {
+        toast.error(data.error || "Failed to cleanup expired subscriptions");
+      }
+    } catch (error) {
+      toast.error("Failed to cleanup expired subscriptions");
     }
   };
 
@@ -143,6 +212,15 @@ export default function NewsletterPage() {
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleCleanup}
+            className="gap-2 text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+            Cleanup Expired
+          </Button>
         </div>
       </div>
 
@@ -201,9 +279,7 @@ export default function NewsletterPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex min-h-[200px] items-center justify-center text-sm text-muted-foreground">
-              Loading subscriptions...
-            </div>
+            <TableRowSkeleton rows={5} columns={3} />
           ) : filteredSubscriptions.length === 0 ? (
             <div className="flex min-h-[200px] flex-col items-center justify-center text-center">
               <Mail className="h-12 w-12 text-muted-foreground mb-4" />
@@ -233,6 +309,18 @@ export default function NewsletterPage() {
                           </>
                         )}
                       </div>
+                      {!subscription.is_active && subscription.deletion_scheduled_at && (
+                        <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+                          <Clock className="h-3 w-3" />
+                          <span className="font-medium">
+                            {(() => {
+                              const timeRemaining = getTimeRemaining(subscription.deletion_scheduled_at);
+                              if (!timeRemaining) return "Deleting now...";
+                              return `Auto-delete in ${timeRemaining.minutes}:${timeRemaining.seconds.toString().padStart(2, '0')}`;
+                            })()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -252,7 +340,7 @@ export default function NewsletterPage() {
                         </>
                       )}
                     </Badge>
-                    {subscription.is_active && (
+                    {subscription.is_active ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -265,6 +353,16 @@ export default function NewsletterPage() {
                         ) : (
                           <Trash2 className="h-4 w-4" />
                         )}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleReactivate(subscription.email)}
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-600/10"
+                        title="Reactivate subscription"
+                      >
+                        <RefreshCw className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

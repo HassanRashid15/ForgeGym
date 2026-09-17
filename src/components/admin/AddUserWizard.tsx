@@ -18,10 +18,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown } from "lucide-react";
+import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { createManagedUser, updateManagedUser, type CreateStaffPayload, type ManagedUser } from "@/api/admin-users";
 import { getNameInitials } from "@/lib/utils";
+import { SOCIAL_LINK_FIELDS, type SocialLinkDbKey } from "@/lib/social-links";
 
 export type StaffCreateRole = "admin" | "trainer" | "staff" | "user" | "super_admin";
 
@@ -97,6 +98,11 @@ type WizardFormState = {
   skills: string;
   languages: string;
   trainer_bio: string;
+  instagram_url: string;
+  facebook_url: string;
+  twitter_url: string;
+  youtube_url: string;
+  tiktok_url: string;
   joining_date: string;
   employment_type: string;
   branch_department: string;
@@ -143,6 +149,11 @@ const emptyForm = (): WizardFormState => ({
   skills: "",
   languages: "",
   trainer_bio: "",
+  instagram_url: "",
+  facebook_url: "",
+  twitter_url: "",
+  youtube_url: "",
+  tiktok_url: "",
   joining_date: new Date().toISOString().split("T")[0],
   employment_type: "full-time",
   branch_department: "",
@@ -242,6 +253,11 @@ function formFromUser(user: ManagedUser, fallbackRole: StaffCreateRole): WizardF
     skills: listToCsv(user.skills),
     languages: listToCsv(user.languages),
     trainer_bio: user.trainer_bio || "",
+    instagram_url: user.instagram_url || "",
+    facebook_url: user.facebook_url || "",
+    twitter_url: user.twitter_url || "",
+    youtube_url: user.youtube_url || "",
+    tiktok_url: user.tiktok_url || "",
     joining_date: user.join_date || "",
     employment_type: user.employment_type || "",
     branch_department: user.branch_department || "",
@@ -316,6 +332,9 @@ export function AddUserWizard({
   );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [openSocials, setOpenSocials] = useState<SocialLinkDbKey[]>(() =>
+    SOCIAL_LINK_FIELDS.filter((f) => !!editUser?.[f.key]).map((f) => f.key),
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   const roleLocked = allowedRoles.length === 1 || isEdit;
@@ -340,12 +359,14 @@ export function AddUserWizard({
   const reset = () => {
     if (editUser) {
       setForm(formFromUser(editUser, initialRole));
+      setOpenSocials(SOCIAL_LINK_FIELDS.filter((f) => !!editUser[f.key]).map((f) => f.key));
     } else {
       setForm({
         ...emptyForm(),
         role: initialRole,
         login_enabled: initialRole !== "staff",
       });
+      setOpenSocials([]);
     }
     setStep(1);
     setSaving(false);
@@ -356,12 +377,14 @@ export function AddUserWizard({
     if (!open) return;
     if (editUser) {
       setForm(formFromUser(editUser, initialRole));
+      setOpenSocials(SOCIAL_LINK_FIELDS.filter((f) => !!editUser[f.key]).map((f) => f.key));
     } else {
       setForm({
         ...emptyForm(),
         role: initialRole,
         login_enabled: initialRole !== "staff",
       });
+      setOpenSocials([]);
     }
     setStep(1);
     setSaving(false);
@@ -482,6 +505,11 @@ export function AddUserWizard({
     skills: form.skills,
     languages: form.languages,
     trainer_bio: form.trainer_bio.trim() || null,
+    instagram_url: form.instagram_url.trim() || null,
+    facebook_url: form.facebook_url.trim() || null,
+    twitter_url: form.twitter_url.trim() || null,
+    youtube_url: form.youtube_url.trim() || null,
+    tiktok_url: form.tiktok_url.trim() || null,
     joining_date: form.joining_date || null,
     employment_type: form.employment_type.trim() || null,
     branch_department: form.branch_department.trim() || null,
@@ -526,6 +554,11 @@ export function AddUserWizard({
           date_of_birth: payload.date_of_birth,
           emergency_contact: payload.emergency_contact,
           trainer_bio: payload.trainer_bio,
+          instagram_url: payload.instagram_url,
+          facebook_url: payload.facebook_url,
+          twitter_url: payload.twitter_url,
+          youtube_url: payload.youtube_url,
+          tiktok_url: payload.tiktok_url,
           certifications: payload.certifications,
           certification_number: payload.certification_number,
           years_experience: payload.years_experience,
@@ -836,6 +869,9 @@ export function AddUserWizard({
           <ReviewRow label="Specialization" value={form.specialization} />
           <ReviewRow label="Employment" value={form.employment_type} />
           <ReviewRow label="Working days" value={form.working_days} />
+          {SOCIAL_LINK_FIELDS.filter((f) => form[f.key].trim()).map((f) => (
+            <ReviewRow key={f.key} label={f.label} value={form[f.key]} />
+          ))}
         </>
       )}
       {form.role === "staff" && (
@@ -985,6 +1021,67 @@ export function AddUserWizard({
                 onChange={(e) => set("trainer_bio", e.target.value)}
               />
             </Field>
+            <div className="space-y-3 rounded-lg border border-dashed p-3">
+              <div>
+                <p className="text-sm font-medium">Social links</p>
+                <p className="text-xs text-muted-foreground">
+                  Optional — only links you add will show on the public trainer page.
+                </p>
+              </div>
+              {openSocials.length > 0 && (
+                <div className="space-y-3">
+                  {SOCIAL_LINK_FIELDS.filter((f) => openSocials.includes(f.key)).map((platform) => (
+                    <div key={platform.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor={platform.key}>{platform.label}</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            set(platform.key, "");
+                            setOpenSocials((prev) => prev.filter((k) => k !== platform.key));
+                          }}
+                          aria-label={`Remove ${platform.label}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <Input
+                        id={platform.key}
+                        className={inputClass}
+                        placeholder={platform.placeholder}
+                        value={form[platform.key]}
+                        onChange={(e) => set(platform.key, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {SOCIAL_LINK_FIELDS.some((f) => !openSocials.includes(f.key)) && (
+                <div className="flex flex-wrap gap-2">
+                  {SOCIAL_LINK_FIELDS.filter((f) => !openSocials.includes(f.key)).map(
+                    (platform) => (
+                      <Button
+                        key={platform.key}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setOpenSocials((prev) =>
+                            prev.includes(platform.key) ? prev : [...prev, platform.key],
+                          )
+                        }
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        {platform.label}
+                      </Button>
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         );
       case 3:
@@ -1370,7 +1467,7 @@ export function AddUserWizard({
         <div className="mt-5 w-full shrink-0 space-y-3">
           {activeStepMeta && (
             <header>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.28em] text-primary">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-primary">
                 Step {step} of {totalSteps}
               </p>
               <h3 className="text-xl font-semibold tracking-tight text-foreground">

@@ -118,7 +118,7 @@ export async function uploadMyAvatar(file: File) {
 /** POST profiles.uploadGymMedia → /api/gym-media */
 export async function uploadGymMedia(
   file: File,
-  type: "main-image" | "optional-image" | "video",
+  type: "main-image" | "optional-image" | "logo" | "video",
 ) {
   const form = new FormData();
   form.append("file", file);

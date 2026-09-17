@@ -7,6 +7,7 @@ import { usePlatformFacilityFee } from "@/hooks/usePlatformFacilityFee";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
+import { AdminTrialBanner } from "@/components/admin/AdminTrialBanner";
 import {
   ArrowRight,
   Building2,
@@ -43,6 +44,8 @@ export function AdminDashboardHome() {
       />
 
       <div className="relative mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
+        <AdminTrialBanner trial={user?.trial} facilityFee={facilityFee} />
+
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-20"
@@ -54,7 +57,7 @@ export function AdminDashboardHome() {
           <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                   Gym owner
                 </p>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">

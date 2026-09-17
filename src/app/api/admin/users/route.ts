@@ -7,6 +7,14 @@ import {
 import { randomBytes } from "crypto";
 import { notify } from "@/lib/notify-actions";
 import { verificationRedirectUrl } from "@/lib/site-url";
+import {
+  cacheGet,
+  cacheSet,
+  cacheInvalidate,
+  CacheTTL,
+  withCacheHeaders,
+} from "@/lib/api-cache";
+import { normalizeSocialUrl, SOCIAL_LINK_FIELDS } from "@/lib/social-links";
 
 type AppStaffRole = "user" | "moderator" | "admin" | "trainer" | "staff";
 
@@ -151,6 +159,11 @@ function buildProfilePayload(
     education: body.education ? String(body.education).trim() : null,
     skills: splitList(body.skills),
     languages: splitList(body.languages),
+    instagram_url: normalizeSocialUrl(body.instagram_url),
+    facebook_url: normalizeSocialUrl(body.facebook_url),
+    twitter_url: normalizeSocialUrl(body.twitter_url),
+    youtube_url: normalizeSocialUrl(body.youtube_url),
+    tiktok_url: normalizeSocialUrl(body.tiktok_url),
     join_date: body.joining_date
       ? String(body.joining_date)
       : new Date().toISOString().split("T")[0],
@@ -236,9 +249,20 @@ export async function GET(request: Request) {
   const auth = await requireApprovedAdmin(request);
   if ("error" in auth) return auth.error;
 
-  const { supabase, isSuperAdmin, gymOwnerId } = auth;
+  const { supabase, isSuperAdmin, gymOwnerId, user } = auth;
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
+  const cacheKey = `admin:users:${user.id}:${isSuperAdmin ? "sa" : "a"}:${gymOwnerId || "x"}:${q}`;
+
+  const cached = cacheGet<{ users: unknown[]; isSuperAdmin: boolean; gymOwnerId: string | null }>(
+    cacheKey,
+  );
+  if (cached) {
+    return NextResponse.json(
+      cached,
+      withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), true),
+    );
+  }
 
   let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
 
@@ -296,6 +320,11 @@ export async function GET(request: Request) {
       date_of_birth: row.date_of_birth as string | null,
       emergency_contact: row.emergency_contact as string | null,
       trainer_bio: (row.trainer_bio as string | null) || (row.bio as string | null) || null,
+      instagram_url: (row.instagram_url as string | null) || null,
+      facebook_url: (row.facebook_url as string | null) || null,
+      twitter_url: (row.twitter_url as string | null) || null,
+      youtube_url: (row.youtube_url as string | null) || null,
+      tiktok_url: (row.tiktok_url as string | null) || null,
       certifications: (row.certifications as string[] | null) || null,
       certification_number: row.certification_number as string | null,
       years_experience: row.years_experience as string | null,
@@ -353,7 +382,12 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ users, isSuperAdmin, gymOwnerId });
+  const payload = { users, isSuperAdmin, gymOwnerId };
+  cacheSet(cacheKey, payload, CacheTTL.adminList);
+  return NextResponse.json(
+    payload,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), false),
+  );
 }
 
 /** POST /api/admin/users — create admin/trainer/staff for this gym only */
@@ -565,6 +599,9 @@ export async function POST(request: Request) {
     creatingSuperAdmin || creatingPlatformAdmin ? null : gymName,
   );
 
+  cacheInvalidate("admin:users:");
+  cacheInvalidate("admin:pending");
+
   return NextResponse.json(
     {
       user: {
@@ -695,6 +732,9 @@ export async function PATCH(request: Request) {
       void notify.memberRejected(targetId, gymName);
     }
 
+    cacheInvalidate("admin:users:");
+    cacheInvalidate("admin:pending");
+
     return NextResponse.json({
       user: {
         ...updated,
@@ -813,6 +853,12 @@ export async function PATCH(request: Request) {
   if (body.system_permissions !== undefined)
     assign("system_permissions", splitList(body.system_permissions));
 
+  for (const field of SOCIAL_LINK_FIELDS) {
+    if (body[field.key] !== undefined) {
+      assign(field.key, normalizeSocialUrl(body[field.key]));
+    }
+  }
+
   if (body.avatar_base64) {
     await uploadAvatarIfPresent(supabase, targetId, body.avatar_base64);
   }
@@ -873,6 +919,9 @@ export async function PATCH(request: Request) {
       void notify.profileUpdatedByAdmin(targetId);
     }
   }
+
+  cacheInvalidate("admin:users:");
+  cacheInvalidate("admin:pending");
 
   return NextResponse.json({
     user: {
@@ -935,6 +984,9 @@ export async function DELETE(request: Request) {
   }
 
   void notify.userDeleted(user.id, targetLabel);
+
+  cacheInvalidate("admin:users:");
+  cacheInvalidate("admin:pending");
 
   return NextResponse.json({ ok: true, userId: targetId });
 }

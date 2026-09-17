@@ -1,14 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mail, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function NewsletterSection() {
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check if authenticated user is already subscribed
+  useEffect(() => {
+    const checkSubscriptionStatus = async () => {
+      if (!user?.email) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Use the read-only check API
+        const response = await fetch(`/api/newsletter/check?email=${encodeURIComponent(user.email)}`);
+        const data = await response.json();
+
+        // If user is already subscribed, set the state
+        if (data.success && data.is_subscribed && data.is_active) {
+          setIsSubscribed(true);
+          setEmail(user.email);
+        }
+      } catch (error) {
+        console.error("Error checking subscription status:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSubscriptionStatus();
+  }, [user?.email]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,15 +59,35 @@ export default function NewsletterSection() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setMessage({
-          type: "success",
-          text: data.already_subscribed 
-            ? "You're already subscribed!" 
-            : data.reactivated 
-            ? "Welcome back! Your subscription has been reactivated."
-            : "Successfully subscribed!",
-        });
-        setEmail("");
+        if (data.no_change) {
+          setMessage({
+            type: "success",
+            text: "You're already subscribed to our newsletter!",
+          });
+          setEmail("");
+          setIsSubscribed(true);
+        } else if (data.already_subscribed) {
+          setMessage({
+            type: "success",
+            text: "You're already subscribed!",
+          });
+          setEmail("");
+          setIsSubscribed(true);
+        } else if (data.reactivated) {
+          setMessage({
+            type: "success",
+            text: "Welcome back! Your subscription has been reactivated.",
+          });
+          setEmail("");
+          setIsSubscribed(true);
+        } else {
+          setMessage({
+            type: "success",
+            text: "Successfully subscribed!",
+          });
+          setEmail("");
+          setIsSubscribed(true);
+        }
       } else {
         setMessage({
           type: "error",
@@ -72,37 +124,51 @@ export default function NewsletterSection() {
                 Get exclusive fitness tips, workout plans, nutrition advice, and special offers delivered straight to your inbox.
               </p>
               
-              <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-                <input
-                  type="email"
-                  name="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="flex-1 h-12 px-4 rounded-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  required
-                  disabled={isSubmitting}
-                />
-                <Button
-                  type="submit"
-                  className="h-12 px-8 rounded-full bg-primary text-white font-semibold hover:bg-primary/90 transition"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Subscribing..." : "Subscribe"}
-                  {!isSubmitting && <ArrowRight className="w-4 h-4 ml-2" />}
-                </Button>
-              </form>
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span>Checking subscription status...</span>
+                </div>
+              ) : !isSubscribed ? (
+                <>
+                  <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+                    <input
+                      type="email"
+                      name="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="flex-1 h-12 px-4 rounded-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      required
+                      disabled={isSubmitting}
+                    />
+                    <Button
+                      type="submit"
+                      className="h-12 px-8 rounded-full bg-primary text-white font-semibold hover:bg-primary/90 transition"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Subscribing..." : "Subscribe"}
+                      {!isSubmitting && <ArrowRight className="w-4 h-4 ml-2" />}
+                    </Button>
+                  </form>
 
-              {message && (
-                <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${
-                  message.type === "success" ? "text-green-600" : "text-red-600"
-                }`}>
-                  {message.type === "success" ? (
-                    <CheckCircle className="w-4 h-4" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4" />
+                  {message && (
+                    <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${
+                      message.type === "success" ? "text-green-600" : "text-red-600"
+                    }`}>
+                      {message.type === "success" ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4" />
+                      )}
+                      {message.text}
+                    </div>
                   )}
-                  {message.text}
+                </>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-green-600">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="text-lg font-medium">You're already subscribed to our newsletter!</span>
                 </div>
               )}
               

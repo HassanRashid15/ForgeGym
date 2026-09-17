@@ -50,8 +50,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File type is required" }, { status: 400 });
   }
 
-  const isImage = fileType === "main-image" || fileType === "optional-image";
+  const isImage =
+    fileType === "main-image" ||
+    fileType === "optional-image" ||
+    fileType === "logo";
   const isVideo = fileType === "video";
+
+  if (!isImage && !isVideo) {
+    return NextResponse.json(
+      { error: "Invalid file type — use main-image, optional-image, logo, or video" },
+      { status: 400 },
+    );
+  }
 
   if (isImage && !file.type.startsWith("image/")) {
     return NextResponse.json({ error: "Only image files are allowed for images" }, { status: 400 });

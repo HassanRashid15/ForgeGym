@@ -315,6 +315,11 @@ export type Database = {
           skills: string[] | null
           languages: string[] | null
           trainer_bio: string | null
+          instagram_url: string | null
+          facebook_url: string | null
+          twitter_url: string | null
+          youtube_url: string | null
+          tiktok_url: string | null
           employment_type: string | null
           branch_department: string | null
           salary: string | null
@@ -395,6 +400,11 @@ export type Database = {
           skills?: string[] | null
           languages?: string[] | null
           trainer_bio?: string | null
+          instagram_url?: string | null
+          facebook_url?: string | null
+          twitter_url?: string | null
+          youtube_url?: string | null
+          tiktok_url?: string | null
           employment_type?: string | null
           branch_department?: string | null
           salary?: string | null
@@ -475,6 +485,11 @@ export type Database = {
           skills?: string[] | null
           languages?: string[] | null
           trainer_bio?: string | null
+          instagram_url?: string | null
+          facebook_url?: string | null
+          twitter_url?: string | null
+          youtube_url?: string | null
+          tiktok_url?: string | null
           employment_type?: string | null
           branch_department?: string | null
           salary?: string | null

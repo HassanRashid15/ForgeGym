@@ -25,6 +25,7 @@ import {
   Eye,
 } from "lucide-react";
 import type { ManagedUser } from "@/api/admin-users";
+import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
 type MemberStatusFilter = "all" | "pending" | "active" | "rejected";
 
@@ -305,9 +306,7 @@ export function MembersTable({
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-7 w-7 animate-spin text-primary" />
-            </div>
+            <TableRowSkeleton rows={5} columns={6} />
           ) : visibleMembers.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">No users found.</p>
           ) : (

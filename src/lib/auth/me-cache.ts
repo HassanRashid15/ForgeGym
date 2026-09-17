@@ -14,6 +14,14 @@ export type MePayload = {
   gymMainImageUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
+  trial?: {
+    offered: boolean;
+    status: "pending_approval" | "active" | "expired" | "none";
+    startsAt: string | null;
+    endsAt: string | null;
+    daysLeft: number | null;
+    label: string;
+  } | null;
 };
 
 export function withTimeout<T>(

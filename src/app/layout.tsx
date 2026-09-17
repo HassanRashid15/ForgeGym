@@ -1,20 +1,105 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Barlow, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
-import SeoManager from "@/components/marketing/SeoManager";
 import { SplashProvider } from "@/components/marketing/SplashProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
+import {
+  DEFAULT_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  getMetadataBase,
+  jsonLdScript,
+  organizationJsonLd,
+  websiteJsonLd,
+} from "@/lib/seo";
+import type { Viewport } from "next";
 
-const inter = Inter({ subsets: ["latin"] });
+const barlow = Barlow({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Forge Gym - Transform Your Fitness Journey",
-  description: "Unleash your potential at Forge Gym. State-of-the-art equipment, expert trainers, and a community that refuses to quit.",
+  metadataBase: getMetadataBase(),
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: SITE_NAME }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  keywords: [
+    "Forge Gym",
+    "gym management",
+    "partner gyms",
+    "personal trainers",
+    "fitness membership",
+    "gym near me",
+  ],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: SITE_NAME,
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [{ url: "/forge-mark.png", type: "image/png" }],
+    apple: [{ url: "/forge-mark.png", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: DEFAULT_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: DEFAULT_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  category: "fitness",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0D0D0D" },
+    { media: "(prefers-color-scheme: light)", color: "#EF1111" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -26,6 +111,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={jsonLdScript([organizationJsonLd(), websiteJsonLd()])}
+        />
+        <script
           id="forge-splash-lock"
           dangerouslySetInnerHTML={{
             __html: `
@@ -33,7 +122,6 @@ export default function RootLayout({
                 try {
                   if (location.pathname === '/') {
                     document.documentElement.classList.add('forge-splash-lock');
-                    // Instant dark cover before React — logo fades in via SSR splash CSS
                     if (!document.getElementById('forge-instant-splash')) {
                       var s = document.createElement('div');
                       s.id = 'forge-instant-splash';
@@ -99,13 +187,18 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body
+        className={[barlow.variable, barlowCondensed.variable, "font-sans", "antialiased"].join(
+          " ",
+        )}
+        suppressHydrationWarning
+      >
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
             <QueryProvider>
               <TooltipProvider>
                 <SplashProvider>
-                  <SeoManager />
+                  <RegisterServiceWorker />
                   <Toaster />
                   <Sonner />
                   {children}

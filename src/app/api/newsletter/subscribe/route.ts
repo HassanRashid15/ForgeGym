@@ -26,6 +26,21 @@ export async function POST(request: Request) {
 
     const supabase = createSupabaseServerClient();
 
+    // First check if email is already subscribed
+    const { data: existingSubscription } = await (supabase.rpc as any)("check_newsletter_subscription", {
+      p_email: email,
+    });
+
+    if (existingSubscription?.is_subscribed && existingSubscription?.is_active) {
+      return NextResponse.json({
+        success: true,
+        already_subscribed: true,
+        no_change: true,
+        message: "This email is already subscribed to the newsletter",
+        is_active: true,
+      });
+    }
+
     // Call the Supabase function to handle subscription
     const { data, error } = await (supabase.rpc as any)("subscribe_to_newsletter", {
       p_email: email,

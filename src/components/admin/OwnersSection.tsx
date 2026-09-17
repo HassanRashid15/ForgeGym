@@ -204,6 +204,7 @@ export function OwnersSection({
                           )}
                         </TableCell>
                         <TableCell>
+                          <div className="flex flex-col items-start gap-1">
                           <Badge
                             className={
                               status === "approved"
@@ -216,6 +217,20 @@ export function OwnersSection({
                             <Shield className="mr-1 h-3 w-3" />
                             {status}
                           </Badge>
+                          {admin.trial_status === "active" && (
+                            <span className="text-[11px] text-primary">
+                              Trial · {admin.trial_days_left ?? "—"}d left
+                            </span>
+                          )}
+                          {admin.trial_status === "pending_approval" && status === "pending" && (
+                            <span className="text-[11px] text-muted-foreground">
+                              Trial starts on approve
+                            </span>
+                          )}
+                          {admin.trial_status === "expired" && (
+                            <span className="text-[11px] text-destructive">Trial ended</span>
+                          )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1">

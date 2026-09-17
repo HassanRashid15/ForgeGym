@@ -50,6 +50,7 @@ import {
   Lock,
   PieChart,
   Mail,
+  Megaphone,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getNameInitials } from "@/lib/utils";
@@ -101,12 +102,14 @@ const gymOwnerItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Trainers", url: "/dashboard/trainers", icon: Dumbbell },
   { title: "Monthly Fee", url: "/dashboard/monthly-fee", icon: Wallet },
+  { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
 ];
 
 const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Statistics", url: "/dashboard/statistics", icon: PieChart },
   { title: "Newsletter", url: "/dashboard/newsletter", icon: Mail },
+  { title: "Promotions", url: "/dashboard/promotions", icon: Megaphone },
 ];
 
 function isActivePath(pathname: string, url: string) {
@@ -368,7 +371,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
                         {user?.name || "Member"}
                       </span>
                       <span className="truncate text-xs capitalize text-white">
-                        {user?.role || "customer"}
+                        {isSuperAdmin ? "Super Admin" : user?.role || "customer"}
                       </span>
                     </div>
                     <ChevronsUpDown className="ml-auto size-4 shrink-0" />
@@ -646,7 +649,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </>
   );

@@ -1,31 +1,57 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseCookieClient } from "@/lib/supabase/server";
 import { getRequestId } from "@/lib/api/errors";
 
 /** GET /api/admin/newsletter - Get all newsletter subscribers (superadmin only) */
 export async function GET(request: Request) {
   const requestId = getRequestId(request);
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseCookieClient();
 
   try {
     // Check if user is superadmin
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
+    if (userError) {
+      console.error("Auth error:", userError);
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Authentication failed", details: userError.message },
+        { status: 401 }
+      );
+    }
+    
+    if (!user) {
+      console.error("No user found in session");
+      return NextResponse.json(
+        { error: "No authenticated user found" },
         { status: 401 }
       );
     }
 
     // Check superadmin status
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("is_super_admin")
       .eq("user_id", user.id)
       .single();
 
-    if (!profile || !profile.is_super_admin) {
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return NextResponse.json(
+        { error: "Failed to verify user permissions", details: profileError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
+      console.error("No profile found for user:", user.id);
+      return NextResponse.json(
+        { error: "User profile not found" },
+        { status: 404 }
+      );
+    }
+
+    if (!profile.is_super_admin) {
+      console.error("User is not superadmin:", user.id);
       return NextResponse.json(
         { error: "Forbidden - Superadmin access required" },
         { status: 403 }
@@ -60,27 +86,53 @@ export async function GET(request: Request) {
 /** DELETE /api/admin/newsletter - Unsubscribe a user (superadmin only) */
 export async function DELETE(request: Request) {
   const requestId = getRequestId(request);
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseCookieClient();
 
   try {
     // Check if user is superadmin
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     
-    if (userError || !user) {
+    if (userError) {
+      console.error("Auth error:", userError);
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Authentication failed", details: userError.message },
+        { status: 401 }
+      );
+    }
+    
+    if (!user) {
+      console.error("No user found in session");
+      return NextResponse.json(
+        { error: "No authenticated user found" },
         { status: 401 }
       );
     }
 
     // Check superadmin status
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("is_super_admin")
       .eq("user_id", user.id)
       .single();
 
-    if (!profile || !profile.is_super_admin) {
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return NextResponse.json(
+        { error: "Failed to verify user permissions", details: profileError.message },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
+      console.error("No profile found for user:", user.id);
+      return NextResponse.json(
+        { error: "User profile not found" },
+        { status: 404 }
+      );
+    }
+
+    if (!profile.is_super_admin) {
+      console.error("User is not superadmin:", user.id);
       return NextResponse.json(
         { error: "Forbidden - Superadmin access required" },
         { status: 403 }

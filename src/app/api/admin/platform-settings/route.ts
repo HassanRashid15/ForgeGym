@@ -3,6 +3,12 @@ import {
   createSupabaseServiceClient,
   requireAuth,
 } from "@/lib/supabase/server";
+import {
+  cacheGetOrSet,
+  cacheInvalidate,
+  CacheTTL,
+  withCacheHeaders,
+} from "@/lib/api-cache";
 
 const FEE_KEY = "platform_facility_fee";
 
@@ -68,28 +74,39 @@ export async function GET(request: Request) {
   const auth = await requireApprovedAdminReader(request);
   if ("error" in auth) return auth.error;
 
-  const { supabase } = auth;
-  const { data, error } = await supabase
-    .from("platform_settings")
-    .select("key, value, updated_at")
-    .eq("key", FEE_KEY)
-    .maybeSingle();
+  const { data: payload, hit } = await cacheGetOrSet(
+    "settings:platform_facility_fee",
+    CacheTTL.settings,
+    async () => {
+      const { supabase } = auth;
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("key, value, updated_at")
+        .eq("key", FEE_KEY)
+        .maybeSingle();
 
-  if (error) {
-    return NextResponse.json({
-      platformFacilityFee: "",
-      updatedAt: null,
-      stored: false,
-      warning: error.message,
-    });
-  }
+      if (error) {
+        return {
+          platformFacilityFee: "",
+          updatedAt: null as string | null,
+          stored: false,
+          warning: error.message,
+        };
+      }
 
-  const value = (data?.value || "").trim();
-  return NextResponse.json({
-    platformFacilityFee: value,
-    updatedAt: data?.updated_at || null,
-    stored: Boolean(data && value),
-  });
+      const value = (data?.value || "").trim();
+      return {
+        platformFacilityFee: value,
+        updatedAt: data?.updated_at || null,
+        stored: Boolean(data && value),
+      };
+    },
+  );
+
+  return NextResponse.json(
+    payload,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.settings / 1000), hit),
+  );
 }
 
 /** PATCH /api/admin/platform-settings — save facility fee to DB (super admin only) */
@@ -135,6 +152,8 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   }
+
+  cacheInvalidate("settings:platform_facility_fee");
 
   return NextResponse.json({
     platformFacilityFee: data?.value || fee,

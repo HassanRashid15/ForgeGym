@@ -24,6 +24,7 @@ import { AddUserWizard } from "@/components/admin/AddUserWizard";
 import { ManagedUserDetails } from "@/components/admin/ManagedUserDetails";
 import { MembersTable } from "@/components/admin/MembersTable";
 import { queryKeys } from "@/lib/query-keys";
+import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
 export default function TrainersPage() {
   const { user, isLoading, isAdmin } = useAuth();
@@ -105,7 +106,22 @@ export default function TrainersPage() {
     }
   };
 
-  if (isLoading || !isAdmin) {
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-48 animate-pulse bg-primary/10 rounded" />
+            <div className="h-4 w-64 animate-pulse bg-primary/10 rounded" />
+          </div>
+          <div className="h-10 w-32 animate-pulse bg-primary/10 rounded" />
+        </div>
+        <TableRowSkeleton rows={5} columns={4} />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <div className="flex min-h-[320px] items-center justify-center p-6">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

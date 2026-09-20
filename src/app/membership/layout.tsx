@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Membership",
+  title: "Membership Plans",
   description:
-    "Explore Forge membership options. Join a partner gym and start training with clear approval and billing paths.",
+    "Explore Forge Gym membership options. Join a partner gym with clear approval and billing paths.",
   path: "/membership",
 });
 

@@ -24,6 +24,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminGymProgress } from "@/components/admin/AdminGymProgress";
 import { SuperAdminPlatformProgress } from "@/components/admin/SuperAdminPlatformProgress";
+import { TrainerProgressClients } from "@/components/trainer/TrainerProgressClients";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,7 @@ function emptyCatalog(name: string): CatalogExercise {
 }
 
 export default function ProgressPage() {
-  const { isAdmin, isSuperAdmin, isLoading: authLoading } = useAuth();
+  const { isAdmin, isSuperAdmin, isTrainer, isLoading: authLoading } = useAuth();
 
   if (authLoading) {
     return (
@@ -84,6 +85,10 @@ export default function ProgressPage() {
 
   if (isAdmin) {
     return <AdminGymProgress />;
+  }
+
+  if (isTrainer) {
+    return <TrainerProgressClients />;
   }
 
   return <MemberProgressPage />;

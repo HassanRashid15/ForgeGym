@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSuperAdminPlatformStats } from "@/hooks/useSuperAdminPlatformStats";
 import { parseFee, formatMoney } from "@/hooks/useAdminGymStats";
-import { fetchPlatformSettings, updatePlatformSettings, type AdminListItem } from "@/api/auth";
+import {
+  fetchMembershipFees,
+  type AdminListItem,
+} from "@/api/auth";
 import { queryKeys } from "@/lib/query-keys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -20,9 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "sonner";
 import {
-  ArrowRight,
   Building2,
   Calendar,
   Check,
@@ -31,11 +31,14 @@ import {
   Loader2,
   PieChart,
   Radio,
+  Search,
   TrendingUp,
   UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
+
+type FeeFilter = "all" | "set" | "missing" | "soon";
 
 function daysUntil(date: Date, now = new Date()): number {
   const start = new Date(now);
@@ -45,7 +48,6 @@ function daysUntil(date: Date, now = new Date()): number {
   return Math.round((end.getTime() - start.getTime()) / 86_400_000);
 }
 
-/** Monthly facility period from owner join / created_at. */
 function facilityPeriod(anchorIso: string | null | undefined, now = new Date()) {
   if (!anchorIso) {
     return {
@@ -79,52 +81,56 @@ function joinedAt(u: AdminListItem) {
 }
 
 /**
- * Super admin Statistics — monthly gym-owner intake + platform facility fees (DB).
+ * Super admin Stats — revenue from Membership Set fees only.
  */
 export function SuperAdminStatistics() {
-  const queryClient = useQueryClient();
   const { stats, loading, isFetching, error } = useSuperAdminPlatformStats(true);
-  const [feeDraft, setFeeDraft] = useState("");
-  const [savingFee, setSavingFee] = useState(false);
+  const [search, setSearch] = useState("");
+  const [feeFilter, setFeeFilter] = useState<FeeFilter>("all");
 
-  const feeQuery = useQuery({
-    queryKey: queryKeys.platformSettings,
-    queryFn: fetchPlatformSettings,
+  const membershipFeesQuery = useQuery({
+    queryKey: queryKeys.membershipFees,
+    queryFn: fetchMembershipFees,
   });
 
-  const feeLabel = feeQuery.data?.platformFacilityFee || "";
-  const feeStored = feeQuery.data?.stored === true;
-
-  useEffect(() => {
-    setFeeDraft(feeQuery.data?.platformFacilityFee || "");
-  }, [feeQuery.data?.platformFacilityFee]);
-
-  const feeAmount = parseFee(feeLabel);
-
-  const saveFee = async () => {
-    const next = feeDraft.trim();
-    if (!next) {
-      toast.error("Enter a facility fee before saving");
-      return;
+  const personalFeeByOwner = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of membershipFeesQuery.data?.admins ?? []) {
+      const fee = (a.platform_monthly_fee || "").trim();
+      if (fee) map.set(a.user_id, fee);
     }
-    setSavingFee(true);
-    try {
-      await updatePlatformSettings(next);
-      toast.success("Facility fee saved to database");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.platformSettings });
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Could not save fee");
-    } finally {
-      setSavingFee(false);
+    for (const o of stats.allApproved) {
+      const fee = (o.platform_monthly_fee || "").trim();
+      if (fee && !map.has(o.user_id)) map.set(o.user_id, fee);
     }
-  };
+    return map;
+  }, [membershipFeesQuery.data?.admins, stats.allApproved]);
+
+  const resolveFeeLabel = (owner: AdminListItem) =>
+    personalFeeByOwner.get(owner.user_id) ||
+    (owner.platform_monthly_fee || "").trim() ||
+    null;
+
+  const resolveFeeAmount = (owner: AdminListItem) =>
+    parseFee(resolveFeeLabel(owner));
 
   const billable = stats.allApproved;
-  const projectedRevenue = billable.length * feeAmount;
+  const projectedRevenue = billable.reduce(
+    (sum, owner) => sum + resolveFeeAmount(owner),
+    0,
+  );
+  const ownersWithPersonalFee = billable.filter((o) =>
+    personalFeeByOwner.has(o.user_id),
+  ).length;
+  const sampleFeeLabel = [...personalFeeByOwner.values()][0] || null;
+  const ownersMissingFee = billable.filter(
+    (o) => resolveFeeAmount(o) <= 0,
+  ).length;
 
   const revenueBuckets = useMemo(() => {
     const now = new Date();
-    const rows: { key: string; label: string; joins: number; revenue: number }[] = [];
+    const rows: { key: string; label: string; joins: number; revenue: number }[] =
+      [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -147,11 +153,14 @@ export function SuperAdminStatistics() {
       if (!b) continue;
       b.joins += 1;
       if (u.status === "approved" || u.admin_approved) {
-        b.revenue += feeAmount;
+        const fee =
+          personalFeeByOwner.get(u.user_id) ||
+          (u.platform_monthly_fee || "").trim();
+        b.revenue += parseFee(fee);
       }
     }
     return rows;
-  }, [stats.allOwners, feeAmount]);
+  }, [stats.allOwners, personalFeeByOwner]);
 
   const maxJoins = Math.max(1, ...revenueBuckets.map((b) => b.joins));
   const maxRevenue = Math.max(1, ...revenueBuckets.map((b) => b.revenue));
@@ -165,15 +174,33 @@ export function SuperAdminStatistics() {
       .sort((a, b) => (a.daysLeft ?? 99) - (b.daysLeft ?? 99));
   }, [billable]);
 
+  const filteredBilling = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return billingRows.filter(({ owner, daysLeft }) => {
+      const hasFee = personalFeeByOwner.has(owner.user_id);
+      if (feeFilter === "set" && !hasFee) return false;
+      if (feeFilter === "missing" && hasFee) return false;
+      if (feeFilter === "soon" && !(typeof daysLeft === "number" && daysLeft <= 7)) {
+        return false;
+      }
+      if (!q) return true;
+      const hay = [owner.full_name, owner.email, owner.gym_name, owner.gym_city]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [billingRows, search, feeFilter, personalFeeByOwner]);
+
   const expiringSoon = billingRows.filter(
     (r) => typeof r.daysLeft === "number" && r.daysLeft <= 7,
   ).length;
 
-  if (loading) {
+  if (loading && billable.length === 0) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading statistics…
+        Loading stats…
       </div>
     );
   }
@@ -186,22 +213,29 @@ export function SuperAdminStatistics() {
     );
   }
 
+  const feeTabs: { key: FeeFilter; label: string; count?: number }[] = [
+    { key: "all", label: "All", count: billable.length },
+    { key: "set", label: "Fee set", count: ownersWithPersonalFee },
+    { key: "missing", label: "Fee missing", count: ownersMissingFee },
+    { key: "soon", label: "Renewing soon", count: expiringSoon },
+  ];
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Statistics</h1>
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+            <h1 className="text-2xl font-bold tracking-tight">Stats</h1>
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
               <Radio className="h-3 w-3 animate-pulse" />
-              Live · DB
+              Live · platform
             </span>
-            {isFetching || feeQuery.isFetching ? (
+            {isFetching || membershipFeesQuery.isFetching ? (
               <span className="text-xs text-muted-foreground">Updating…</span>
             ) : null}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Gym-owner intake from profiles · facility fee stored in platform_settings
+            Revenue from Membership Set fees · gym-owner intake from the database
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -212,44 +246,59 @@ export function SuperAdminStatistics() {
             </Link>
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/dashboard/progress">
-              Progress
-              <ArrowRight className="ml-1.5 h-4 w-4" />
+            <Link href="/dashboard/membership-set">
+              <Wallet className="mr-1.5 h-4 w-4" />
+              Membership Set
             </Link>
           </Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Wallet className="h-4 w-4" />
-            Platform facility fee
+            <DollarSign className="h-4 w-4 text-primary" />
+            Assigned membership fees
           </CardTitle>
           <CardDescription>
-            Set by you — no default amount. Each approved gym owner pays this for platform access.
-            Saved to the database{feeStored ? " ✓" : " (empty until you save)"}.
+            From Membership Set · these drive projected revenue below
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-0 flex-1 space-y-2">
-            <Label htmlFor="platformFee">Monthly fee per gym owner</Label>
-            <Input
-              id="platformFee"
-              value={feeDraft}
-              onChange={(e) => setFeeDraft(e.target.value)}
-              placeholder="Enter fee (e.g. Rs 5000)"
-              disabled={savingFee || feeQuery.isPending}
-            />
-          </div>
-          <Button
-            type="button"
-            onClick={() => void saveFee()}
-            disabled={savingFee || feeQuery.isPending}
-          >
-            {savingFee ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Save to DB
-          </Button>
+        <CardContent className="space-y-3">
+          {ownersWithPersonalFee === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No fees assigned yet. Set them in{" "}
+              <Link
+                href="/dashboard/membership-set"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Membership Set
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {[...personalFeeByOwner.entries()].map(([userId, fee]) => {
+                const owner = billable.find((o) => o.user_id === userId);
+                return (
+                  <Badge
+                    key={userId}
+                    variant="outline"
+                    className="border-primary/40 px-2.5 py-1 text-sm font-medium tabular-nums text-foreground"
+                  >
+                    {owner?.gym_name || owner?.full_name || "Owner"}: {fee}/mo
+                  </Badge>
+                );
+              })}
+            </div>
+          )}
+          {ownersMissingFee > 0 ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {ownersMissingFee} approved owner
+              {ownersMissingFee === 1 ? "" : "s"} still missing a fee — set in
+              Membership Set.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -285,11 +334,15 @@ export function SuperAdminStatistics() {
               Projected facility revenue
             </CardDescription>
             <CardTitle className="text-3xl tabular-nums">
-              {feeAmount > 0 ? formatMoney(projectedRevenue, feeLabel) : "—"}
+              {projectedRevenue > 0
+                ? formatMoney(projectedRevenue, sampleFeeLabel)
+                : "—"}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-xs text-muted-foreground">
-            {billable.length} × {feeLabel || "fee not set"}
+            {ownersWithPersonalFee > 0
+              ? `${ownersWithPersonalFee} with Membership Set fee`
+              : "Set fees in Membership Set"}
           </CardContent>
         </Card>
         <Card>
@@ -348,13 +401,13 @@ export function SuperAdminStatistics() {
               Facility fees by signup month
             </CardTitle>
             <CardDescription>
-              Approved owners that month × your platform fee (DB)
+              Approved owners that month × their Membership Set fee
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {revenueBuckets.every((b) => b.revenue === 0) ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No approved (billable) owners yet — approve gym owners to project revenue.
+                No fee revenue yet — assign fees in Membership Set.
               </p>
             ) : (
               revenueBuckets.map((b) => (
@@ -364,12 +417,14 @@ export function SuperAdminStatistics() {
                   </span>
                   <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      className="h-full rounded-full bg-primary/70 transition-all"
                       style={{ width: `${(b.revenue / maxRevenue) * 100}%` }}
                     />
                   </div>
                   <span className="min-w-[4.5rem] text-right text-xs font-medium tabular-nums">
-                    {feeAmount > 0 ? formatMoney(b.revenue, feeLabel) : b.revenue}
+                    {b.revenue > 0
+                      ? formatMoney(b.revenue, sampleFeeLabel)
+                      : "—"}
                   </span>
                 </div>
               ))
@@ -385,15 +440,40 @@ export function SuperAdminStatistics() {
             Facility billing — approved gym owners
           </CardTitle>
           <CardDescription>
-            Each approved owner owes the monthly platform fee for CRUD / gym management
-            access. Period rolls from their signup date (profiles in DB).
+            Fee due comes from Membership Set for each owner.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {billingRows.length === 0 ? (
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {feeTabs.map((tab) => (
+                <Button
+                  key={tab.key}
+                  size="sm"
+                  variant={feeFilter === tab.key ? "default" : "outline"}
+                  onClick={() => setFeeFilter(tab.key)}
+                >
+                  {tab.label}
+                  {typeof tab.count === "number" ? ` (${tab.count})` : ""}
+                </Button>
+              ))}
+            </div>
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search owners or gyms…"
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {filteredBilling.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No approved gym owners yet. When you approve owners in Users, they show here as
-              billable.
+              {billingRows.length === 0
+                ? "No approved gym owners yet."
+                : "No owners match these filters."}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -408,47 +488,57 @@ export function SuperAdminStatistics() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {billingRows.map(({ owner, periodEnd, daysLeft }) => (
-                    <TableRow key={owner.user_id}>
-                      <TableCell>
-                        <div className="font-medium">
-                          {owner.full_name || owner.email || "Owner"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {owner.gym_name || "—"}
-                          {owner.gym_city ? ` · ${owner.gym_city}` : ""}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {owner.created_at
-                          ? new Date(owner.created_at).toLocaleDateString()
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {periodEnd
-                          ? new Date(periodEnd).toLocaleDateString()
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {typeof daysLeft === "number" ? (
-                          <Badge
-                            variant={daysLeft <= 7 ? "destructive" : "outline"}
-                            className="tabular-nums"
-                          >
-                            {daysLeft}d
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium tabular-nums">
-                        <span className="inline-flex items-center gap-1">
-                          <Check className="h-3.5 w-3.5 text-emerald-500" />
-                          {feeAmount > 0 ? formatMoney(feeAmount, feeLabel) : feeLabel}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredBilling.map(({ owner, periodEnd, daysLeft }) => {
+                    const label = resolveFeeLabel(owner);
+                    const amount = resolveFeeAmount(owner);
+                    const isCustom = personalFeeByOwner.has(owner.user_id);
+                    return (
+                      <TableRow key={owner.user_id}>
+                        <TableCell>
+                          <div className="font-medium">
+                            {owner.full_name || owner.email || "Owner"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {owner.gym_name || "—"}
+                            {owner.gym_city ? ` · ${owner.gym_city}` : ""}
+                            {isCustom ? " · Membership Set" : " · fee missing"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {owner.created_at
+                            ? new Date(owner.created_at).toLocaleDateString()
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {periodEnd
+                            ? new Date(periodEnd).toLocaleDateString()
+                            : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {typeof daysLeft === "number" ? (
+                            <Badge
+                              variant={daysLeft <= 7 ? "destructive" : "outline"}
+                              className="tabular-nums"
+                            >
+                              {daysLeft}d
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">
+                          <span className="inline-flex items-center gap-1">
+                            {amount > 0 ? (
+                              <Check className="h-3.5 w-3.5 text-primary" />
+                            ) : null}
+                            {amount > 0
+                              ? formatMoney(amount, label)
+                              : label || "Not set"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

@@ -1,8 +1,8 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Register",
-  description: "Create a Forge Gym account as a member or gym owner.",
+  title: "Create Your Account",
+  description: "Register on Forge Gym as a member, trainer, or gym owner and start training with partner gyms.",
   path: "/register",
   noIndex: true,
 });

@@ -4,48 +4,8 @@ import {
   requireAuth,
 } from "@/lib/supabase/server";
 import { getGymByOwnerId } from "@/lib/gyms";
-import { formatCombinedFee } from "@/lib/fees";
-
-function daysUntil(date: Date, now = new Date()): number {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(date);
-  end.setHours(0, 0, 0, 0);
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
-}
-
-/** Next monthly renewal after join, and days remaining in the current period. */
-function monthlyPeriod(anchorIso: string | null | undefined, now = new Date()) {
-  if (!anchorIso) {
-    return {
-      periodStart: null as string | null,
-      periodEnd: null as string | null,
-      daysLeft: null as number | null,
-    };
-  }
-
-  const anchor = new Date(anchorIso);
-  if (Number.isNaN(anchor.getTime())) {
-    return { periodStart: null, periodEnd: null, daysLeft: null };
-  }
-
-  const periodStart = new Date(anchor);
-  while (true) {
-    const next = new Date(periodStart);
-    next.setMonth(next.getMonth() + 1);
-    if (next > now) break;
-    periodStart.setMonth(periodStart.getMonth() + 1);
-  }
-
-  const periodEnd = new Date(periodStart);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-  return {
-    periodStart: periodStart.toISOString(),
-    periodEnd: periodEnd.toISOString(),
-    daysLeft: Math.max(0, daysUntil(periodEnd, now)),
-  };
-}
+import { formatMemberFee } from "@/lib/fees";
+import { monthlyPeriod } from "@/lib/billing-period";
 
 async function requireApprovedAdmin(request: Request) {
   const auth = await requireAuth(request);
@@ -131,7 +91,7 @@ export async function GET(request: Request) {
   const { data: profiles, error } = await supabase
     .from("profiles")
     .select(
-      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, admin_approved, avatar_url, preferred_trainer_id",
+      "user_id, full_name, email, phone, join_date, created_at, membership_status, membership_type, account_status, admin_approved, avatar_url, preferred_trainer_id, pending_trainer_id, trainer_request_pending, fee_concession",
     )
     .eq("gym_owner_id", gymOwnerId)
     .order("created_at", { ascending: false });
@@ -190,10 +150,14 @@ export async function GET(request: Request) {
       const preferredTrainerId =
         (row.preferred_trainer_id as string | null) || null;
       const hasTrainer = Boolean(preferredTrainerId);
-      const monthlyFee = formatCombinedFee(
+      const feeConcession = (row.fee_concession as string | null) || null;
+      const trainerRequestPending = row.trainer_request_pending === true;
+      const pendingTrainerId = (row.pending_trainer_id as string | null) || null;
+      const monthlyFee = formatMemberFee(
         baseMonthlyFee,
         trainerFee,
         hasTrainer,
+        feeConcession,
       );
 
       return {
@@ -209,6 +173,9 @@ export async function GET(request: Request) {
         trainerFee,
         hasTrainer,
         preferredTrainerId,
+        pendingTrainerId,
+        trainerRequestPending,
+        feeConcession,
         associatedAt,
         periodStart: period.periodStart,
         periodEnd: period.periodEnd,

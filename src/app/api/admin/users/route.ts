@@ -15,6 +15,9 @@ import {
   withCacheHeaders,
 } from "@/lib/api-cache";
 import { normalizeSocialUrl, SOCIAL_LINK_FIELDS } from "@/lib/social-links";
+import { findDuplicatePhone, phonesMatch } from "@/lib/phone";
+import { getGymByOwnerId } from "@/lib/gyms";
+import { formatMemberFee } from "@/lib/fees";
 
 type AppStaffRole = "user" | "moderator" | "admin" | "trainer" | "staff";
 
@@ -264,6 +267,10 @@ export async function GET(request: Request) {
     );
   }
 
+  const gym = !isSuperAdmin && gymOwnerId ? await getGymByOwnerId(gymOwnerId) : null;
+  const baseMonthlyFee = gym?.monthlyFee || null;
+  const trainerFee = gym?.trainerFee || null;
+
   let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
 
   if (!isSuperAdmin) {
@@ -293,6 +300,15 @@ export async function GET(request: Request) {
   let users = (profiles || []).map((p) => {
     const role = mapRole(rolesByUser.get(p.user_id));
     const row = p as Record<string, unknown>;
+    const preferredTrainerId = (row.preferred_trainer_id as string | null) || null;
+    const hasTrainer = Boolean(preferredTrainerId);
+    const feeConcession = (row.fee_concession as string | null) || null;
+    const trainerRequestPending = row.trainer_request_pending === true;
+    const pendingTrainerId = (row.pending_trainer_id as string | null) || null;
+    const monthlyFeeLabel =
+      role === "user"
+        ? formatMemberFee(baseMonthlyFee, trainerFee, hasTrainer, feeConcession)
+        : null;
     return {
       user_id: p.user_id,
       full_name: p.full_name,
@@ -332,8 +348,6 @@ export async function GET(request: Request) {
       skills: (row.skills as string[] | null) || null,
       languages: (row.languages as string[] | null) || null,
       salary: row.salary as string | null,
-      commission_percentage:
-        typeof row.commission_percentage === "number" ? row.commission_percentage : null,
       working_days: row.working_days as string | null,
       working_hours: row.working_hours as string | null,
       max_client_capacity: row.max_client_capacity as string | null,
@@ -346,6 +360,14 @@ export async function GET(request: Request) {
       overtime_rate: row.overtime_rate as string | null,
       responsibilities: row.responsibilities as string | null,
       system_permissions: (row.system_permissions as string[] | null) || null,
+      preferred_trainer_id: preferredTrainerId,
+      pending_trainer_id: pendingTrainerId,
+      trainer_request_pending: trainerRequestPending,
+      fee_concession: feeConcession,
+      has_trainer: hasTrainer,
+      monthly_fee_label: monthlyFeeLabel,
+      gym_monthly_fee: baseMonthlyFee,
+      gym_trainer_fee: trainerFee,
     };
   });
 
@@ -429,10 +451,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Gym admins: only admin / trainer / staff for their gym (not platform moderator)
-  if (!isSuperAdmin && !["admin", "trainer", "staff"].includes(role)) {
+  // Gym admins: admin / trainer / staff / member for their gym
+  if (!isSuperAdmin && !["admin", "trainer", "staff", "user"].includes(role)) {
     return NextResponse.json(
-      { error: "You can only add Admin, Trainer, or Staff for your gym" },
+      { error: "You can only add Admin, Trainer, Staff, or Member for your gym" },
       { status: 403 },
     );
   }
@@ -469,7 +491,8 @@ export async function POST(request: Request) {
   const creatingPlatformAdmin = isSuperAdmin && role === "admin";
   const dbRole: AppStaffRole = creatingSuperAdmin ? "admin" : (role as AppStaffRole);
 
-  if (role === "admin" && !isSuperAdmin) {
+  // Block duplicate emails for every create path (trainer / staff / member / admin)
+  {
     const anon = createSupabaseServerClient();
     const { data: exists } = await (anon.rpc as any)("check_user_exists", {
       check_email: email,
@@ -480,7 +503,36 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+  }
 
+  const phone = body.phone ? String(body.phone).trim() : "";
+  const emergency = body.emergency_contact
+    ? String(body.emergency_contact).trim()
+    : "";
+  if (phonesMatch(phone, emergency)) {
+    return NextResponse.json(
+      {
+        error: "Emergency contact cannot be the same as phone number.",
+        code: "phone_emergency_same",
+      },
+      { status: 400 },
+    );
+  }
+  if (phone) {
+    const phoneTaken = await findDuplicatePhone(supabase as any, phone);
+    if (phoneTaken) {
+      return NextResponse.json(
+        {
+          error: "This phone number is already used by another account.",
+          code: "phone_duplicate",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  if (role === "admin" && !isSuperAdmin) {
+    const anon = createSupabaseServerClient();
     const { data, error } = await anon.auth.signUp({
       email,
       password,
@@ -532,6 +584,13 @@ export async function POST(request: Request) {
     });
 
     if (createErr || !created.user) {
+      const msg = (createErr?.message || "").toLowerCase();
+      if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
+        return NextResponse.json(
+          { error: "An account with this email already exists.", code: "email_exists" },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         { error: createErr?.message || "Failed to create user" },
         { status: 400 },
@@ -550,6 +609,10 @@ export async function POST(request: Request) {
       ? userId
       : gymOwnerId;
 
+  // Only gym owners / co-admins carry gym_name on their profile.
+  // Members, trainers, and staff link only through gym_owner_id.
+  const stampsGymIdentity = role === "admin" && !creatingSuperAdmin && !creatingPlatformAdmin;
+
   const profilePayload = {
     ...buildProfilePayload(
       { ...body, role: dbRole, login_enabled: loginEnabled },
@@ -557,13 +620,13 @@ export async function POST(request: Request) {
       email,
       {
         gymOwnerId: targetGymOwnerId || userId,
-        gymName: creatingSuperAdmin || creatingPlatformAdmin ? null : gymName,
-        gymCity: creatingSuperAdmin || creatingPlatformAdmin ? null : gymCity,
+        gymName: stampsGymIdentity ? gymName : null,
+        gymCity: stampsGymIdentity ? gymCity : null,
       },
     ),
     gym_owner_id: targetGymOwnerId,
-    gym_name: creatingSuperAdmin || creatingPlatformAdmin ? null : gymName,
-    gym_city: creatingSuperAdmin || creatingPlatformAdmin ? null : gymCity,
+    gym_name: stampsGymIdentity ? gymName : null,
+    gym_city: stampsGymIdentity ? gymCity : null,
     admin_approved: true,
     is_super_admin: creatingSuperAdmin,
     is_verified: creatingSuperAdmin || creatingPlatformAdmin || role !== "admin",
@@ -654,7 +717,7 @@ export async function PATCH(request: Request) {
 
   const { data: targetProfile } = await supabase
     .from("profiles")
-    .select("is_super_admin, gym_owner_id")
+    .select("is_super_admin, gym_owner_id, phone, emergency_contact, preferred_trainer_id, full_name")
     .eq("user_id", targetId)
     .maybeSingle();
 
@@ -746,6 +809,104 @@ export async function PATCH(request: Request) {
     });
   }
 
+  if (body.action === "approve_trainer" || body.action === "reject_trainer") {
+    if (targetRole !== "user") {
+      return NextResponse.json(
+        { error: "Only customer trainer requests can be decided this way" },
+        { status: 400 },
+      );
+    }
+
+    const pending =
+      (targetProfile as { trainer_request_pending?: boolean })?.trainer_request_pending ===
+      true;
+    if (!pending) {
+      return NextResponse.json(
+        { error: "No pending trainer request for this member" },
+        { status: 400 },
+      );
+    }
+
+    const approving = body.action === "approve_trainer";
+    const requestedTrainerId =
+      (targetProfile as { pending_trainer_id?: string | null })?.pending_trainer_id || null;
+    const feeConcession =
+      (targetProfile as { fee_concession?: string | null })?.fee_concession || null;
+
+    const patch: Record<string, unknown> = {
+      trainer_request_pending: false,
+      pending_trainer_id: null,
+      updated_at: new Date().toISOString(),
+    };
+    if (approving) {
+      patch.preferred_trainer_id = requestedTrainerId;
+    }
+
+    const { data: updated, error } = await supabase
+      .from("profiles")
+      .update(patch as never)
+      .eq("user_id", targetId)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (!updated) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    const finalTrainerId = approving
+      ? requestedTrainerId
+      : (targetProfile as { preferred_trainer_id?: string | null })?.preferred_trainer_id ||
+        null;
+
+    let trainerName: string | null = null;
+    if (approving && requestedTrainerId) {
+      const { data: t } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", requestedTrainerId)
+        .maybeSingle();
+      trainerName = (t?.full_name as string | null) || "Trainer";
+    } else if (!approving && requestedTrainerId) {
+      const { data: t } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", requestedTrainerId)
+        .maybeSingle();
+      trainerName = (t?.full_name as string | null) || "Trainer";
+    }
+
+    const gym = await getGymByOwnerId(gymOwnerId);
+    const feeLabel = formatMemberFee(
+      gym?.monthlyFee ?? null,
+      gym?.trainerFee ?? null,
+      Boolean(finalTrainerId),
+      feeConcession,
+    );
+
+    void notify.memberTrainerRequestResolved(
+      targetId,
+      approving,
+      approving ? trainerName : null,
+      feeLabel,
+    );
+    cacheInvalidate(`membership:me:${targetId}`);
+    cacheInvalidate("admin:users:");
+    cacheInvalidate("admin:pending");
+
+    return NextResponse.json({
+      user: {
+        ...updated,
+        role: targetRole,
+        is_super_admin: updated?.is_super_admin === true,
+        admin_approved: updated?.admin_approved === true,
+      },
+      action: body.action,
+    });
+  }
+
   const profileUpdate: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -779,6 +940,102 @@ export async function PATCH(request: Request) {
       "emergency_contact",
       body.emergency_contact ? String(body.emergency_contact).trim() : null,
     );
+
+  let trainerChanged = false;
+  let nextTrainerId: string | null = null;
+  let previousTrainerId: string | null =
+    (targetProfile as { preferred_trainer_id?: string | null })?.preferred_trainer_id ||
+    null;
+
+  if (body.preferred_trainer_id !== undefined) {
+    nextTrainerId =
+      body.preferred_trainer_id === null || body.preferred_trainer_id === ""
+        ? null
+        : String(body.preferred_trainer_id).trim();
+
+    if (nextTrainerId) {
+      const { data: trainerProfile } = await supabase
+        .from("profiles")
+        .select("user_id, gym_owner_id, full_name")
+        .eq("user_id", nextTrainerId)
+        .maybeSingle();
+      const { data: trainerRoles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", nextTrainerId);
+      const isTrainer = (trainerRoles || []).some((r) => r.role === "trainer");
+      const trainerGym =
+        (trainerProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id || null;
+      if (
+        !trainerProfile ||
+        !isTrainer ||
+        trainerGym !== gymOwnerId
+      ) {
+        return NextResponse.json(
+          { error: "Selected trainer is not available at this gym" },
+          { status: 400 },
+        );
+      }
+    }
+
+    assign("preferred_trainer_id", nextTrainerId);
+    assign("trainer_request_pending", false);
+    assign("pending_trainer_id", null);
+    trainerChanged = String(previousTrainerId || "") !== String(nextTrainerId || "");
+  }
+
+  let feeConcessionChanged = false;
+  let nextFeeConcession: string | null =
+    (targetProfile as { fee_concession?: string | null })?.fee_concession || null;
+  if (body.fee_concession !== undefined) {
+    nextFeeConcession =
+      body.fee_concession === null || body.fee_concession === ""
+        ? null
+        : String(body.fee_concession).trim();
+    assign("fee_concession", nextFeeConcession);
+    feeConcessionChanged =
+      String(
+        (targetProfile as { fee_concession?: string | null })?.fee_concession || "",
+      ) !== String(nextFeeConcession || "");
+  }
+
+  const nextPhone =
+    body.phone !== undefined
+      ? body.phone
+        ? String(body.phone).trim()
+        : ""
+      : String((targetProfile as { phone?: string | null })?.phone || "");
+  const nextEmergency =
+    body.emergency_contact !== undefined
+      ? body.emergency_contact
+        ? String(body.emergency_contact).trim()
+        : ""
+      : String(
+          (targetProfile as { emergency_contact?: string | null })?.emergency_contact ||
+            "",
+        );
+  if (phonesMatch(nextPhone, nextEmergency)) {
+    return NextResponse.json(
+      {
+        error: "Emergency contact cannot be the same as phone number.",
+        code: "phone_emergency_same",
+      },
+      { status: 400 },
+    );
+  }
+  if (body.phone !== undefined && nextPhone) {
+    const phoneTaken = await findDuplicatePhone(supabase as any, nextPhone, targetId);
+    if (phoneTaken) {
+      return NextResponse.json(
+        {
+          error: "This phone number is already used by another account.",
+          code: "phone_duplicate",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   if (body.trainer_bio !== undefined) {
     const bio = body.trainer_bio ? String(body.trainer_bio).trim() : null;
     assign("trainer_bio", bio);
@@ -905,7 +1162,40 @@ export async function PATCH(request: Request) {
     if (body.login_enabled === true || body.login_enabled === false) {
       void notify.loginAccessChanged(targetId, body.login_enabled === true);
     }
-    if (body.account_status !== undefined) {
+    if (trainerChanged) {
+      let trainerName: string | null = null;
+      if (nextTrainerId) {
+        const { data: t } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", nextTrainerId)
+          .maybeSingle();
+        trainerName = (t?.full_name as string | null) || "Trainer";
+      }
+      const gym = await getGymByOwnerId(gymOwnerId);
+      const feeLabel = formatMemberFee(
+        gym?.monthlyFee ?? null,
+        gym?.trainerFee ?? null,
+        Boolean(nextTrainerId),
+        nextFeeConcession,
+      );
+      void notify.memberTrainerAdjusted(targetId, trainerName, feeLabel);
+      cacheInvalidate(`membership:me:${targetId}`);
+    } else if (feeConcessionChanged) {
+      const gym = await getGymByOwnerId(gymOwnerId);
+      const activeTrainerId =
+        body.preferred_trainer_id !== undefined
+          ? nextTrainerId
+          : previousTrainerId;
+      const feeLabel = formatMemberFee(
+        gym?.monthlyFee ?? null,
+        gym?.trainerFee ?? null,
+        Boolean(activeTrainerId),
+        nextFeeConcession,
+      );
+      void notify.memberFeeConcessionUpdated(targetId, feeLabel);
+      cacheInvalidate(`membership:me:${targetId}`);
+    } else if (body.account_status !== undefined) {
       void notify.accountStatusChanged(targetId, String(body.account_status));
     } else if (
       body.full_name !== undefined ||

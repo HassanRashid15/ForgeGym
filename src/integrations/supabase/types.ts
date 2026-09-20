@@ -98,6 +98,51 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance_checkins: {
+        Row: {
+          id: string
+          gym_owner_id: string
+          user_id: string
+          checked_in_at: string
+          checked_out_at: string | null
+          slot: string
+          gender: string | null
+          role: string | null
+          full_name: string | null
+          source: string
+          notes: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          gym_owner_id: string
+          user_id: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          slot: string
+          gender?: string | null
+          role?: string | null
+          full_name?: string | null
+          source?: string
+          notes?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          gym_owner_id?: string
+          user_id?: string
+          checked_in_at?: string
+          checked_out_at?: string | null
+          slot?: string
+          gender?: string | null
+          role?: string | null
+          full_name?: string | null
+          source?: string
+          notes?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           key: string
@@ -273,6 +318,7 @@ export type Database = {
           gender: string | null
           weight_kg: number | null
           height_cm: number | null
+          bmi: number | null
           activity_level: string | null
           fitness_goal: string | null
           experience_level: string | null
@@ -307,6 +353,13 @@ export type Database = {
           gym_latitude: number | null
           gym_longitude: number | null
           preferred_trainer_id: string | null
+          pending_trainer_id: string | null
+          trainer_request_pending: boolean
+          fee_concession: string | null
+          platform_monthly_fee: string | null
+          trial_offered: boolean | null
+          trial_starts_at: string | null
+          trial_ends_at: string | null
           specialization: string | null
           certifications: string[] | null
           certification_number: string | null
@@ -358,6 +411,7 @@ export type Database = {
           gender?: string | null
           weight_kg?: number | null
           height_cm?: number | null
+          bmi?: number | null
           activity_level?: string | null
           fitness_goal?: string | null
           experience_level?: string | null
@@ -392,6 +446,13 @@ export type Database = {
           gym_latitude?: number | null
           gym_longitude?: number | null
           preferred_trainer_id?: string | null
+          pending_trainer_id?: string | null
+          trainer_request_pending?: boolean
+          fee_concession?: string | null
+          platform_monthly_fee?: string | null
+          trial_offered?: boolean | null
+          trial_starts_at?: string | null
+          trial_ends_at?: string | null
           specialization?: string | null
           certifications?: string[] | null
           certification_number?: string | null
@@ -443,6 +504,7 @@ export type Database = {
           gender?: string | null
           weight_kg?: number | null
           height_cm?: number | null
+          bmi?: number | null
           activity_level?: string | null
           fitness_goal?: string | null
           experience_level?: string | null
@@ -477,6 +539,13 @@ export type Database = {
           gym_latitude?: number | null
           gym_longitude?: number | null
           preferred_trainer_id?: string | null
+          pending_trainer_id?: string | null
+          trainer_request_pending?: boolean
+          fee_concession?: string | null
+          platform_monthly_fee?: string | null
+          trial_offered?: boolean | null
+          trial_starts_at?: string | null
+          trial_ends_at?: string | null
           specialization?: string | null
           certifications?: string[] | null
           certification_number?: string | null

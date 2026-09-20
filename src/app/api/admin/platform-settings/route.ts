@@ -3,12 +3,7 @@ import {
   createSupabaseServiceClient,
   requireAuth,
 } from "@/lib/supabase/server";
-import {
-  cacheGetOrSet,
-  cacheInvalidate,
-  CacheTTL,
-  withCacheHeaders,
-} from "@/lib/api-cache";
+import { cacheInvalidate } from "@/lib/api-cache";
 
 const FEE_KEY = "platform_facility_fee";
 
@@ -74,39 +69,46 @@ export async function GET(request: Request) {
   const auth = await requireApprovedAdminReader(request);
   if ("error" in auth) return auth.error;
 
-  const { data: payload, hit } = await cacheGetOrSet(
-    "settings:platform_facility_fee",
-    CacheTTL.settings,
-    async () => {
-      const { supabase } = auth;
-      const { data, error } = await supabase
-        .from("platform_settings")
-        .select("key, value, updated_at")
-        .eq("key", FEE_KEY)
-        .maybeSingle();
+  const { supabase, user } = auth;
 
-      if (error) {
-        return {
-          platformFacilityFee: "",
-          updatedAt: null as string | null,
-          stored: false,
-          warning: error.message,
-        };
-      }
+  const [{ data: globalRow, error }, { data: profile }] = await Promise.all([
+    supabase
+      .from("platform_settings")
+      .select("key, value, updated_at")
+      .eq("key", FEE_KEY)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("platform_monthly_fee")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
-      const value = (data?.value || "").trim();
-      return {
-        platformFacilityFee: value,
-        updatedAt: data?.updated_at || null,
-        stored: Boolean(data && value),
-      };
-    },
-  );
+  if (error) {
+    return NextResponse.json({
+      platformFacilityFee: "",
+      personalMonthlyFee: null as string | null,
+      updatedAt: null as string | null,
+      stored: false,
+      warning: error.message,
+    });
+  }
 
-  return NextResponse.json(
-    payload,
-    withCacheHeaders(undefined, Math.floor(CacheTTL.settings / 1000), hit),
-  );
+  const globalFee = (globalRow?.value || "").trim();
+  const personalFee = (
+    (profile as { platform_monthly_fee?: string | null } | null)
+      ?.platform_monthly_fee || ""
+  ).trim();
+  // Gym admins: personal fee first, else global default. Super admin: same for display.
+  const effective = personalFee || globalFee;
+
+  return NextResponse.json({
+    platformFacilityFee: effective,
+    globalFacilityFee: globalFee,
+    personalMonthlyFee: personalFee || null,
+    updatedAt: globalRow?.updated_at || null,
+    stored: Boolean(effective),
+  });
 }
 
 /** PATCH /api/admin/platform-settings — save facility fee to DB (super admin only) */

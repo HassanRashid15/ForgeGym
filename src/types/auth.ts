@@ -97,5 +97,6 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isTrainer: boolean;
 }
 

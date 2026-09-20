@@ -1,8 +1,8 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Verify email",
-  description: "Verify your Forge Gym email address to continue.",
+  title: "Verify Your Email",
+  description: "Confirm your email address to activate your Forge Gym account.",
   path: "/verification",
   noIndex: true,
 });

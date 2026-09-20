@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Classes",
+  title: "Group Fitness Classes",
   description:
-    "Group classes and training sessions at Forge partner gyms. Class booking expands in the next product phase.",
+    "Browse HIIT, strength, and group training classes at Forge partner gyms. Booking expands in the next product phase.",
   path: "/classes",
 });
 

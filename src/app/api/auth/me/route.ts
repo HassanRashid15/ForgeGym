@@ -58,14 +58,16 @@ export async function GET(request: Request) {
     (user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
   ).toLowerCase();
 
-  // Gym owners register with gym_name + requested_role=admin. If user_roles is
-  // missing, they must not be treated as customers.
-  const looksLikeGymOwner =
-    Boolean(profileRow?.gym_name?.trim()) ||
-    metaRequested === "admin" ||
-    metaRequested === "super_admin";
+  // Only heal true gym-owner signups missing a user_roles row.
+  // Do NOT treat gym_name alone as ownership — members/staff often inherit
+  // the gym display name via gym_owner_id linkage and must stay customers.
+  const ownsOwnGymProfile =
+    Boolean(profileRow?.gym_name?.trim()) &&
+    (!profileRow?.gym_owner_id || profileRow.gym_owner_id === user.id);
+  const looksLikeGymOwnerSignup =
+    metaRequested === "admin" && ownsOwnGymProfile;
 
-  if (role === "customer" && (isSuperAdmin || looksLikeGymOwner)) {
+  if (role === "customer" && (isSuperAdmin || looksLikeGymOwnerSignup)) {
     role = "admin";
     if (service && !roleNames.includes("admin")) {
       const { error: healErr } = await service.from("user_roles").upsert(

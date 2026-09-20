@@ -13,6 +13,7 @@ export type ProfileRecord = {
   gender?: string | null;
   weight_kg?: number | null;
   height_cm?: number | null;
+  bmi?: number | null;
   activity_level?: string | null;
   fitness_goal?: string | null;
   experience_level?: string | null;
@@ -24,6 +25,7 @@ export type ProfileRecord = {
   membership_status?: string | null;
   membership_type?: string | null;
   join_date?: string | null;
+  created_at?: string | null;
   avatar_url?: string | null;
   admin_approved?: boolean | null;
   is_super_admin?: boolean | null;
@@ -59,6 +61,7 @@ export type ProfileUpdatePayload = Partial<{
   gender: string | null;
   weight_kg: number | null;
   height_cm: number | null;
+  bmi: number | null;
   activity_level: string | null;
   fitness_goal: string | null;
   experience_level: string | null;

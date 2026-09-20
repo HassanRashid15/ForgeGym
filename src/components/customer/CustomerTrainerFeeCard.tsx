@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateMyProfile } from "@/api/profiles";
 import { Button } from "@/components/ui/button";
-import { Dumbbell, Loader2, Wallet } from "lucide-react";
+import { Dumbbell, Loader2, Wallet, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
   feeBreakdownLabel,
   formatCombinedFee,
+  formatMemberFee,
 } from "@/lib/fees";
 
 type GymTrainerOption = {
@@ -24,7 +25,7 @@ type GymFees = {
 };
 
 /**
- * Customer: add / change preferred trainer — monthly fee auto-adjusts (gym + trainer).
+ * Customer: request preferred trainer — admin must approve before fee updates.
  */
 export function CustomerTrainerFeeCard({
   compact = false,
@@ -38,6 +39,9 @@ export function CustomerTrainerFeeCard({
   const [trainers, setTrainers] = useState<GymTrainerOption[]>([]);
   const [fees, setFees] = useState<GymFees>({ monthlyFee: null, trainerFee: null });
   const [selectedId, setSelectedId] = useState<string>("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [requestPending, setRequestPending] = useState(false);
+  const [feeConcession, setFeeConcession] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -66,11 +70,19 @@ export function CustomerTrainerFeeCard({
             gymData?.gym?.trainerFee != null ? String(gymData.gym.trainerFee) : null,
         });
         setTrainers(Array.isArray(trainersData?.trainers) ? trainersData.trainers : []);
+        const profile = profileData?.profile || profileData;
         const preferred =
-          profileData?.profile?.preferred_trainer_id ||
-          profileData?.preferred_trainer_id ||
-          "";
+          profile?.preferred_trainer_id || "";
         setSelectedId(preferred ? String(preferred) : "");
+        setRequestPending(profile?.trainer_request_pending === true);
+        setPendingId(
+          profile?.pending_trainer_id != null
+            ? String(profile.pending_trainer_id)
+            : null,
+        );
+        setFeeConcession(
+          profile?.fee_concession != null ? String(profile.fee_concession) : null,
+        );
       } catch {
         if (!cancelled) setTrainers([]);
       } finally {
@@ -84,31 +96,69 @@ export function CustomerTrainerFeeCard({
 
   const withTrainer = Boolean(selectedId);
   const totalLabel = useMemo(
-    () => formatCombinedFee(fees.monthlyFee, fees.trainerFee, withTrainer),
-    [fees.monthlyFee, fees.trainerFee, withTrainer],
+    () =>
+      formatMemberFee(fees.monthlyFee, fees.trainerFee, withTrainer, feeConcession),
+    [fees.monthlyFee, fees.trainerFee, withTrainer, feeConcession],
   );
   const breakdown = useMemo(
-    () => feeBreakdownLabel(fees.monthlyFee, fees.trainerFee, withTrainer),
-    [fees.monthlyFee, fees.trainerFee, withTrainer],
+    () =>
+      feeBreakdownLabel(
+        fees.monthlyFee,
+        fees.trainerFee,
+        withTrainer,
+        feeConcession,
+      ),
+    [fees.monthlyFee, fees.trainerFee, withTrainer, feeConcession],
   );
+
+  const previewId = requestPending
+    ? pendingId || ""
+    : selectedId;
+  const previewWithTrainer = Boolean(previewId);
+  const previewLabel = useMemo(
+    () =>
+      formatCombinedFee(fees.monthlyFee, fees.trainerFee, previewWithTrainer),
+    [fees.monthlyFee, fees.trainerFee, previewWithTrainer],
+  );
+
+  const pendingTrainerLabel = useMemo(() => {
+    if (!requestPending) return null;
+    if (!pendingId) return "Remove trainer";
+    const t = trainers.find((x) => x.userId === pendingId);
+    return t
+      ? `${t.fullName || "Trainer"}${t.specialization ? ` · ${t.specialization}` : ""}`
+      : "Trainer";
+  }, [requestPending, pendingId, trainers]);
 
   if (!gymOwnerId) return null;
 
   async function saveTrainer(nextId: string) {
     setSaving(true);
     try {
-      await updateMyProfile({
+      const res = await updateMyProfile({
         preferred_trainer_id: nextId || null,
       });
-      setSelectedId(nextId);
-      onTrainerChange?.(nextId);
+      const profile = (res as { profile?: Record<string, unknown> })?.profile;
+      const pending = profile?.trainer_request_pending === true;
+      setRequestPending(pending);
+      setPendingId(
+        pending
+          ? profile?.pending_trainer_id != null
+            ? String(profile.pending_trainer_id)
+            : null
+          : null,
+      );
+      if (!pending) {
+        setSelectedId(nextId);
+        onTrainerChange?.(nextId);
+      }
       toast.success(
         nextId
-          ? "Trainer added — monthly fee updated"
-          : "Trainer removed — monthly fee updated",
+          ? "Trainer request sent — waiting for gym admin approval."
+          : "Remove-trainer request sent — waiting for gym admin approval.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update trainer");
+      toast.error(err instanceof Error ? err.message : "Could not request trainer change");
     } finally {
       setSaving(false);
     }
@@ -135,7 +185,7 @@ export function CustomerTrainerFeeCard({
         </h2>
       </div>
       <p className="mb-4 text-sm text-muted-foreground">
-        Add a gym trainer anytime. Your monthly fee adjusts automatically
+        Request a gym trainer anytime. Your monthly fee updates after admin approval
         (gym fee{fees.trainerFee ? " + trainer fee" : ""}).
       </p>
 
@@ -146,9 +196,24 @@ export function CustomerTrainerFeeCard({
         </div>
       ) : (
         <div className="space-y-3">
+          {requestPending ? (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <div>
+                <p className="font-medium text-amber-600 dark:text-amber-400">
+                  Pending admin approval
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Requested: {pendingTrainerLabel}
+                  {previewLabel ? ` · fee would be ${previewLabel}` : ""}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <select
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            value={selectedId}
+            value={requestPending ? pendingId || "" : selectedId}
             disabled={saving || trainers.length === 0}
             onChange={(e) => {
               void saveTrainer(e.target.value);
@@ -183,11 +248,11 @@ export function CustomerTrainerFeeCard({
           {saving ? (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Updating…
+              Sending request…
             </p>
           ) : null}
 
-          {!compact && selectedId ? (
+          {!compact && selectedId && !requestPending ? (
             <Button
               type="button"
               variant="outline"
@@ -195,7 +260,7 @@ export function CustomerTrainerFeeCard({
               disabled={saving}
               onClick={() => void saveTrainer("")}
             >
-              Remove trainer
+              Request remove trainer
             </Button>
           ) : null}
         </div>

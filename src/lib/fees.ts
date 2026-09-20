@@ -31,9 +31,24 @@ export function feeBreakdownLabel(
   monthlyFee: string | null | undefined,
   trainerFee: string | null | undefined,
   withTrainer: boolean,
+  feeConcession?: string | null,
 ): string {
+  const concession = (feeConcession || "").trim();
+  if (concession) return `Concession ${concession}`;
   const monthly = (monthlyFee || "").trim() || "—";
   if (!withTrainer) return monthly;
   const trainer = (trainerFee || "").trim() || "—";
   return `${monthly} + trainer ${trainer}`;
+}
+
+/** Effective member fee — admin concession overrides gym + trainer formula. */
+export function formatMemberFee(
+  monthlyFee: string | null | undefined,
+  trainerFee: string | null | undefined,
+  withTrainer: boolean,
+  feeConcession?: string | null,
+): string | null {
+  const concession = (feeConcession || "").trim();
+  if (concession) return concession;
+  return formatCombinedFee(monthlyFee, trainerFee, withTrainer);
 }

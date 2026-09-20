@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "About",
+  title: "About the Platform",
   description:
-    "Forge is a soft-launch fitness platform for partner gyms — honest numbers, real coaches, and tools built for the floor.",
+    "Forge Gym connects partner gyms, trainers, and members — honest tools built for the floor, not just the brochure.",
   path: "/about",
 });
 

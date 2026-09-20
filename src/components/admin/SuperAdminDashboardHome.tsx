@@ -310,8 +310,8 @@ export function SuperAdminDashboardHome() {
                       badge: "Live",
                     },
                     {
-                      title: "Statistics",
-                      body: "Monthly owner intake and platform facility fees.",
+                      title: "Stats",
+                      body: "Platform revenue and gym-owner intake, live from the database.",
                       href: "/dashboard/statistics",
                       badge: "Live",
                     },

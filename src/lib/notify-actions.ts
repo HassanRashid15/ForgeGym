@@ -86,6 +86,54 @@ export const notify = {
   profileSaved: (userId: string) =>
     safeNotify(userId, actionTemplates.profileSaved()),
 
+  memberTrainerAdjusted: (
+    userId: string,
+    trainerName: string | null,
+    feeLabel: string | null,
+  ) =>
+    safeNotify(
+      userId,
+      actionTemplates.memberTrainerAdjusted(trainerName, feeLabel),
+    ),
+
+  adminMemberTrainerAdjusted: (
+    adminIds: string[],
+    memberName: string,
+    trainerName: string | null,
+    feeLabel: string | null,
+  ) =>
+    notifyMany(
+      adminIds,
+      actionTemplates.adminMemberTrainerAdjusted(memberName, trainerName, feeLabel),
+    ),
+
+  memberTrainerRequestSent: (userId: string, trainerName: string | null) =>
+    safeNotify(userId, actionTemplates.memberTrainerRequestSent(trainerName)),
+
+  adminTrainerRequestPending: (
+    adminIds: string[],
+    memberName: string,
+    trainerName: string | null,
+  ) =>
+    notifyMany(
+      adminIds,
+      actionTemplates.adminTrainerRequestPending(memberName, trainerName),
+    ),
+
+  memberTrainerRequestResolved: (
+    userId: string,
+    approved: boolean,
+    trainerName: string | null,
+    feeLabel: string | null,
+  ) =>
+    safeNotify(
+      userId,
+      actionTemplates.memberTrainerRequestResolved(approved, trainerName, feeLabel),
+    ),
+
+  memberFeeConcessionUpdated: (userId: string, feeLabel: string | null) =>
+    safeNotify(userId, actionTemplates.memberFeeConcessionUpdated(feeLabel)),
+
   avatarUpdated: (userId: string) =>
     safeNotify(userId, actionTemplates.avatarUpdated()),
 
@@ -103,4 +151,32 @@ export const notify = {
 
   loginSuccess: (userId: string, when: string) =>
     safeNotify(userId, actionTemplates.loginSuccess(when)),
+
+  attendanceCheckedIn: (userId: string, slot: string, when: string) =>
+    safeNotify(userId, actionTemplates.attendanceCheckedIn(slot, when)),
+
+  attendanceCheckedOut: (userId: string, duration: string, when: string) =>
+    safeNotify(userId, actionTemplates.attendanceCheckedOut(duration, when)),
+
+  adminAttendanceCheckedIn: (
+    adminIds: string[],
+    name: string,
+    role: string,
+    slot: string,
+  ) =>
+    notifyMany(
+      adminIds,
+      actionTemplates.adminAttendanceCheckedIn(name, role, slot),
+    ),
+
+  adminAttendanceCheckedOut: (
+    adminIds: string[],
+    name: string,
+    role: string,
+    duration: string,
+  ) =>
+    notifyMany(
+      adminIds,
+      actionTemplates.adminAttendanceCheckedOut(name, role, duration),
+    ),
 };

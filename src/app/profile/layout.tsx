@@ -4,8 +4,8 @@ import ProfileClientLayout from "./ProfileClientLayout";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Profile",
-  description: "Manage your Forge Gym profile and settings.",
+  title: "Your Profile",
+  description: "Manage your Forge Gym profile, preferences, and account settings.",
   path: "/profile",
   noIndex: true,
 });

@@ -267,6 +267,135 @@ export const actionTemplates = {
     metadata: { icon: "check_circle", priority: "low", action_url: "/profile" },
   }),
 
+  attendanceCheckedIn: (slot: string, when: string): NotificationTemplate => ({
+    type: "confirmation",
+    title: "Checked in",
+    message: `You checked in for the ${slot} slot at ${when}.`,
+    metadata: {
+      icon: "login",
+      priority: "medium",
+      action_url: "/dashboard/attendance",
+    },
+  }),
+
+  attendanceCheckedOut: (duration: string, when: string): NotificationTemplate => ({
+    type: "confirmation",
+    title: "Checked out",
+    message: `You checked out at ${when}. Time spent: ${duration}.`,
+    metadata: {
+      icon: "logout",
+      priority: "medium",
+      action_url: "/dashboard/attendance",
+    },
+  }),
+
+  adminAttendanceCheckedIn: (
+    name: string,
+    role: string,
+    slot: string,
+  ): NotificationTemplate => ({
+    type: "info",
+    title: "Gym check-in",
+    message: `${name} (${role}) checked in · ${slot} slot.`,
+    metadata: {
+      icon: "login",
+      priority: "medium",
+      action_url: "/dashboard/attendance",
+    },
+  }),
+
+  adminAttendanceCheckedOut: (
+    name: string,
+    role: string,
+    duration: string,
+  ): NotificationTemplate => ({
+    type: "info",
+    title: "Gym check-out",
+    message: `${name} (${role}) checked out · spent ${duration}.`,
+    metadata: {
+      icon: "logout",
+      priority: "medium",
+      action_url: "/dashboard/attendance",
+    },
+  }),
+
+  memberTrainerAdjusted: (trainerName: string | null, feeLabel: string | null): NotificationTemplate => ({
+    type: "membership",
+    title: trainerName ? "Trainer added to your plan" : "Trainer removed from your plan",
+    message: trainerName
+      ? `You're now training with ${trainerName}. Your monthly fee is now ${feeLabel || "updated"}.`
+      : `Trainer was removed from your plan. Your monthly fee is now ${feeLabel || "gym-only"}.`,
+    metadata: { icon: "fitness_center", priority: "medium", action_url: "/dashboard" },
+  }),
+
+  adminMemberTrainerAdjusted: (
+    memberName: string,
+    trainerName: string | null,
+    feeLabel: string | null,
+  ): NotificationTemplate => ({
+    type: "info",
+    title: "Member adjusted monthly fee",
+    message: trainerName
+      ? `${memberName} selected trainer ${trainerName}. Updated fee: ${feeLabel || "see membership"}.`
+      : `${memberName} removed their trainer. Updated fee: ${feeLabel || "gym-only"}.`,
+    metadata: {
+      icon: "payments",
+      priority: "medium",
+      action_url: "/dashboard/users",
+    },
+  }),
+
+  memberTrainerRequestSent: (
+    trainerName: string | null,
+  ): NotificationTemplate => ({
+    type: "info",
+    title: "Trainer request sent",
+    message: trainerName
+      ? `Your request for trainer ${trainerName} was sent to your gym admin for approval.`
+      : "Your request to remove your trainer was sent to your gym admin for approval.",
+    metadata: { icon: "hourglass_top", priority: "medium", action_url: "/dashboard" },
+  }),
+
+  adminTrainerRequestPending: (
+    memberName: string,
+    trainerName: string | null,
+  ): NotificationTemplate => ({
+    type: "alert",
+    title: "Trainer change needs approval",
+    message: trainerName
+      ? `${memberName} requested trainer ${trainerName}. Approve or reject in Users.`
+      : `${memberName} requested to remove their trainer. Approve or reject in Users.`,
+    metadata: {
+      icon: "fitness_center",
+      priority: "high",
+      action_url: "/dashboard/users",
+    },
+  }),
+
+  memberTrainerRequestResolved: (
+    approved: boolean,
+    trainerName: string | null,
+    feeLabel: string | null,
+  ): NotificationTemplate => ({
+    type: approved ? "confirmation" : "alert",
+    title: approved ? "Trainer request approved" : "Trainer request rejected",
+    message: approved
+      ? trainerName
+        ? `You're now training with ${trainerName}. Monthly fee: ${feeLabel || "updated"}.`
+        : `Trainer removed from your plan. Monthly fee: ${feeLabel || "gym-only"}.`
+      : "Your gym admin declined the trainer change. Your current plan is unchanged.",
+    metadata: { icon: approved ? "check_circle" : "cancel", priority: "medium", action_url: "/dashboard" },
+  }),
+
+  memberFeeConcessionUpdated: (feeLabel: string | null): NotificationTemplate => ({
+    type: "payment",
+    title: "Monthly fee updated",
+    message: feeLabel
+      ? `Your gym admin set your monthly fee to ${feeLabel}.`
+      : "Your gym admin cleared your fee concession. Standard gym fee applies again.",
+    metadata: { icon: "payments", priority: "medium", action_url: "/dashboard" },
+  }),
+
   avatarUpdated: (): NotificationTemplate => ({
     type: "confirmation",
     title: "Avatar updated",

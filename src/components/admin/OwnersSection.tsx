@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,38 @@ import {
 import type { AdminListItem } from "@/api/auth";
 
 export type FilterTab = "all" | "pending" | "approved" | "rejected";
+
+function LiveTrialLabel({ endsAt }: { endsAt: string }) {
+  const [label, setLabel] = useState("Trial…");
+
+  useEffect(() => {
+    const tick = () => {
+      const end = new Date(endsAt).getTime();
+      if (Number.isNaN(end)) {
+        setLabel("Trial");
+        return;
+      }
+      const ms = Math.max(0, end - Date.now());
+      if (ms <= 0) {
+        setLabel("Trial ended");
+        return;
+      }
+      const days = Math.floor(ms / 86_400_000);
+      const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+      const mins = Math.floor((ms % 3_600_000) / 60_000);
+      setLabel(
+        days > 0
+          ? `Trial · ${days}d ${String(hours).padStart(2, "0")}h left`
+          : `Trial · ${hours}h ${String(mins).padStart(2, "0")}m left`,
+      );
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [endsAt]);
+
+  return <span className="text-[11px] text-primary">{label}</span>;
+}
 
 function getStatus(admin: AdminListItem): "pending" | "approved" | "rejected" {
   if (admin.status) return admin.status;
@@ -206,21 +239,20 @@ export function OwnersSection({
                         <TableCell>
                           <div className="flex flex-col items-start gap-1">
                           <Badge
+                            variant="outline"
                             className={
                               status === "approved"
-                                ? "bg-emerald-500 text-white"
+                                ? "border-primary/40 capitalize text-primary"
                                 : status === "rejected"
-                                  ? "bg-zinc-600 text-white"
-                                  : "bg-amber-500 text-white"
+                                  ? "border-zinc-600 capitalize text-zinc-400"
+                                  : "border-amber-500/50 capitalize text-amber-500"
                             }
                           >
                             <Shield className="mr-1 h-3 w-3" />
                             {status}
                           </Badge>
-                          {admin.trial_status === "active" && (
-                            <span className="text-[11px] text-primary">
-                              Trial · {admin.trial_days_left ?? "—"}d left
-                            </span>
+                          {admin.trial_status === "active" && admin.trial_ends_at && (
+                            <LiveTrialLabel endsAt={admin.trial_ends_at} />
                           )}
                           {admin.trial_status === "pending_approval" && status === "pending" && (
                             <span className="text-[11px] text-muted-foreground">
@@ -230,6 +262,11 @@ export function OwnersSection({
                           {admin.trial_status === "expired" && (
                             <span className="text-[11px] text-destructive">Trial ended</span>
                           )}
+                          {admin.platform_monthly_fee ? (
+                            <span className="text-[11px] text-muted-foreground">
+                              Fee {admin.platform_monthly_fee}/mo
+                            </span>
+                          ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">

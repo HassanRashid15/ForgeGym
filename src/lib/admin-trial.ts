@@ -69,7 +69,8 @@ export function computeTrialInfo(input: {
 
   const end = new Date(endsAt);
   const msLeft = end.getTime() - now.getTime();
-  const daysLeft = Math.max(0, Math.ceil(msLeft / 86_400_000));
+  // Match live countdown day digit (whole days remaining)
+  const daysLeft = Math.max(0, Math.floor(msLeft / 86_400_000));
 
   if (msLeft <= 0) {
     return {

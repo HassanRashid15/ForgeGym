@@ -28,6 +28,8 @@ import { heightToCm } from "@/lib/validation/height";
 import { useRegisterPassword } from "@/hooks/useRegisterPassword";
 import { RegisterShell } from "@/components/register/RegisterShell";
 import { RegisterAccountStep } from "@/components/register/RegisterAccountStep";
+import { checkPhoneExists } from "@/api/auth";
+import { phonesMatch } from "@/lib/phone";
 import type { AccountType, PublicGym } from "@/components/register/types";
 import { checkGymDuplicate } from "@/api/auth";
 import { formatCityLocation, placeFromAddressLabel } from "@/lib/geo/place";
@@ -79,6 +81,7 @@ function RegisterContent() {
     lastName?: string;
     email?: string;
     phone?: string;
+    emergencyContact?: string;
     address?: string;
     password?: string;
     confirmPassword?: string;
@@ -89,6 +92,9 @@ function RegisterContent() {
   const [emailTaken, setEmailTaken] = useState(false);
   const [emailCheckedOk, setEmailCheckedOk] = useState(false);
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [phoneTaken, setPhoneTaken] = useState(false);
+  const phoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [gyms, setGyms] = useState<PublicGym[]>([]);
   const [loadingGyms, setLoadingGyms] = useState(false);
@@ -191,6 +197,57 @@ function RegisterContent() {
         setCheckingEmail(false);
       }
     }, 450);
+  };
+
+  const syncPhoneEmergencyError = (nextPhone: string, nextEmergency: string) => {
+    if (phonesMatch(nextPhone, nextEmergency)) {
+      setErrors((prev) => ({
+        ...prev,
+        emergencyContact: "Emergency contact cannot be the same as your phone number.",
+      }));
+      return true;
+    }
+    setErrors((prev) => ({ ...prev, emergencyContact: undefined }));
+    return false;
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value);
+    setPhoneTaken(false);
+    if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
+    syncPhoneEmergencyError(value, emergencyContact);
+
+    if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current);
+    const clean = value.trim();
+    if (!clean || clean.replace(/\D/g, "").length < 7) {
+      setCheckingPhone(false);
+      return;
+    }
+
+    setCheckingPhone(true);
+    phoneCheckTimer.current = setTimeout(async () => {
+      try {
+        const exists = await checkPhoneExists(clean);
+        if (exists === true) {
+          setPhoneTaken(true);
+          setErrors((prev) => ({
+            ...prev,
+            phone: "This phone number is already used by another account.",
+          }));
+        } else if (exists === false) {
+          setPhoneTaken(false);
+        }
+      } catch {
+        // ignore — API still blocks on submit
+      } finally {
+        setCheckingPhone(false);
+      }
+    }, 450);
+  };
+
+  const handleEmergencyContactChange = (value: string) => {
+    setEmergencyContact(value);
+    syncPhoneEmergencyError(phone, value);
   };
 
   // ── Step 2 (customer fitness / admin gym profile) ───────────────────────────
@@ -612,6 +669,16 @@ function RegisterContent() {
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Invalid email format";
     else if (emailTaken) e.email = "An account with this email already exists. Please sign in.";
 
+    if (phone.trim() && phone.replace(/\D/g, "").length < 7) {
+      e.phone = "Enter a valid phone number";
+    } else if (phoneTaken) {
+      e.phone = "This phone number is already used by another account.";
+    }
+
+    if (phonesMatch(phone, emergencyContact)) {
+      e.emergencyContact = "Emergency contact cannot be the same as your phone number.";
+    }
+
     if (!password) {
       e.password = "Password is required";
     } else if (!hasMinLength) {
@@ -640,6 +707,14 @@ function RegisterContent() {
     }
     if (emailTaken) {
       toast.error("This email is already registered. Please sign in.");
+      return;
+    }
+    if (phoneTaken) {
+      toast.error("This phone number is already used by another account.");
+      return;
+    }
+    if (phonesMatch(phone, emergencyContact)) {
+      toast.error("Emergency contact cannot be the same as your phone number.");
       return;
     }
     if (!agreeTerms) {
@@ -952,6 +1027,9 @@ function RegisterContent() {
               onEmailChange={handleEmailChange}
               phone={phone}
               setPhone={setPhone}
+              onPhoneChange={handlePhoneChange}
+              checkingPhone={checkingPhone}
+              phoneTaken={phoneTaken}
               address={address}
               setAddress={setAddress}
               onAddressPlace={({ city, region }) => {
@@ -960,6 +1038,7 @@ function RegisterContent() {
               }}
               emergencyContact={emergencyContact}
               setEmergencyContact={setEmergencyContact}
+              onEmergencyContactChange={handleEmergencyContactChange}
               password={password}
               setPassword={setPassword}
               confirmPassword={confirmPassword}

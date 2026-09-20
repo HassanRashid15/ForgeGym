@@ -88,6 +88,7 @@ export async function apiRequest<T>(
   options: {
     body?: unknown;
     query?: Record<string, string | number | boolean | null | undefined>;
+    pathParams?: Record<string, string>;
     headers?: HeadersInit;
     timeoutMs?: number;
   } = {},
@@ -101,6 +102,7 @@ export async function apiRequest<T>(
   const requiresAuth =
     group === "profiles" ||
     group === "admin" ||
+    group === "trainer" ||
     (group === "progress" &&
       action !== "exerciseCatalog" &&
       action !== "exerciseDemo") ||
@@ -118,6 +120,11 @@ export async function apiRequest<T>(
   }
 
   let url = endpoint.path;
+  if (options.pathParams) {
+    for (const [key, value] of Object.entries(options.pathParams)) {
+      url = url.replace(`:${key}`, encodeURIComponent(value));
+    }
+  }
   if (options.query) {
     const params = new URLSearchParams();
     Object.entries(options.query).forEach(([key, value]) => {

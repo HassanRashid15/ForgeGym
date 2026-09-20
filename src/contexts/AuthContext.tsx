@@ -447,6 +447,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     isSuperAdmin: user?.isSuperAdmin === true,
+    isTrainer: user?.role === "trainer",
   };
 
   if (!mounted) {
@@ -465,6 +466,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAuthenticated: false,
           isAdmin: false,
           isSuperAdmin: false,
+          isTrainer: false,
         }}
       >
         {children}

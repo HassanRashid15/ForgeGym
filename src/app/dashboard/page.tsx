@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminDashboardHome } from "@/components/admin/AdminDashboardHome";
 import { SuperAdminDashboardHome } from "@/components/admin/SuperAdminDashboardHome";
+import { TrainerDashboardHome } from "@/components/trainer/TrainerDashboardHome";
 import { Button } from "@/components/ui/button";
 import { getNameInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,13 +19,12 @@ import {
   ExternalLink,
   Loader2,
 } from "lucide-react";
-import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
 import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
 import { CheckInButton } from "@/components/customer/CheckInButton";
 import { DashboardSkeleton } from "@/components/loading/DashboardSkeleton";
 
 export default function DashboardPage() {
-  const { user, isAdmin, isSuperAdmin, isLoading } = useAuth();
+  const { user, isAdmin, isSuperAdmin, isTrainer, isLoading } = useAuth();
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -38,8 +38,12 @@ export default function DashboardPage() {
     return <AdminDashboardHome />;
   }
 
+  if (isTrainer) {
+    return <TrainerDashboardHome />;
+  }
+
   const firstName = (user?.name || "Athlete").trim().split(/\s+/)[0];
-  const isCustomer = user?.role !== "trainer" && user?.role !== "staff";
+  const isCustomer = user?.role === "customer" || user?.role === "user";
   const hasGym = Boolean(user?.gymOwnerId && user?.gymName);
   const membershipLabel = (user?.membershipStatus || "active").replace(/_/g, " ");
   const planLabel = user?.membershipType || "Basic";
@@ -166,8 +170,6 @@ export default function DashboardPage() {
 
         {isCustomer && hasGym && <MemberBillingCard />}
 
-        {isCustomer && hasGym && <CustomerTrainerFeeCard />}
-
         <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
           {[
             { label: "Progress", value: "Live", hint: "log workouts", icon: TrendingUp, href: "/dashboard/progress", locked: false },
@@ -246,7 +248,7 @@ export default function DashboardPage() {
                 },
                 {
                   title: "Want a trainer?",
-                  body: "Add a trainer from your dashboard — monthly fee adjusts automatically.",
+                  body: "Request a trainer from your dashboard — admin approval updates your monthly fee.",
                   href: "/dashboard",
                   badge: "Live",
                 },

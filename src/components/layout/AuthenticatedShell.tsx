@@ -90,6 +90,7 @@ const trainItems: NavItem[] = [
   { title: "Schedule", url: "/dashboard/schedule", icon: Calendar, comingSoon: true },
   { title: "Membership", url: "/dashboard/membership", icon: CreditCard, comingSoon: true },
   { title: "Progress", url: "/dashboard/progress", icon: BarChart3 },
+  { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
 
@@ -102,12 +103,17 @@ const gymOwnerItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Trainers", url: "/dashboard/trainers", icon: Dumbbell },
   { title: "Monthly Fee", url: "/dashboard/monthly-fee", icon: Wallet },
-  { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
+  { title: "Stats", url: "/dashboard/statistics", icon: PieChart },
+];
+
+const trainerItems: NavItem[] = [
+  { title: "Monthly Fee", url: "/dashboard/monthly-fee", icon: Wallet },
 ];
 
 const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
-  { title: "Statistics", url: "/dashboard/statistics", icon: PieChart },
+  { title: "Membership Set", url: "/dashboard/membership-set", icon: Wallet },
+  { title: "Stats", url: "/dashboard/statistics", icon: PieChart },
   { title: "Newsletter", url: "/dashboard/newsletter", icon: Mail },
   { title: "Promotions", url: "/dashboard/promotions", icon: Megaphone },
 ];
@@ -247,7 +253,7 @@ function formatNotificationTime(timestamp: string): string {
 }
 
 function ShellChrome({ children }: { children: ReactNode }) {
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isTrainer } = useAuth();
   const pathname = usePathname();
   const { unreadCount, isConnected, notifications } = useRealtimeNotifications({
     enabled: !!user?.id,
@@ -274,18 +280,29 @@ function ShellChrome({ children }: { children: ReactNode }) {
     ? "Super Admin"
     : isAdmin
       ? "Gym Owner"
-      : "Member panel";
+      : isTrainer
+        ? "Trainer panel"
+        : user?.role === "staff"
+          ? "Staff panel"
+          : "Member panel";
 
   const managementItems = isSuperAdmin
     ? superAdminItems
     : isAdmin
       ? gymOwnerItems
-      : [];
+      : isTrainer
+        ? trainerItems
+        : [];
 
   const pageTitle =
-    [...trainItems, ...accountItems, ...gymOwnerItems, ...superAdminItems].find((item) =>
-      isActivePath(pathname, item.url),
-    )?.title || (pathname.startsWith("/profile") ? "Profile" : "Dashboard");
+    [
+      ...trainItems,
+      ...accountItems,
+      ...gymOwnerItems,
+      ...trainerItems,
+      ...superAdminItems,
+    ].find((item) => isActivePath(pathname, item.url))?.title ||
+    (pathname.startsWith("/profile") ? "Profile" : "Dashboard");
 
   return (
     <>
@@ -332,7 +349,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           <NavGroup label="Account" items={accountItems} pathname={pathname} />
           {managementItems.length > 0 && (
             <NavGroup
-              label={isSuperAdmin ? "Platform" : "Gym"}
+              label={isSuperAdmin ? "Platform" : isTrainer ? "Fees" : "Gym"}
               items={managementItems}
               pathname={pathname}
             />

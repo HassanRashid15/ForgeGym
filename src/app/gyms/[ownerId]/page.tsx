@@ -20,6 +20,7 @@ import { GymReviewsSection } from "@/components/gyms/GymReviewsSection";
 import { ShareGymButton } from "@/components/gyms/ShareGymButton";
 import {
   buildPageMetadata,
+  gymSeoTitle,
   jsonLdScript,
   localGymJsonLd,
 } from "@/lib/seo";
@@ -70,19 +71,20 @@ export async function generateMetadata({ params }: PageProps) {
   if (!gym) {
     return buildPageMetadata({
       title: "Gym Not Found",
-      description: "This gym is not available on Forge.",
+      description: "This gym is not available on Forge Gym.",
       path: `/gyms/${ownerId}`,
       noIndex: true,
     });
   }
 
+  const title = gymSeoTitle(gym.gymName, gym.gymCity);
   const description =
     gym.bio?.trim() ||
-    `${gym.gymName}${gym.gymCity ? ` in ${gym.gymCity}` : ""} — train with Forge Gym.`;
+    `${gym.gymName}${gym.gymCity ? ` in ${gym.gymCity}` : ""} — hours, trainers, and memberships on Forge Gym.`;
 
   return buildPageMetadata({
-    title: gym.gymName,
-    description,
+    title,
+    description: description.slice(0, 160),
     path: `/gyms/${ownerId}`,
     image: gym.gymMainImageUrl,
   });

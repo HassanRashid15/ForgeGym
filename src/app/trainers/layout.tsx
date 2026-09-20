@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Trainers",
+  title: "Personal Trainers",
   description:
-    "Meet personal trainers at Forge partner gyms — specialties, experience, and coaching profiles.",
+    "Meet certified personal trainers at Forge partner gyms — specialties, experience, and coaching profiles.",
   path: "/trainers",
 });
 

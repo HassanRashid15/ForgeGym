@@ -34,10 +34,10 @@ type Notification = Pick<
 
 const notificationTypeConfig = {
   confirmation: {
-    color: "text-emerald-500",
+    color: "text-primary",
     label: "Confirmation",
-    bgColor: "bg-emerald-500/10",
-    borderColor: "border-emerald-500",
+    bgColor: "bg-primary/10",
+    borderColor: "border-primary",
     icon: Calendar,
   },
   maintenance: {
@@ -76,10 +76,10 @@ const notificationTypeConfig = {
     icon: Calendar,
   },
   payment: {
-    color: "text-green-500",
+    color: "text-primary",
     label: "Payment",
-    bgColor: "bg-green-500/10",
-    borderColor: "border-green-500",
+    bgColor: "bg-primary/10",
+    borderColor: "border-primary",
     icon: CreditCard,
   },
   achievement: {

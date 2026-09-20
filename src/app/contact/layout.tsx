@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Contact",
+  title: "Contact Us",
   description:
-    "Contact Forge Gym — questions about partner gyms, memberships, or getting started on the platform.",
+    "Get in touch with Forge Gym about partner gyms, memberships, trainers, or platform support.",
   path: "/contact",
 });
 

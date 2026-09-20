@@ -1,13 +1,16 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminGymStats, formatMoney } from "@/hooks/useAdminGymStats";
 import { usePlatformFacilityFee } from "@/hooks/usePlatformFacilityFee";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
 import { AdminTrialBanner } from "@/components/admin/AdminTrialBanner";
+import { AdminPlatformFeeCard } from "@/components/admin/AdminPlatformFeeCard";
 import {
   ArrowRight,
   Building2,
@@ -20,18 +23,82 @@ import {
   UserPlus,
   Users,
   Wallet,
+  UserCheck,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  listManagedUsers,
+  approveManagedMember,
+  rejectManagedMember,
+  type ManagedUser,
+} from "@/api/admin-users";
+import { getPendingMembers, type PendingMember } from "@/api/pending-members";
+import { queryKeys } from "@/lib/query-keys";
 
 /**
  * Admin home at /dashboard — live stats from Users + Monthly Fee (DB + realtime).
  */
 export function AdminDashboardHome() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const firstName = (user?.name || "Owner").trim().split(/\s+/)[0];
   const { stats, loading, isFetching } = useAdminGymStats(true);
   const facilityFeeQuery = usePlatformFacilityFee(true);
   const facilityFee = facilityFeeQuery.data?.platformFacilityFee || null;
   const gymHref = user?.id ? `/gyms/${user.gymOwnerId || user.id}` : "/dashboard";
+
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+
+  const pendingMembersQuery = useQuery({
+    queryKey: ["pendingMembers"],
+    queryFn: getPendingMembers,
+    refetchInterval: 1000, // Refresh every 1 second
+    enabled: true,
+  });
+
+  // Update local state when query data changes
+  useEffect(() => {
+    if (pendingMembersQuery.data?.pendingMembers) {
+      setPendingMembers(pendingMembersQuery.data.pendingMembers);
+    }
+  }, [pendingMembersQuery.data]);
+
+  const handleApproveMember = async (userId: string) => {
+    setApprovingId(userId);
+    try {
+      await approveManagedMember(userId);
+      toast.success("Member approved — they can sign in now.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.monthlyMembers }),
+        queryClient.invalidateQueries({ queryKey: ["pendingMembers"] }),
+      ]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve member");
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectMember = async (userId: string) => {
+    setRejectingId(userId);
+    try {
+      await rejectManagedMember(userId);
+      toast.success("Membership request rejected.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.monthlyMembers }),
+        queryClient.invalidateQueries({ queryKey: ["pendingMembers"] }),
+      ]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject member");
+    } finally {
+      setRejectingId(null);
+    }
+  };
 
   return (
     <div className="relative min-h-full">
@@ -45,6 +112,12 @@ export function AdminDashboardHome() {
 
       <div className="relative mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
         <AdminTrialBanner trial={user?.trial} facilityFee={facilityFee} />
+
+        <AdminPlatformFeeCard
+          facilityFee={facilityFee}
+          loading={facilityFeeQuery.isPending && !facilityFee}
+          trial={user?.trial}
+        />
 
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div
@@ -102,6 +175,99 @@ export function AdminDashboardHome() {
           </div>
         ) : (
           <>
+            <section className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card p-5 shadow-sm sm:p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-amber-600" />
+                  <h2 className="text-lg font-semibold text-foreground">
+                    Pending Member Approvals
+                  </h2>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    pendingMembers.length > 0
+                      ? "bg-amber-500/20 text-amber-600"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {pendingMembers.length}
+                  </span>
+                </div>
+                <Button asChild variant="outline" size="sm" className="gap-2">
+                  <Link href="/dashboard/users">
+                    View all
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+              {pendingMembersQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : pendingMembers.length > 0 ? (
+                <div className="space-y-3">
+                  {pendingMembers.slice(0, 3).map((member) => (
+                    <div
+                      key={member.user_id}
+                      className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card/50 p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={member.avatar_url} alt={member.full_name || "User"} />
+                          <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
+                            {getNameInitials(member.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground">{member.full_name || "Unknown"}</p>
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                          {member.phone && (
+                            <p className="text-xs text-muted-foreground">{member.phone}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => handleApproveMember(member.user_id)}
+                          disabled={approvingId === member.user_id}
+                        >
+                          {approvingId === member.user_id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UserCheck className="h-3.5 w-3.5" />
+                          )}
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => handleRejectMember(member.user_id)}
+                          disabled={rejectingId === member.user_id}
+                        >
+                          {rejectingId === member.user_id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <X className="h-3.5 w-3.5" />
+                          )}
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <UserCheck className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    No pending member approvals
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    New member requests will appear here automatically
+                  </p>
+                </div>
+              )}
+            </section>
+
             <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
               {[
                 {
@@ -348,7 +514,7 @@ export function AdminDashboardHome() {
                       : facilityFee || "Not set"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Set by super admin only. Super admin also controls your account approval and access.
+                    Same fee as above — set by super admin for gym owner access.
                   </p>
                 </section>
               </div>

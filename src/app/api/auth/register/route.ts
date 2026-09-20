@@ -3,6 +3,7 @@ import {
   createSupabaseServerClient,
   createSupabaseServiceClient,
 } from "@/lib/supabase/server";
+import { findDuplicatePhone, phonesMatch } from "@/lib/phone";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
@@ -276,6 +277,31 @@ export async function POST(request: Request) {
     );
   }
 
+  const phone = String(fitnessData.phone || "").trim();
+  const emergency = String(fitnessData.emergency_contact || "").trim();
+  if (phonesMatch(phone, emergency)) {
+    return NextResponse.json(
+      {
+        error: "Emergency contact cannot be the same as your phone number.",
+        code: "phone_emergency_same",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (phone && service) {
+    const phoneTaken = await findDuplicatePhone(service as any, phone);
+    if (phoneTaken) {
+      return NextResponse.json(
+        {
+          error: "This phone number is already used by another account.",
+          code: "phone_duplicate",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   const emailRedirectTo = verificationRedirectUrl(email, request);
 
   // Keep auth metadata light — large media URLs still go on profile upsert
@@ -406,18 +432,14 @@ export async function POST(request: Request) {
             is_super_admin: false,
             approval_requested_at: needsApproval ? new Date().toISOString() : null,
             gym_owner_id: gymOwnerId,
+            // Members only link via gym_owner_id — never copy gym_name or they
+            // get mistaken for gym owners by auth/me self-heal.
             gym_name:
-              requestedRole === "admin"
-                ? fitnessData.gym_name || null
-                : gymMeta?.gym_name || null,
+              requestedRole === "admin" ? fitnessData.gym_name || null : null,
             gym_type:
-              requestedRole === "admin"
-                ? fitnessData.gym_type || null
-                : gymMeta?.gym_type || null,
+              requestedRole === "admin" ? fitnessData.gym_type || null : null,
             gym_city:
-              requestedRole === "admin"
-                ? fitnessData.gym_city || null
-                : gymMeta?.gym_city || null,
+              requestedRole === "admin" ? fitnessData.gym_city || null : null,
             gym_years_operating: fitnessData.gym_years_operating || null,
             gym_facilities: fitnessData.gym_facilities || null,
             gym_operating_days: fitnessData.gym_operating_days ?? null,
@@ -438,6 +460,13 @@ export async function POST(request: Request) {
             gender: fitnessData.gender || null,
             weight_kg: fitnessData.weight_kg ?? null,
             height_cm: fitnessData.height_cm ?? null,
+            bmi: (() => {
+              const w = Number(fitnessData.weight_kg);
+              const h = Number(fitnessData.height_cm);
+              if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+              const m = h / 100;
+              return Math.round((w / (m * m)) * 10) / 10;
+            })(),
             activity_level: fitnessData.activity_level || null,
             fitness_goal: fitnessData.fitness_goal || null,
             experience_level: fitnessData.experience_level || null,

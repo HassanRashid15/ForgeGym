@@ -11,6 +11,7 @@ export const PROFILE_SELF_UPDATE_ALLOWLIST = [
   "gender",
   "weight_kg",
   "height_cm",
+  "bmi",
   "activity_level",
   "fitness_goal",
   "experience_level",

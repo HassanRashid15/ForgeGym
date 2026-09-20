@@ -49,6 +49,9 @@ export type RegisterAccountStepProps = {
   onEmailChange: (v: string) => void;
   phone: string;
   setPhone: (v: string) => void;
+  onPhoneChange?: (v: string) => void;
+  checkingPhone?: boolean;
+  phoneTaken?: boolean;
   address: string;
   setAddress: (v: string) => void;
   onAddressPlace?: (place: {
@@ -58,6 +61,7 @@ export type RegisterAccountStepProps = {
   }) => void;
   emergencyContact: string;
   setEmergencyContact: (v: string) => void;
+  onEmergencyContactChange?: (v: string) => void;
   password: string;
   setPassword: (v: string) => void;
   confirmPassword: string;
@@ -107,11 +111,15 @@ export function RegisterAccountStep({
   onEmailChange,
   phone,
   setPhone,
+  onPhoneChange,
+  checkingPhone = false,
+  phoneTaken = false,
   address,
   setAddress,
   onAddressPlace,
   emergencyContact,
   setEmergencyContact,
+  onEmergencyContactChange,
   password,
   setPassword,
   confirmPassword,
@@ -351,11 +359,22 @@ export function RegisterAccountStep({
               type="tel"
               placeholder="+1 234 567 8900"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) =>
+                onPhoneChange ? onPhoneChange(e.target.value) : setPhone(e.target.value)
+              }
               disabled={isLoading}
-              className={`${inputCls(false)} pl-10`}
+              aria-invalid={!!errors.phone || phoneTaken}
+              className={`${inputCls(!!errors.phone || phoneTaken)} pl-10`}
             />
           </div>
+          {checkingPhone && (
+            <p className="text-xs text-zinc-500">Checking phone…</p>
+          )}
+          {(errors.phone || phoneTaken) && (
+            <p className="text-xs text-red-400">
+              {errors.phone || "This phone number is already used by another account."}
+            </p>
+          )}
         </div>
       </div>
 
@@ -531,11 +550,19 @@ export function RegisterAccountStep({
             type="tel"
             placeholder="+1 234 567 8900"
             value={emergencyContact}
-            onChange={(e) => setEmergencyContact(e.target.value)}
+            onChange={(e) =>
+              onEmergencyContactChange
+                ? onEmergencyContactChange(e.target.value)
+                : setEmergencyContact(e.target.value)
+            }
             disabled={isLoading}
-            className={`${inputCls(false)} pl-10`}
+            aria-invalid={!!errors.emergencyContact}
+            className={`${inputCls(!!errors.emergencyContact)} pl-10`}
           />
         </div>
+        {errors.emergencyContact && (
+          <p className="text-xs text-red-400">{errors.emergencyContact}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

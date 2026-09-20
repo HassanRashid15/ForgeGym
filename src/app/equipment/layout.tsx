@@ -1,9 +1,9 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Equipment",
+  title: "Gym Equipment Guide",
   description:
-    "Explore gym equipment and training tools featured across the Forge partner network.",
+    "Explore cardio, strength, and functional equipment featured across the Forge partner gym network.",
   path: "/equipment",
 });
 

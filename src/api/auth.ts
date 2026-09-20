@@ -117,6 +117,21 @@ export async function checkAccountExists(email: string) {
   return data.exists;
 }
 
+/** auth.checkPhone → /api/auth/check-phone */
+export async function checkPhoneExists(phone: string, excludeUserId?: string) {
+  const data = await apiRequest<{ exists: boolean | null; message?: string }>(
+    "auth",
+    "checkPhone",
+    {
+      body: {
+        phone,
+        ...(excludeUserId ? { excludeUserId } : {}),
+      },
+    },
+  );
+  return data.exists;
+}
+
 /** auth.checkVerified → /api/auth/check-verified */
 export async function checkEmailVerified(email: string) {
   const data = await apiRequest<{ verified: boolean }>("auth", "checkVerified", {
@@ -181,6 +196,7 @@ export type AdminListItem = {
   trial_status?: "pending_approval" | "active" | "expired" | "none";
   trial_days_left?: number | null;
   trial_label?: string;
+  platform_monthly_fee?: string | null;
 };
 
 export type AdminNotification = {
@@ -239,6 +255,8 @@ export async function rejectAdminAccount(userId: string) {
 export async function fetchPlatformSettings() {
   return apiRequest<{
     platformFacilityFee: string;
+    globalFacilityFee?: string;
+    personalMonthlyFee?: string | null;
     updatedAt: string | null;
     stored: boolean;
     warning?: string;
@@ -253,5 +271,46 @@ export async function updatePlatformSettings(platformFacilityFee: string) {
     stored: boolean;
   }>("admin", "updatePlatformSettings", {
     body: { platformFacilityFee },
+  });
+}
+
+export type MembershipFeeAdmin = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  gym_name: string | null;
+  gym_city: string | null;
+  admin_approved: boolean;
+  platform_monthly_fee: string | null;
+  trial_status: string;
+  trial_ends_at: string | null;
+  trial_starts_at: string | null;
+  trial_days_left: number | null;
+};
+
+/** admin.membershipFees → GET /api/admin/membership-fees */
+export async function fetchMembershipFees() {
+  return apiRequest<{ admins: MembershipFeeAdmin[] }>(
+    "admin",
+    "membershipFees",
+  );
+}
+
+/** admin.updateMembershipFee → PATCH /api/admin/membership-fees */
+export async function updateMembershipFee(
+  userId: string,
+  platformMonthlyFee: string | null,
+) {
+  return apiRequest<{
+    admin: {
+      user_id: string;
+      full_name: string | null;
+      email: string | null;
+      gym_name: string | null;
+      gym_city: string | null;
+      platform_monthly_fee: string | null;
+    };
+  }>("admin", "updateMembershipFee", {
+    body: { userId, platformMonthlyFee },
   });
 }

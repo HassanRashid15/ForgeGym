@@ -4,8 +4,8 @@ import DashboardClientLayout from "./DashboardClientLayout";
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Dashboard",
-  description: "Forge Gym member and gym-owner dashboard.",
+  title: "Member Dashboard",
+  description: "Manage membership, attendance, progress, and gym operations on Forge Gym.",
   path: "/dashboard",
   noIndex: true,
 });

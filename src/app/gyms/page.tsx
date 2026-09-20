@@ -5,7 +5,7 @@ import { buildPageMetadata } from "@/lib/seo";
 export const revalidate = 60;
 
 export const metadata = buildPageMetadata({
-  title: "Find Gyms",
+  title: "Find Partner Gyms Near You",
   description:
     "Browse approved partner gyms on Forge. Filter by city, type, or use your location to find a place to train.",
   path: "/gyms",

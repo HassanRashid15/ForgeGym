@@ -5,11 +5,45 @@ export const SITE_NAME = "Forge Gym";
 export const SITE_TAGLINE =
   "Partner gyms, expert trainers, and a community that refuses to quit.";
 
+/** Default <title> — keep under ~60 chars for SERP display. */
+export const SITE_SEO_TITLE = "Forge Gym — Partner Gyms & Expert Trainers";
+
 export const DEFAULT_DESCRIPTION =
   "Discover partner gyms on Forge — train with real coaches, track progress, and grow with a platform built for the floor.";
 
 export function getMetadataBase(): URL {
   return new URL(resolveSiteUrl());
+}
+
+/** Browser / OG title with brand when absolute control is needed. */
+export function brandedTitle(segment: string): string {
+  const clean = segment.replace(/\s+/g, " ").trim();
+  if (!clean) return SITE_SEO_TITLE;
+  if (clean === SITE_NAME || clean.startsWith(`${SITE_NAME} `) || clean.startsWith(`${SITE_NAME}—`) || clean.startsWith(`${SITE_NAME} -`)) {
+    return clean;
+  }
+  return `${clean} | ${SITE_NAME}`;
+}
+
+/** Dynamic gym profile title, e.g. "Pulse Fitness in Lahore". */
+export function gymSeoTitle(name: string, city?: string | null): string {
+  const gym = name.replace(/\s+/g, " ").trim() || "Partner Gym";
+  const place = city?.replace(/\s+/g, " ").trim();
+  return place ? `${gym} in ${place}` : gym;
+}
+
+/** Dynamic trainer profile title. */
+export function trainerSeoTitle(
+  name: string,
+  specialization?: string | null,
+  gymName?: string | null,
+): string {
+  const who = name.replace(/\s+/g, " ").trim() || "Personal Trainer";
+  const spec = specialization?.replace(/\s+/g, " ").trim();
+  if (spec) return `${who} — ${spec}`;
+  const gym = gymName?.replace(/\s+/g, " ").trim();
+  if (gym) return `${who} — Trainer at ${gym}`;
+  return `${who} — Personal Trainer`;
 }
 
 type BuildPageMetadataInput = {
@@ -18,7 +52,7 @@ type BuildPageMetadataInput = {
   path?: string;
   image?: string | null;
   noIndex?: boolean;
-  /** When true, title is used as-is (no template suffix). */
+  /** When true, title is used as-is (no root template suffix). */
   absoluteTitle?: boolean;
 };
 
@@ -39,10 +73,11 @@ export function buildPageMetadata({
       : new URL(image, base).toString()
     : new URL("/opengraph-image", base).toString();
 
-  const fullTitle = absoluteTitle ? title : title;
+  const displayTitle = absoluteTitle ? title : title;
+  const socialTitle = absoluteTitle ? title : brandedTitle(title);
 
   return {
-    title: absoluteTitle ? { absolute: fullTitle } : fullTitle,
+    title: absoluteTitle ? { absolute: displayTitle } : displayTitle,
     description,
     applicationName: SITE_NAME,
     authors: [{ name: SITE_NAME }],
@@ -56,20 +91,20 @@ export function buildPageMetadata({
       locale: "en_US",
       url: canonical,
       siteName: SITE_NAME,
-      title: absoluteTitle ? fullTitle : `${title} | ${SITE_NAME}`,
+      title: socialTitle,
       description,
       images: [
         {
           url: ogImage,
           width: 1200,
           height: 630,
-          alt: SITE_NAME,
+          alt: socialTitle,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: absoluteTitle ? fullTitle : `${title} | ${SITE_NAME}`,
+      title: socialTitle,
       description,
       images: [ogImage],
     },

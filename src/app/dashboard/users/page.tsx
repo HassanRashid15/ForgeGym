@@ -26,6 +26,8 @@ import {
   listManagedUsers,
   approveManagedMember,
   rejectManagedMember,
+  approveTrainerRequest,
+  rejectTrainerRequest,
   type ManagedUser,
 } from "@/api/admin-users";
 import { useAuth } from "@/contexts/AuthContext";
@@ -73,6 +75,8 @@ export default function UsersPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [memberApprovingId, setMemberApprovingId] = useState<string | null>(null);
   const [memberRejectingId, setMemberRejectingId] = useState<string | null>(null);
+  const [trainerApprovingId, setTrainerApprovingId] = useState<string | null>(null);
+  const [trainerRejectingId, setTrainerRejectingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -92,6 +96,8 @@ export default function UsersPage() {
       return data.users || [];
     },
     enabled: isAdmin && !isLoading,
+    refetchInterval: 8_000,
+    refetchOnWindowFocus: true,
   });
 
   const ownersQuery = useQuery({
@@ -269,6 +275,32 @@ export default function UsersPage() {
     }
   };
 
+  const handleApproveTrainer = async (userId: string) => {
+    setTrainerApprovingId(userId);
+    try {
+      await approveTrainerRequest(userId);
+      toast.success("Trainer request approved — member fee updated.");
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to approve trainer request");
+    } finally {
+      setTrainerApprovingId(null);
+    }
+  };
+
+  const handleRejectTrainer = async (userId: string) => {
+    setTrainerRejectingId(userId);
+    try {
+      await rejectTrainerRequest(userId);
+      toast.success("Trainer request rejected.");
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to reject trainer request");
+    } finally {
+      setTrainerRejectingId(null);
+    }
+  };
+
   const allAdmins = useMemo(
     () => [...pending, ...approved, ...rejected],
     [pending, approved, rejected],
@@ -307,7 +339,7 @@ export default function UsersPage() {
     ? [editRoleFor(editing)]
     : isSuperAdmin
       ? ["super_admin", "admin"]
-      : ["admin", "staff"];
+      : ["admin", "trainer", "staff", "user"];
 
   if (isLoading) {
     return (
@@ -426,7 +458,17 @@ export default function UsersPage() {
           onDelete={handleDeleteUser}
           onApproveMember={handleApproveMember}
           onRejectMember={handleRejectMember}
+          onApproveTrainer={handleApproveTrainer}
+          onRejectTrainer={handleRejectTrainer}
+          trainerApprovingId={trainerApprovingId}
+          trainerRejectingId={trainerRejectingId}
           showRole
+          title="Staff & members"
+          description={
+            memberSearch.trim()
+              ? `${filteredMembers.length} of ${nonTrainerMembers.length}`
+              : undefined
+          }
         />
       )}
 

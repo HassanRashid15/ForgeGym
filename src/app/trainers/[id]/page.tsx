@@ -23,11 +23,27 @@ import {
   buildPageMetadata,
   jsonLdScript,
   personTrainerJsonLd,
+  trainerSeoTitle,
 } from "@/lib/seo";
 import { resolveSiteUrl } from "@/lib/site-url";
-import { socialLinksPresent } from "@/lib/social-links";
 
 export const revalidate = 30;
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.851L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+    </svg>
+  );
+}
+
+function TikTokIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.2a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.73a8.19 8.19 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15z" />
+    </svg>
+  );
+}
 
 function listPublicValue(value?: string[] | string | null) {
   if (!value) return null;
@@ -49,20 +65,27 @@ export async function generateMetadata({ params }: PageProps) {
   if (!dbTrainer) {
     return buildPageMetadata({
       title: "Trainer Not Found",
-      description: "This trainer is not available on Forge.",
+      description: "This trainer is not available on Forge Gym.",
       path: `/trainers/${id}`,
       noIndex: true,
     });
   }
 
   const name = dbTrainer.fullName || "Trainer";
+  const title = trainerSeoTitle(
+    name,
+    dbTrainer.specialization,
+    dbTrainer.gymName,
+  );
   const description =
-    dbTrainer.bio ||
-    `${name}${dbTrainer.specialization ? ` — ${dbTrainer.specialization}` : ""}`;
+    dbTrainer.bio?.trim() ||
+    `${name}${dbTrainer.specialization ? ` — ${dbTrainer.specialization}` : " — personal trainer"}${
+      dbTrainer.gymName ? ` at ${dbTrainer.gymName}` : ""
+    } on Forge Gym.`;
 
   return buildPageMetadata({
-    title: name,
-    description,
+    title,
+    description: description.slice(0, 160),
     path: `/trainers/${id}`,
     image: dbTrainer.avatarUrl,
   });
@@ -109,7 +132,7 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
     {
       label: "X / Twitter",
       href: dbTrainer.twitterUrl,
-      icon: null,
+      icon: XIcon,
     },
     {
       label: "YouTube",
@@ -119,16 +142,10 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
     {
       label: "TikTok",
       href: dbTrainer.tiktokUrl,
-      icon: null,
+      icon: TikTokIcon,
     },
-  ].filter((s) => s.href);
-  const hasSocials = socialLinksPresent({
-    instagramUrl: dbTrainer.instagramUrl,
-    facebookUrl: dbTrainer.facebookUrl,
-    twitterUrl: dbTrainer.twitterUrl,
-    youtubeUrl: dbTrainer.youtubeUrl,
-    tiktokUrl: dbTrainer.tiktokUrl,
-  });
+  ].filter((s): s is typeof s & { href: string } => Boolean(s.href));
+  const hasSocials = socials.length > 0;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -189,6 +206,26 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
               <p className="mt-2 text-lg font-semibold text-primary">
                 {dbTrainer.specialization || "Personal trainer"}
               </p>
+              {hasSocials && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {socials.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <a
+                        key={s.label}
+                        href={s.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                        aria-label={s.label}
+                        title={s.label}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
               {(dbTrainer.gymName || dbTrainer.gymCity) && (
                 <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                   {dbTrainer.gymName && (
@@ -426,19 +463,22 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
               <div className="rounded-2xl border border-border bg-card p-6">
                 <h3 className="font-display mb-4 text-xl tracking-normal">Connect</h3>
                 <div className="flex flex-wrap gap-2">
-                  {socials.map((s) => (
-                    <a
-                      key={s.label}
-                      href={s.href!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-primary hover:text-primary"
-                      aria-label={s.label}
-                    >
-                      {s.icon ? <s.icon className="h-4 w-4" /> : null}
-                      {s.label}
-                    </a>
-                  ))}
+                  {socials.map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <a
+                        key={s.label}
+                        href={s.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium transition hover:border-primary hover:text-primary"
+                        aria-label={s.label}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {s.label}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

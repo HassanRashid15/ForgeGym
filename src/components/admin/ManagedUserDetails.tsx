@@ -67,6 +67,33 @@ export function ManagedUserDetails({ user }: { user: ManagedUser }) {
         {(isMember || isAdmin) && (
           <DetailRow label="Plan" value={user.membership_type} />
         )}
+        {isMember && (
+          <>
+            <DetailRow
+              label="Trainer"
+              value={
+                user.has_trainer || user.preferred_trainer_id
+                  ? "With trainer"
+                  : "Gym only"
+              }
+            />
+            <DetailRow label="Monthly fee" value={user.monthly_fee_label} />
+            <DetailRow
+              label="Fee concession"
+              value={user.fee_concession || "None"}
+            />
+            {user.trainer_request_pending && (
+              <DetailRow
+                label="Trainer request"
+                value={
+                  user.pending_trainer_id
+                    ? "Pending add/change"
+                    : "Pending remove"
+                }
+              />
+            )}
+          </>
+        )}
         <DetailRow label="Gym" value={user.gym_name} />
         <DetailRow label="Joined" value={formatDate(user.join_date || user.created_at)} />
       </Section>
@@ -93,14 +120,6 @@ export function ManagedUserDetails({ user }: { user: ManagedUser }) {
             <DetailRow label="Branch / department" value={user.branch_department} />
             <DetailRow label="Department" value={user.department} />
             <DetailRow label="Salary" value={user.salary} />
-            <DetailRow
-              label="Commission %"
-              value={
-                user.commission_percentage !== null && user.commission_percentage !== undefined
-                  ? String(user.commission_percentage)
-                  : null
-              }
-            />
             <DetailRow label="Working days" value={user.working_days} />
             <DetailRow label="Working hours" value={user.working_hours} />
           </Section>

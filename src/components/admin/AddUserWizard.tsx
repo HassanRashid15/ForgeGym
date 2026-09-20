@@ -18,10 +18,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X } from "lucide-react";
+import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X, User } from "lucide-react";
 import { toast } from "sonner";
 import { createManagedUser, updateManagedUser, type CreateStaffPayload, type ManagedUser } from "@/api/admin-users";
+import { checkAccountExists, checkPhoneExists } from "@/api/auth";
 import { getNameInitials } from "@/lib/utils";
+import { phonesMatch } from "@/lib/phone";
 import { SOCIAL_LINK_FIELDS, type SocialLinkDbKey } from "@/lib/social-links";
 
 export type StaffCreateRole = "admin" | "trainer" | "staff" | "user" | "super_admin";
@@ -29,7 +31,7 @@ export type StaffCreateRole = "admin" | "trainer" | "staff" | "user" | "super_ad
 const TRAINER_STEPS = [
   { id: "basic", title: "Basic", description: "Name & contact" },
   { id: "pro", title: "Professional", description: "Skills & certs" },
-  { id: "job", title: "Employment", description: "Pay & schedule" },
+  { id: "job", title: "Employment", description: "Pay, days & hours" },
   { id: "gym", title: "Gym", description: "Clients & capacity" },
   { id: "account", title: "Account", description: "Login access" },
   { id: "review", title: "Review", description: "Confirm details" },
@@ -69,6 +71,303 @@ const STAFF_TYPES = [
   "Maintenance",
   "Other",
 ];
+
+const AVAILABILITY_PRESETS = [
+  { id: "Morning", start: "06:00", end: "11:00", hours: 5 },
+  { id: "Afternoon", start: "12:00", end: "16:00", hours: 4 },
+  { id: "Evening", start: "17:00", end: "21:00", hours: 4 },
+] as const;
+
+type AvailabilityPresetId = (typeof AVAILABILITY_PRESETS)[number]["id"];
+
+const WEEK_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+type WeekDay = (typeof WEEK_DAYS)[number];
+
+type ScheduleValue = {
+  availability: string;
+  working_days: string;
+  working_hours: string;
+};
+
+function parseWorkingDays(value: string): WeekDay[] {
+  const raw = value.trim();
+  if (!raw) return [];
+  if (/^mon\s*[–-]\s*fri$/i.test(raw)) {
+    return ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  }
+  if (/^mon\s*[–-]\s*sat$/i.test(raw)) {
+    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  }
+  return WEEK_DAYS.filter((d) =>
+    raw.split(/[,|/·]+/).some((p) => p.trim().toLowerCase() === d.toLowerCase()),
+  );
+}
+
+function buildWorkingDays(days: WeekDay[]): string {
+  if (
+    days.length === 5 &&
+    WEEK_DAYS.slice(0, 5).every((d) => days.includes(d)) &&
+    !days.includes("Sat") &&
+    !days.includes("Sun")
+  ) {
+    return "Mon–Fri";
+  }
+  if (
+    days.length === 6 &&
+    WEEK_DAYS.slice(0, 6).every((d) => days.includes(d)) &&
+    !days.includes("Sun")
+  ) {
+    return "Mon–Sat";
+  }
+  return days.join(", ");
+}
+
+function parseAvailability(value: string): {
+  presets: AvailabilityPresetId[];
+  customStart: string;
+  customEnd: string;
+  useCustom: boolean;
+} {
+  const raw = value.trim();
+  if (!raw) {
+    return { presets: [], customStart: "09:00", customEnd: "17:00", useCustom: false };
+  }
+
+  const useCustom = /(^|,\s*)Custom\b/i.test(raw);
+  const presets = useCustom
+    ? []
+    : (AVAILABILITY_PRESETS.map((p) => p.id).filter((id) =>
+        new RegExp(`(?:^|,)\\s*${id}\\b`, "i").test(raw),
+      ) as AvailabilityPresetId[]);
+
+  const customMatch = raw.match(
+    /Custom\s+(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/i,
+  );
+
+  return {
+    presets,
+    customStart: customMatch?.[1] || "09:00",
+    customEnd: customMatch?.[2] || "17:00",
+    useCustom,
+  };
+}
+
+function buildAvailability(
+  presets: AvailabilityPresetId[],
+  useCustom: boolean,
+  customStart: string,
+  customEnd: string,
+): string {
+  if (useCustom) {
+    if (customStart && customEnd) return `Custom ${customStart}–${customEnd}`;
+    return "Custom";
+  }
+  return presets.join(", ");
+}
+
+function hoursBetween(start: string, end: string): number {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if (![sh, sm, eh, em].every((n) => Number.isFinite(n))) return 0;
+  const mins = eh * 60 + em - (sh * 60 + sm);
+  return mins > 0 ? Math.round((mins / 60) * 10) / 10 : 0;
+}
+
+function formatTimeLabel(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour12 = ((h + 11) % 12) + 1;
+  return `${hour12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function computeWorkingHours(availability: string, workingDays: string): string {
+  const { presets, customStart, customEnd, useCustom } =
+    parseAvailability(availability);
+  const days = parseWorkingDays(workingDays);
+  const dayLabel = buildWorkingDays(days) || "No days";
+
+  if (useCustom) {
+    if (!customStart || !customEnd) return "";
+    const hrs = hoursBetween(customStart, customEnd);
+    const range = `${formatTimeLabel(customStart)} – ${formatTimeLabel(customEnd)}`;
+    if (days.length === 0) return range;
+    return `${dayLabel} · ${range} · ${hrs}h/day`;
+  }
+
+  if (presets.length === 0) return "";
+
+  const selected = AVAILABILITY_PRESETS.filter((p) => presets.includes(p.id));
+  const names = selected.map((p) => p.id).join(" + ");
+  const ranges = selected
+    .map((p) => `${formatTimeLabel(p.start)}–${formatTimeLabel(p.end)}`)
+    .join(", ");
+  const hrs = selected.reduce((sum, p) => sum + p.hours, 0);
+
+  if (days.length === 0) return `${names} · ${ranges}`;
+  return `${dayLabel} · ${names} · ${ranges} · ${hrs}h/day`;
+}
+
+const chipClass =
+  "focus-visible:ring-0 focus-visible:ring-offset-0 active:scale-[0.98]";
+
+/** Controlled schedule picker — one atomic update so chips never stick. */
+function SchedulePicker({
+  availability,
+  workingDays,
+  workingHours,
+  onChange,
+  inputClass,
+}: {
+  availability: string;
+  workingDays: string;
+  workingHours: string;
+  onChange: (next: ScheduleValue) => void;
+  inputClass: string;
+}) {
+  const parsed = parseAvailability(availability);
+  const selectedDays = parseWorkingDays(workingDays);
+
+  const commit = (nextAvailability: string, nextDays: string) => {
+    onChange({
+      availability: nextAvailability,
+      working_days: nextDays,
+      working_hours: computeWorkingHours(nextAvailability, nextDays),
+    });
+  };
+
+  const togglePreset = (id: AvailabilityPresetId) => {
+    // Presets clear custom mode
+    const without = parsed.useCustom ? [] : parsed.presets;
+    const nextPresets = without.includes(id)
+      ? without.filter((p) => p !== id)
+      : [...without, id];
+    commit(buildAvailability(nextPresets, false, "", ""), workingDays);
+  };
+
+  const toggleCustom = () => {
+    if (parsed.useCustom) {
+      commit("", workingDays);
+      return;
+    }
+    // Custom clears presets
+    commit(
+      buildAvailability([], true, parsed.customStart || "09:00", parsed.customEnd || "17:00"),
+      workingDays,
+    );
+  };
+
+  const setCustomTimes = (start: string, end: string) => {
+    commit(buildAvailability([], true, start, end), workingDays);
+  };
+
+  const toggleDay = (day: WeekDay) => {
+    const next = selectedDays.includes(day)
+      ? selectedDays.filter((d) => d !== day)
+      : [...selectedDays, day].sort(
+          (a, b) => WEEK_DAYS.indexOf(a) - WEEK_DAYS.indexOf(b),
+        );
+    commit(availability, buildWorkingDays(next));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Field id="working_days" label="Working days">
+        <div className="flex flex-wrap gap-2">
+          {WEEK_DAYS.map((day) => (
+            <Button
+              key={day}
+              type="button"
+              size="sm"
+              className={chipClass}
+              variant={selectedDays.includes(day) ? "default" : "outline"}
+              aria-pressed={selectedDays.includes(day)}
+              onClick={() => toggleDay(day)}
+            >
+              {day}
+            </Button>
+          ))}
+        </div>
+      </Field>
+
+      <Field id="availability" label="Availability">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {AVAILABILITY_PRESETS.map((preset) => {
+              const active = !parsed.useCustom && parsed.presets.includes(preset.id);
+              return (
+                <Button
+                  key={preset.id}
+                  type="button"
+                  size="sm"
+                  className={chipClass}
+                  variant={active ? "default" : "outline"}
+                  aria-pressed={active}
+                  onClick={() => togglePreset(preset.id)}
+                >
+                  {preset.id}
+                  <span className="ml-1 text-[10px] opacity-70">
+                    {formatTimeLabel(preset.start)}–{formatTimeLabel(preset.end)}
+                  </span>
+                </Button>
+              );
+            })}
+            <Button
+              type="button"
+              size="sm"
+              className={chipClass}
+              variant={parsed.useCustom ? "default" : "outline"}
+              aria-pressed={parsed.useCustom}
+              onClick={toggleCustom}
+            >
+              Custom times
+            </Button>
+          </div>
+
+          {parsed.useCustom && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field id="avail_start" label="From">
+                <Input
+                  id="avail_start"
+                  type="time"
+                  className={inputClass}
+                  value={parsed.customStart || "09:00"}
+                  onChange={(e) =>
+                    setCustomTimes(e.target.value, parsed.customEnd || "17:00")
+                  }
+                />
+              </Field>
+              <Field id="avail_end" label="To">
+                <Input
+                  id="avail_end"
+                  type="time"
+                  className={inputClass}
+                  value={parsed.customEnd || "17:00"}
+                  onChange={(e) =>
+                    setCustomTimes(parsed.customStart || "09:00", e.target.value)
+                  }
+                />
+              </Field>
+            </div>
+          )}
+        </div>
+      </Field>
+
+      <Field id="working_hours" label="Working hours (auto)">
+        <Input
+          id="working_hours"
+          className={inputClass}
+          value={workingHours}
+          readOnly
+          placeholder="Select days + availability"
+        />
+        <p className="text-xs text-muted-foreground">
+          Auto from working days and availability (custom replaces Morning/Afternoon/Evening).
+        </p>
+      </Field>
+    </div>
+  );
+}
 
 const PERMISSION_OPTIONS = [
   { id: "manage_members", label: "Manage members" },
@@ -161,7 +460,7 @@ const emptyForm = (): WizardFormState => ({
   salary: "",
   commission_percentage: "",
   working_days: "Mon–Fri",
-  working_hours: "9am – 5pm",
+  working_hours: "",
   max_client_capacity: "",
   assigned_members: "",
   availability: "",
@@ -332,10 +631,17 @@ export function AddUserWizard({
   );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [emailTaken, setEmailTaken] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [phoneTaken, setPhoneTaken] = useState(false);
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [openSocials, setOpenSocials] = useState<SocialLinkDbKey[]>(() =>
     SOCIAL_LINK_FIELDS.filter((f) => !!editUser?.[f.key]).map((f) => f.key),
   );
   const fileRef = useRef<HTMLInputElement>(null);
+  const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const roleLocked = allowedRoles.length === 1 || isEdit;
 
@@ -356,6 +662,91 @@ export function AddUserWizard({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleEmailChange = (value: string) => {
+    set("email", value);
+    setEmailTaken(false);
+    if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+    if (isEdit) return;
+
+    const clean = value.trim().toLowerCase();
+    if (!clean || !/\S+@\S+\.\S+/.test(clean)) {
+      setCheckingEmail(false);
+      return;
+    }
+
+    setCheckingEmail(true);
+    emailCheckTimer.current = setTimeout(async () => {
+      try {
+        const exists = await checkAccountExists(clean);
+        setEmailTaken(exists === true);
+      } catch {
+        // Network errors ignored — API still blocks on submit
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 450);
+  };
+
+  const syncPhoneEmergency = (nextPhone: string, nextEmergency: string) => {
+    if (phonesMatch(nextPhone, nextEmergency)) {
+      setPhoneError("Emergency contact cannot be the same as phone number.");
+      return true;
+    }
+    setPhoneError(null);
+    return false;
+  };
+
+  const handlePhoneChange = (value: string) => {
+    set("phone", value);
+    setPhoneTaken(false);
+    syncPhoneEmergency(value, form.emergency_contact);
+    if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current);
+
+    const clean = value.trim();
+    if (!clean || clean.replace(/\D/g, "").length < 7) {
+      setCheckingPhone(false);
+      return;
+    }
+
+    setCheckingPhone(true);
+    phoneCheckTimer.current = setTimeout(async () => {
+      try {
+        const exists = await checkPhoneExists(
+          clean,
+          isEdit ? editUser?.user_id : undefined,
+        );
+        if (exists === true) {
+          setPhoneTaken(true);
+          setPhoneError("This phone number is already used by another account.");
+        } else if (exists === false && !phonesMatch(clean, form.emergency_contact)) {
+          setPhoneTaken(false);
+          setPhoneError(null);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setCheckingPhone(false);
+      }
+    }, 450);
+  };
+
+  const handleEmergencyChange = (value: string) => {
+    set("emergency_contact", value);
+    if (!phoneTaken) {
+      syncPhoneEmergency(form.phone, value);
+    } else if (!phonesMatch(form.phone, value)) {
+      // keep duplicate-phone error if still taken
+      setPhoneError("This phone number is already used by another account.");
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (emailCheckTimer.current) clearTimeout(emailCheckTimer.current);
+      if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current);
+    };
+  }, []);
+
   const reset = () => {
     if (editUser) {
       setForm(formFromUser(editUser, initialRole));
@@ -370,6 +761,11 @@ export function AddUserWizard({
     }
     setStep(1);
     setSaving(false);
+    setEmailTaken(false);
+    setCheckingEmail(false);
+    setPhoneTaken(false);
+    setCheckingPhone(false);
+    setPhoneError(null);
   };
 
   // Sync form when opening create/edit sheet
@@ -388,6 +784,11 @@ export function AddUserWizard({
     }
     setStep(1);
     setSaving(false);
+    setEmailTaken(false);
+    setCheckingEmail(false);
+    setPhoneTaken(false);
+    setCheckingPhone(false);
+    setPhoneError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when sheet opens / edit target changes
   }, [open, editUser?.user_id]);
 
@@ -457,6 +858,30 @@ export function AddUserWizard({
       }
       if (!isEdit && !form.email.trim()) {
         toast.error("Email is required");
+        return false;
+      }
+      if (!isEdit && form.email.trim() && !/\S+@\S+\.\S+/.test(form.email.trim())) {
+        toast.error("Enter a valid email address");
+        return false;
+      }
+      if (!isEdit && emailTaken) {
+        toast.error("An account with this email already exists");
+        return false;
+      }
+      if (!isEdit && checkingEmail) {
+        toast.error("Checking email… please wait");
+        return false;
+      }
+      if (phonesMatch(form.phone, form.emergency_contact)) {
+        toast.error("Emergency contact cannot be the same as phone number");
+        return false;
+      }
+      if (phoneTaken) {
+        toast.error("This phone number is already used by another account");
+        return false;
+      }
+      if (checkingPhone) {
+        toast.error("Checking phone… please wait");
         return false;
       }
     }
@@ -593,7 +1018,32 @@ export function AddUserWizard({
       handleOpenChange(false);
       onCreated();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : isEdit ? "Failed to save" : "Failed to create");
+      const message =
+        err instanceof Error ? err.message : isEdit ? "Failed to save" : "Failed to create";
+      const lower = message.toLowerCase();
+      if (
+        !isEdit &&
+        (lower.includes("already exists") || lower.includes("email_exists"))
+      ) {
+        setEmailTaken(true);
+        setStep(1);
+      }
+      if (
+        lower.includes("phone number is already") ||
+        lower.includes("phone_duplicate")
+      ) {
+        setPhoneTaken(true);
+        setPhoneError("This phone number is already used by another account.");
+        setStep(1);
+      }
+      if (
+        lower.includes("emergency contact") ||
+        lower.includes("phone_emergency")
+      ) {
+        setPhoneError("Emergency contact cannot be the same as phone number.");
+        setStep(1);
+      }
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -664,19 +1114,46 @@ export function AddUserWizard({
           <Input
             id="email"
             type="email"
-            className={inputClass}
+            autoComplete="off"
+            className={`${inputClass} ${
+              emailTaken ? "border-destructive focus-visible:ring-destructive" : ""
+            }`}
             value={form.email}
             disabled={isEdit}
-            onChange={(e) => set("email", e.target.value)}
+            aria-invalid={emailTaken}
+            onChange={(e) => handleEmailChange(e.target.value)}
           />
+          {!isEdit && checkingEmail && (
+            <p className="text-xs text-muted-foreground">Checking email…</p>
+          )}
+          {!isEdit && emailTaken && (
+            <p className="text-xs text-destructive">
+              An account with this email already exists.
+            </p>
+          )}
         </Field>
         <Field id="phone" label="Phone">
           <Input
             id="phone"
-            className={inputClass}
+            type="tel"
+            autoComplete="off"
+            className={`${inputClass} ${
+              phoneTaken || phoneError
+                ? "border-destructive focus-visible:ring-destructive"
+                : ""
+            }`}
             value={form.phone}
-            onChange={(e) => set("phone", e.target.value)}
+            aria-invalid={!!phoneTaken || !!phoneError}
+            onChange={(e) => handlePhoneChange(e.target.value)}
           />
+          {checkingPhone && (
+            <p className="text-xs text-muted-foreground">Checking phone…</p>
+          )}
+          {(phoneTaken || phoneError) && (
+            <p className="text-xs text-destructive">
+              {phoneError || "This phone number is already used by another account."}
+            </p>
+          )}
         </Field>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -716,10 +1193,22 @@ export function AddUserWizard({
         <Field id="emergency_contact" label="Emergency contact">
           <Input
             id="emergency_contact"
-            className={inputClass}
+            type="tel"
+            autoComplete="off"
+            className={`${inputClass} ${
+              phonesMatch(form.phone, form.emergency_contact)
+                ? "border-destructive focus-visible:ring-destructive"
+                : ""
+            }`}
             value={form.emergency_contact}
-            onChange={(e) => set("emergency_contact", e.target.value)}
+            aria-invalid={phonesMatch(form.phone, form.emergency_contact)}
+            onChange={(e) => handleEmergencyChange(e.target.value)}
           />
+          {phonesMatch(form.phone, form.emergency_contact) && (
+            <p className="text-xs text-destructive">
+              Emergency contact cannot be the same as phone number.
+            </p>
+          )}
         </Field>
         <Field id="account_status" label="Status">
           <select
@@ -869,6 +1358,8 @@ export function AddUserWizard({
           <ReviewRow label="Specialization" value={form.specialization} />
           <ReviewRow label="Employment" value={form.employment_type} />
           <ReviewRow label="Working days" value={form.working_days} />
+          <ReviewRow label="Availability" value={form.availability} />
+          <ReviewRow label="Working hours" value={form.working_hours} />
           {SOCIAL_LINK_FIELDS.filter((f) => form[f.key].trim()).map((f) => (
             <ReviewRow key={f.key} label={f.label} value={form[f.key]} />
           ))}
@@ -1114,43 +1605,29 @@ export function AddUserWizard({
                 onChange={(e) => set("branch_department", e.target.value)}
               />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="salary" label="Salary">
-                <Input
-                  id="salary"
-                  className={inputClass}
-                  value={form.salary}
-                  onChange={(e) => set("salary", e.target.value)}
-                />
-              </Field>
-              <Field id="commission_percentage" label="Commission %">
-                <Input
-                  id="commission_percentage"
-                  type="number"
-                  className={inputClass}
-                  value={form.commission_percentage}
-                  onChange={(e) => set("commission_percentage", e.target.value)}
-                />
-              </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="working_days" label="Working days">
-                <Input
-                  id="working_days"
-                  className={inputClass}
-                  value={form.working_days}
-                  onChange={(e) => set("working_days", e.target.value)}
-                />
-              </Field>
-              <Field id="working_hours" label="Working hours">
-                <Input
-                  id="working_hours"
-                  className={inputClass}
-                  value={form.working_hours}
-                  onChange={(e) => set("working_hours", e.target.value)}
-                />
-              </Field>
-            </div>
+            <Field id="salary" label="Salary">
+              <Input
+                id="salary"
+                className={inputClass}
+                value={form.salary}
+                onChange={(e) => set("salary", e.target.value)}
+              />
+            </Field>
+
+            <SchedulePicker
+              availability={form.availability}
+              workingDays={form.working_days}
+              workingHours={form.working_hours}
+              onChange={(next) =>
+                setForm((prev) => ({
+                  ...prev,
+                  availability: next.availability,
+                  working_days: next.working_days,
+                  working_hours: next.working_hours,
+                }))
+              }
+              inputClass={inputClass}
+            />
           </div>
         );
       case 4:
@@ -1162,23 +1639,6 @@ export function AddUserWizard({
                 className={inputClass}
                 value={form.max_client_capacity}
                 onChange={(e) => set("max_client_capacity", e.target.value)}
-              />
-            </Field>
-            <Field id="assigned_members" label="Assigned members (comma-separated)">
-              <Textarea
-                id="assigned_members"
-                rows={2}
-                className={inputClass}
-                value={form.assigned_members}
-                onChange={(e) => set("assigned_members", e.target.value)}
-              />
-            </Field>
-            <Field id="availability" label="Availability">
-              <Input
-                id="availability"
-                className={inputClass}
-                value={form.availability}
-                onChange={(e) => set("availability", e.target.value)}
               />
             </Field>
             <Field id="pt_sessions" label="Personal training sessions">
@@ -1459,6 +1919,17 @@ export function AddUserWizard({
               >
                 <HardHat className="h-4 w-4" />
                 Staff
+              </Button>
+            )}
+            {allowedRoles.includes("user") && (
+              <Button
+                type="button"
+                variant={form.role === "user" ? "default" : "outline"}
+                className="gap-1 px-2"
+                onClick={() => handleRoleChange("user")}
+              >
+                <User className="h-4 w-4" />
+                Member
               </Button>
             )}
           </div>

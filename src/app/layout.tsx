@@ -12,7 +12,7 @@ import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
 import {
   DEFAULT_DESCRIPTION,
   SITE_NAME,
-  SITE_TAGLINE,
+  SITE_SEO_TITLE,
   getMetadataBase,
   jsonLdScript,
   organizationJsonLd,
@@ -37,7 +37,7 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   metadataBase: getMetadataBase(),
   title: {
-    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    default: SITE_SEO_TITLE,
     template: `%s | ${SITE_NAME}`,
   },
   description: DEFAULT_DESCRIPTION,
@@ -47,11 +47,12 @@ export const metadata: Metadata = {
   publisher: SITE_NAME,
   keywords: [
     "Forge Gym",
-    "gym management",
     "partner gyms",
+    "gym near me",
     "personal trainers",
     "fitness membership",
-    "gym near me",
+    "gym management platform",
+    "workout progress tracking",
   ],
   appleWebApp: {
     capable: true,
@@ -90,12 +91,12 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: SITE_NAME,
-    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    title: SITE_SEO_TITLE,
     description: DEFAULT_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    title: SITE_SEO_TITLE,
     description: DEFAULT_DESCRIPTION,
   },
   robots: {

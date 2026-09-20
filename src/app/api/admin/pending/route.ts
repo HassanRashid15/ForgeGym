@@ -94,6 +94,7 @@ function mapAdmin(p: any) {
     trial_status: trial.status,
     trial_days_left: trial.daysLeft,
     trial_label: trial.label,
+    platform_monthly_fee: (p.platform_monthly_fee as string | null) || null,
   };
 }
 

@@ -52,6 +52,14 @@ export type ManagedUser = {
   overtime_rate?: string | null;
   responsibilities?: string | null;
   system_permissions?: string[] | null;
+  preferred_trainer_id?: string | null;
+  pending_trainer_id?: string | null;
+  trainer_request_pending?: boolean;
+  fee_concession?: string | null;
+  has_trainer?: boolean;
+  monthly_fee_label?: string | null;
+  gym_monthly_fee?: string | null;
+  gym_trainer_fee?: string | null;
 };
 
 export type CreateStaffPayload = {
@@ -107,7 +115,7 @@ export type CreateUserPayload = CreateStaffPayload;
 
 export type UpdateUserPayload = {
   userId: string;
-  action?: "approve" | "reject";
+  action?: "approve" | "reject" | "approve_trainer" | "reject_trainer";
   full_name?: string;
   phone?: string | null;
   address?: string | null;
@@ -152,6 +160,8 @@ export type UpdateUserPayload = {
   system_permissions?: string[];
   joining_date?: string | null;
   avatar_base64?: string;
+  preferred_trainer_id?: string | null;
+  fee_concession?: string | null;
 };
 
 /** admin.listUsers → GET /api/admin/users */
@@ -191,6 +201,16 @@ export async function rejectManagedMember(userId: string) {
   return updateManagedUser({ userId, action: "reject" });
 }
 
+/** Approve a member's pending trainer change */
+export async function approveTrainerRequest(userId: string) {
+  return updateManagedUser({ userId, action: "approve_trainer" });
+}
+
+/** Reject a member's pending trainer change */
+export async function rejectTrainerRequest(userId: string) {
+  return updateManagedUser({ userId, action: "reject_trainer" });
+}
+
 /** admin.deleteUser → DELETE /api/admin/users */
 export async function deleteManagedUser(userId: string) {
   return apiRequest<{ ok: boolean; userId: string }>("admin", "deleteUser", {
@@ -212,6 +232,9 @@ export type MonthlyMember = {
   trainerFee?: string | null;
   hasTrainer?: boolean;
   preferredTrainerId?: string | null;
+  pendingTrainerId?: string | null;
+  trainerRequestPending?: boolean;
+  feeConcession?: string | null;
   associatedAt: string | null;
   periodStart: string | null;
   periodEnd: string | null;

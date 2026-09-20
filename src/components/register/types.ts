@@ -15,6 +15,7 @@ export type RegisterStep1Errors = {
   lastName?: string;
   email?: string;
   phone?: string;
+  emergencyContact?: string;
   address?: string;
   password?: string;
   confirmPassword?: string;

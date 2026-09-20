@@ -6,7 +6,7 @@ const STATUS_LINES = [
   "INITIALIZING SYSTEM PROTOCOLS",
   "CALIBRATING POWER SYSTEMS",
   "LOADING TRAINING MODULES",
-  "WELCOME",
+  "LET'S GET STARTED",
 ] as const;
 
 const BOTTOM_REVEAL_MS = 4800;
@@ -39,19 +39,25 @@ export function SplashStatusBar() {
     return () => window.clearInterval(id);
   }, [started]);
 
-  const isWelcome = STATUS_LINES[index] === "WELCOME";
+  const isWelcome = STATUS_LINES[index] === "LET'S GET STARTED";
 
   return (
     <div className="forge-splash-bottom flex w-full max-w-[min(72vw,280px)] flex-col items-center">
       <p
         className={`forge-splash-status mb-3 min-h-[1.25rem] text-center text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] transition-all duration-700 ease-out ${
           isWelcome 
-            ? "text-white translate-y-8" 
+            ? "text-white -translate-y-8 text-[18px] sm:text-[20px]" 
             : "text-[#FA1818] translate-y-0"
         }`}
         aria-live="polite"
       >
-        {STATUS_LINES[index]}
+        {isWelcome ? (
+          <>
+            LET'S GET <span className="text-[#FA1818] font-bold">STARTED</span>
+          </>
+        ) : (
+          STATUS_LINES[index]
+        )}
       </p>
 
       {!isWelcome && (

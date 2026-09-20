@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,8 +21,9 @@ import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
 import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
-import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
-import { formatCombinedFee } from "@/lib/fees";
+import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
+import { formatMemberFee } from "@/lib/fees";
+import { computeBmi, bmiCategoryLabel } from "@/lib/bmi";
 import { ProfileSkeleton } from "@/components/loading/ProfileSkeleton";
 import { 
   User, 
@@ -83,6 +84,7 @@ export default function ProfilePage() {
     gender: "",
     weightKg: "",
     heightFt: "",
+    bmi: "",
     activityLevel: "",
     fitnessGoal: "",
     experienceLevel: "",
@@ -121,6 +123,8 @@ export default function ProfilePage() {
     preferredTrainerName: "",
     associatedGymMonthlyFee: "",
     associatedGymTrainerFee: "",
+    feeConcession: "",
+    feeLabel: "",
   });
 
   const [initialData, setInitialData] = useState<typeof profileData | null>(null);
@@ -189,6 +193,10 @@ export default function ProfilePage() {
             if (!cm || isNaN(Number(cm))) return "";
             return (Number(cm) / 30.48).toFixed(2).replace(/\.?0+$/, "");
           })(),
+          bmi:
+            dbProfile?.bmi != null && Number.isFinite(Number(dbProfile.bmi))
+              ? String(Number(dbProfile.bmi))
+              : "",
           activityLevel: dbProfile?.activity_level || meta.activity_level || (isAdmin ? "" : "Moderately Active"),
           fitnessGoal: dbProfile?.fitness_goal || meta.fitness_goal || (isAdmin ? "" : "General Fitness"),
           experienceLevel: dbProfile?.experience_level || meta.experience_level || (isAdmin ? "" : "Intermediate"),
@@ -202,7 +210,11 @@ export default function ProfilePage() {
           emergencyContact: dbProfile?.emergency_contact || meta.emergency_contact || "",
           membershipStatus: dbProfile?.membership_status || "active",
           membershipType: dbProfile?.membership_type || "basic",
-          joinDate: dbProfile?.join_date || new Date().toISOString(),
+          // Prefer created_at so Member Since includes the real join time from DB
+          joinDate:
+            dbProfile?.created_at ||
+            dbProfile?.join_date ||
+            new Date().toISOString(),
           avatarUrl: dbProfile?.avatar_url || "",
           gymOwnerId: dbProfile?.gym_owner_id || meta.gym_owner_id || "",
           gymName: dbProfile?.gym_name || meta.gym_name || "",
@@ -237,6 +249,9 @@ export default function ProfilePage() {
           preferredTrainerName: "",
           associatedGymMonthlyFee: "",
           associatedGymTrainerFee: "",
+          feeConcession:
+            (dbProfile as { fee_concession?: string | null })?.fee_concession || "",
+          feeLabel: "",
         };
 
         setProfileData(mapped);
@@ -400,6 +415,13 @@ export default function ProfilePage() {
               height_cm: profileData.heightFt
                 ? Math.round(parseFloat(profileData.heightFt) * 30.48 * 100) / 100
                 : null,
+              bmi: (() => {
+                const w = profileData.weightKg ? parseFloat(profileData.weightKg) : null;
+                const hCm = profileData.heightFt
+                  ? Math.round(parseFloat(profileData.heightFt) * 30.48 * 100) / 100
+                  : null;
+                return computeBmi(w, hCm);
+              })(),
               activity_level: profileData.activityLevel || null,
               fitness_goal: profileData.fitnessGoal || null,
               experience_level: profileData.experienceLevel || null,
@@ -413,7 +435,11 @@ export default function ProfilePage() {
             }),
       };
 
-      await updateMyProfile(dbPayload);
+      const updated = await updateMyProfile(dbPayload);
+      const savedBmi = updated?.profile?.bmi;
+      if (savedBmi != null && Number.isFinite(Number(savedBmi))) {
+        setProfileData((prev) => ({ ...prev, bmi: String(Number(savedBmi)) }));
+      }
 
       // Non-blocking metadata sync (never hang the Save button)
       void supabase.auth
@@ -476,18 +502,122 @@ export default function ProfilePage() {
 
   // Helper calculations
   const calculateBmi = () => {
+    // Prefer persisted DB value when not actively editing height/weight
+    if (profileData.bmi && !isEditing) {
+      const stored = parseFloat(profileData.bmi);
+      if (Number.isFinite(stored)) return stored.toFixed(1);
+    }
     const w = parseFloat(profileData.weightKg);
     const heightFt = parseFloat(profileData.heightFt);
-    if (!w || !heightFt || isNaN(w) || isNaN(heightFt) || heightFt <= 0) return null;
-    const heightM = heightFt * 0.3048;
-    return (w / (heightM * heightM)).toFixed(1);
+    if (!w || !heightFt || isNaN(w) || isNaN(heightFt) || heightFt <= 0) {
+      if (profileData.bmi) {
+        const stored = parseFloat(profileData.bmi);
+        if (Number.isFinite(stored)) return stored.toFixed(1);
+      }
+      return null;
+    }
+    const heightCm = heightFt * 30.48;
+    const computed = computeBmi(w, heightCm);
+    return computed != null ? computed.toFixed(1) : null;
   };
 
   const getMembershipDays = () => {
     if (!profileData.joinDate) return 0;
-    const diffTime = Math.abs(new Date().getTime() - new Date(profileData.joinDate).getTime());
-    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    const start = new Date(profileData.joinDate).getTime();
+    if (Number.isNaN(start)) return 0;
+    const diffTime = Math.max(0, Date.now() - start);
+    return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
   };
+
+  const formatMemberSince = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "Recently Joined";
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const syncMembershipLive = useCallback(async () => {
+    try {
+      const [billingRes, profileRes] = await Promise.all([
+        fetch("/api/membership/me", { credentials: "include", cache: "no-store" }),
+        fetch("/api/profiles", { credentials: "include", cache: "no-store" }),
+      ]);
+      const billing = await billingRes.json().catch(() => ({}));
+      const profileJson = await profileRes.json().catch(() => ({}));
+      const profile = profileJson?.profile || {};
+
+      if (!billingRes.ok && !profileRes.ok) return;
+
+      setProfileData((prev) => ({
+        ...prev,
+        feeLabel: billing?.feeLabel != null ? String(billing.feeLabel) : prev.feeLabel,
+        feeConcession:
+          billing?.feeConcession != null
+            ? String(billing.feeConcession)
+            : profile?.fee_concession != null
+              ? String(profile.fee_concession)
+              : prev.feeConcession,
+        preferredTrainerId:
+          profile?.preferred_trainer_id != null
+            ? String(profile.preferred_trainer_id)
+            : billing?.preferredTrainerId != null
+              ? String(billing.preferredTrainerId)
+              : prev.preferredTrainerId,
+        membershipStatus:
+          billing?.membershipStatus ||
+          profile?.membership_status ||
+          prev.membershipStatus,
+        joinDate:
+          billing?.joinedAt ||
+          profile?.created_at ||
+          profile?.join_date ||
+          prev.joinDate,
+        associatedGymMonthlyFee:
+          billing?.gymMonthlyFee != null
+            ? String(billing.gymMonthlyFee)
+            : prev.associatedGymMonthlyFee,
+        associatedGymTrainerFee:
+          billing?.trainerFee != null
+            ? String(billing.trainerFee)
+            : prev.associatedGymTrainerFee,
+      }));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Live membership fee / trainer / join time while on membership tab
+  useEffect(() => {
+    if (isAdmin || activeTab !== "membership" || !user?.id) return;
+    void syncMembershipLive();
+    const poll = window.setInterval(() => {
+      void syncMembershipLive();
+    }, 8_000);
+    const channel = supabase
+      .channel(`profile-membership:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          void syncMembershipLive();
+        },
+      )
+      .subscribe();
+    return () => {
+      window.clearInterval(poll);
+      void supabase.removeChannel(channel);
+    };
+  }, [isAdmin, activeTab, user?.id, syncMembershipLive]);
 
   const bmiValue = calculateBmi();
   const membershipDays = getMembershipDays();
@@ -813,11 +943,22 @@ export default function ProfilePage() {
                     {bmiValue && (
                       <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 flex items-center justify-between">
                         <div>
-                          <p className="text-xs text-muted-foreground font-medium">Calculated BMI</p>
+                          <p className="text-xs text-muted-foreground font-medium">
+                            {profileData.bmi ? "BMI" : "Calculated BMI"}
+                          </p>
                           <p className="text-xl font-bold text-primary">{bmiValue}</p>
+                          {profileData.bmi ? (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Saved in your profile
+                            </p>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Save profile to store BMI in the database
+                            </p>
+                          )}
                         </div>
                         <Badge variant="outline" className="text-xs text-zinc-300">
-                          {parseFloat(bmiValue) < 18.5 ? "Underweight" : parseFloat(bmiValue) < 25 ? "Healthy Baseline" : "Overweight Tier"}
+                          {bmiCategoryLabel(parseFloat(bmiValue))}
                         </Badge>
                       </div>
                     )}
@@ -1333,6 +1474,8 @@ export default function ProfilePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <MemberBillingCard />
+
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-xl bg-gradient-to-r from-red-950/30 via-zinc-900 to-zinc-900 border border-red-500/20 gap-4">
                     <div>
                       <span className="text-xs font-semibold text-primary uppercase tracking-wider">Associated Gym</span>
@@ -1350,21 +1493,28 @@ export default function ProfilePage() {
                         <span className="text-muted-foreground">Monthly fee:</span>
                         <span className="font-semibold">
                           {(() => {
-                            const total = formatCombinedFee(
-                              profileData.associatedGymMonthlyFee,
-                              profileData.associatedGymTrainerFee,
-                              Boolean(profileData.preferredTrainerId),
-                            );
+                            const total =
+                              profileData.feeLabel ||
+                              formatMemberFee(
+                                profileData.associatedGymMonthlyFee,
+                                profileData.associatedGymTrainerFee,
+                                Boolean(profileData.preferredTrainerId),
+                                profileData.feeConcession || null,
+                              );
                             return total ? `${total} / month` : "Not set";
                           })()}
                         </span>
                       </p>
-                      {profileData.preferredTrainerId &&
-                        profileData.associatedGymTrainerFee && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Includes trainer fee ({profileData.associatedGymTrainerFee})
-                          </p>
-                        )}
+                      {profileData.feeConcession ? (
+                        <p className="text-xs text-primary mt-1">
+                          Admin concession applied
+                        </p>
+                      ) : profileData.preferredTrainerId &&
+                        profileData.associatedGymTrainerFee ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Includes trainer fee ({profileData.associatedGymTrainerFee})
+                        </p>
+                      ) : null}
                     </div>
                     <Badge className="bg-emerald-500 text-white px-4 py-1.5 self-start sm:self-center capitalize">
                       {profileData.membershipStatus}
@@ -1375,44 +1525,24 @@ export default function ProfilePage() {
                     <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
                       <span className="text-xs text-muted-foreground font-medium">Member Since</span>
                       <p className="text-lg font-bold mt-1 text-foreground">
-                        {profileData.joinDate ? new Date(profileData.joinDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "Recently Joined"}
+                        {profileData.joinDate
+                          ? formatMemberSince(profileData.joinDate)
+                          : "Recently Joined"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Date & time from your account in the database
                       </p>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
                       <span className="text-xs text-muted-foreground font-medium">Days with Gym</span>
-                      <p className="text-lg font-bold mt-1 text-foreground">{membershipDays} days</p>
+                      <p className="text-lg font-bold mt-1 text-foreground">
+                        {membershipDays} day{membershipDays === 1 ? "" : "s"}
+                      </p>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
                       <span className="text-xs text-muted-foreground font-medium">Membership Type</span>
                       <p className="text-lg font-bold mt-1 text-primary capitalize">{profileData.membershipType}</p>
                     </div>
-                  </div>
-
-                  <CustomerTrainerFeeCard
-                    compact
-                    onTrainerChange={(id) => {
-                      setProfileData((prev) => ({
-                        ...prev,
-                        preferredTrainerId: id,
-                        preferredTrainerName: id
-                          ? prev.preferredTrainerName || "Selected trainer"
-                          : "",
-                      }));
-                    }}
-                  />
-
-                  <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Dumbbell className="h-3.5 w-3.5" />
-                      Preferred Trainer
-                    </span>
-                    <p className="text-lg font-bold mt-1 text-foreground">
-                      {profileData.preferredTrainerName ||
-                        (profileData.preferredTrainerId ? "Selected trainer" : "None selected")}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Change above anytime — monthly fee adjusts with trainer.
-                    </p>
                   </div>
 
                   <div className="pt-2 flex flex-wrap gap-3">

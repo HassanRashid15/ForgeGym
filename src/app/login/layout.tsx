@@ -1,8 +1,8 @@
 import { buildPageMetadata } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
-  title: "Sign in",
-  description: "Sign in to your Forge Gym account.",
+  title: "Sign In",
+  description: "Sign in to your Forge Gym account to manage membership, progress, and bookings.",
   path: "/login",
   noIndex: true,
 });

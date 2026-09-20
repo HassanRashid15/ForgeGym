@@ -28,6 +28,16 @@ import type { ManagedUser } from "@/api/admin-users";
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
 type MemberStatusFilter = "all" | "pending" | "active" | "rejected";
+type TrainerFilter = "all" | "with_trainer" | "without_trainer";
+
+function hasTrainer(row: ManagedUser): boolean {
+  return Boolean(row.has_trainer ?? row.preferred_trainer_id);
+}
+
+function feeLabel(row: ManagedUser): string {
+  if (row.role !== "user") return "—";
+  return row.monthly_fee_label || "Not set";
+}
 
 function memberStatus(row: ManagedUser): MemberStatusFilter {
   // Platform admins / gym owners — use admin_approved, not membership_status
@@ -85,6 +95,10 @@ export function MembersTable({
   onDelete,
   onApproveMember,
   onRejectMember,
+  onApproveTrainer,
+  onRejectTrainer,
+  trainerApprovingId = null,
+  trainerRejectingId = null,
   showRole,
   title = "Staff & members",
   description,
@@ -104,16 +118,25 @@ export function MembersTable({
   onDelete: (row: ManagedUser) => void;
   onApproveMember: (userId: string) => void;
   onRejectMember: (userId: string) => void;
+  onApproveTrainer?: (userId: string) => void;
+  onRejectTrainer?: (userId: string) => void;
+  trainerApprovingId?: string | null;
+  trainerRejectingId?: string | null;
   showRole: boolean;
   title?: string;
   description?: string;
   hidePending?: boolean;
 }) {
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
+  const [trainerFilter, setTrainerFilter] = useState<TrainerFilter>("all");
 
   const pendingMembers = hidePending
     ? []
     : members.filter((m) => memberStatus(m) === "pending" && m.role === "user");
+
+  const pendingTrainerRequests = members.filter(
+    (m) => m.role === "user" && m.trainer_request_pending === true,
+  );
 
   const rejectedMembers = hidePending
     ? []
@@ -123,19 +146,35 @@ export function MembersTable({
     let pending = 0;
     let active = 0;
     let rejected = 0;
+    let withTrainer = 0;
+    let withoutTrainer = 0;
     for (const m of members) {
       const s = memberStatus(m);
       if (s === "pending") pending += 1;
       else if (s === "rejected") rejected += 1;
       else active += 1;
+
+      // Trainer filter is most useful for gym members (customers)
+      if (m.role === "user") {
+        if (hasTrainer(m)) withTrainer += 1;
+        else withoutTrainer += 1;
+      }
     }
-    return { pending, active, rejected };
+    return { pending, active, rejected, withTrainer, withoutTrainer };
   }, [members]);
 
   const visibleMembers = useMemo(() => {
-    if (statusFilter === "all") return members;
-    return members.filter((m) => memberStatus(m) === statusFilter);
-  }, [members, statusFilter]);
+    let list = members;
+    if (statusFilter !== "all") {
+      list = list.filter((m) => memberStatus(m) === statusFilter);
+    }
+    if (trainerFilter === "with_trainer") {
+      list = list.filter((m) => m.role === "user" && hasTrainer(m));
+    } else if (trainerFilter === "without_trainer") {
+      list = list.filter((m) => m.role === "user" && !hasTrainer(m));
+    }
+    return list;
+  }, [members, statusFilter, trainerFilter]);
 
   return (
     <div className="space-y-6">
@@ -185,6 +224,76 @@ export function MembersTable({
                     onClick={() => onRejectMember(row.user_id)}
                   >
                     {rejectingId === row.user_id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5" />
+                    )}
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingTrainerRequests.length > 0 && onApproveTrainer && onRejectTrainer && (
+        <Card className="border-sky-500/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-sky-500" />
+              Pending trainer requests ({pendingTrainerRequests.length})
+            </CardTitle>
+            <CardDescription>
+              Members requested a trainer change — approve to update their monthly fee
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingTrainerRequests.map((row) => (
+              <div
+                key={`trainer-${row.user_id}`}
+                className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{row.full_name || "—"}</p>
+                  <p className="text-sm text-muted-foreground">{row.email || "—"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.pending_trainer_id
+                      ? "Requested: add / change trainer"
+                      : "Requested: remove trainer"}
+                    {" · "}
+                    Current fee: {feeLabel(row)}
+                    {hasTrainer(row) ? " (with trainer)" : " (gym only)"}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="gap-1"
+                    disabled={
+                      trainerApprovingId === row.user_id ||
+                      trainerRejectingId === row.user_id
+                    }
+                    onClick={() => onApproveTrainer(row.user_id)}
+                  >
+                    {trainerApprovingId === row.user_id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    )}
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 text-destructive"
+                    disabled={
+                      trainerApprovingId === row.user_id ||
+                      trainerRejectingId === row.user_id
+                    }
+                    onClick={() => onRejectTrainer(row.user_id)}
+                  >
+                    {trainerRejectingId === row.user_id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <XCircle className="h-3.5 w-3.5" />
@@ -293,6 +402,24 @@ export function MembersTable({
                 ))}
               </div>
             )}
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["all", "Any trainer"],
+                  ["with_trainer", `With trainer (${counts.withTrainer})`],
+                  ["without_trainer", `No trainer (${counts.withoutTrainer})`],
+                ] as const
+              ).map(([key, label]) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={trainerFilter === key ? "default" : "outline"}
+                  onClick={() => setTrainerFilter(key)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -318,6 +445,7 @@ export function MembersTable({
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Plan</TableHead>
+                    <TableHead>Fee</TableHead>
                     <TableHead>Status</TableHead>
                     {showRole && <TableHead>Role</TableHead>}
                     <TableHead className="text-right">Actions</TableHead>
@@ -358,6 +486,11 @@ export function MembersTable({
                                   You
                                 </Badge>
                               )}
+                              {row.role === "user" && hasTrainer(row) && (
+                                <Badge variant="secondary" className="ml-2 text-[10px]">
+                                  With trainer
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </TableCell>
@@ -365,6 +498,23 @@ export function MembersTable({
                         <TableCell>{row.phone || "—"}</TableCell>
                         <TableCell className="capitalize">
                           {planLabel(row)}
+                        </TableCell>
+                        <TableCell className="tabular-nums whitespace-nowrap">
+                          {row.role === "user" ? (
+                            <div className="leading-tight">
+                              <span className="font-medium">{feeLabel(row)}</span>
+                              <p className="text-[10px] text-muted-foreground">
+                                {row.fee_concession
+                                  ? "concession"
+                                  : hasTrainer(row)
+                                    ? "with trainer"
+                                    : "gym only"}
+                                {row.trainer_request_pending ? " · pending request" : ""}
+                              </p>
+                            </div>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge

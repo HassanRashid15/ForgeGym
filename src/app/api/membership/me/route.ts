@@ -5,7 +5,7 @@ import {
 } from "@/lib/supabase/server";
 import { monthlyPeriod } from "@/lib/billing-period";
 import { getGymByOwnerId } from "@/lib/gyms";
-import { formatCombinedFee } from "@/lib/fees";
+import { formatMemberFee } from "@/lib/fees";
 import { jsonError } from "@/lib/api/errors";
 import {
   cacheGetOrSet,
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       const { data: profile } = await db
         .from("profiles")
         .select(
-          "join_date, created_at, membership_status, membership_type, gym_owner_id, preferred_trainer_id, admin_approved",
+          "join_date, created_at, membership_status, membership_type, gym_owner_id, preferred_trainer_id, pending_trainer_id, trainer_request_pending, fee_concession, admin_approved",
         )
         .eq("user_id", auth.user.id)
         .maybeSingle();
@@ -42,14 +42,37 @@ export async function GET(request: Request) {
           dueSoon: false,
           overdue: false,
           membershipStatus: profile?.membership_status || null,
+          preferredTrainerId: null as string | null,
+          pendingTrainerId: null as string | null,
+          trainerRequestPending: false,
+          feeConcession: null as string | null,
+          hasTrainer: false,
         };
       }
 
       const gym = await getGymByOwnerId(profile.gym_owner_id);
-      const period = monthlyPeriod(profile.join_date || profile.created_at);
+      const period = monthlyPeriod(
+        profile.join_date,
+        new Date(),
+        profile.created_at,
+      );
       const daysLeft = period.daysLeft;
       const dueSoon = daysLeft !== null && daysLeft <= 7;
-      const overdue = daysLeft === 0;
+      const overdue = daysLeft === 0 && (period.msLeft ?? 0) === 0;
+      const preferredTrainerId =
+        (profile.preferred_trainer_id as string | null) || null;
+      const hasTrainer = Boolean(preferredTrainerId);
+      const feeConcession =
+        ((profile as { fee_concession?: string | null }).fee_concession as
+          | string
+          | null) || null;
+      const trainerRequestPending =
+        (profile as { trainer_request_pending?: boolean }).trainer_request_pending ===
+        true;
+      const pendingTrainerId =
+        ((profile as { pending_trainer_id?: string | null }).pending_trainer_id as
+          | string
+          | null) || null;
 
       return {
         hasGym: true,
@@ -58,11 +81,20 @@ export async function GET(request: Request) {
         daysLeft,
         periodStart: period.periodStart,
         periodEnd: period.periodEnd,
-        feeLabel: formatCombinedFee(
+        joinedAt: period.joinedAt,
+        feeLabel: formatMemberFee(
           gym?.monthlyFee ?? null,
           gym?.trainerFee ?? null,
-          Boolean(profile.preferred_trainer_id),
+          hasTrainer,
+          feeConcession,
         ),
+        gymMonthlyFee: gym?.monthlyFee ?? null,
+        trainerFee: gym?.trainerFee ?? null,
+        hasTrainer,
+        preferredTrainerId,
+        pendingTrainerId,
+        trainerRequestPending,
+        feeConcession,
         dueSoon,
         overdue,
         membershipStatus: profile.membership_status,

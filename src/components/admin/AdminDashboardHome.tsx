@@ -35,6 +35,7 @@ import {
 } from "@/api/admin-users";
 import { getPendingMembers, type PendingMember } from "@/api/pending-members";
 import { queryKeys } from "@/lib/query-keys";
+import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
 
 /**
  * Admin home at /dashboard — live stats from Users + Monthly Fee (DB + realtime).
@@ -267,6 +268,8 @@ export function AdminDashboardHome() {
                 </div>
               )}
             </section>
+
+            <ContactMessagesCard />
 
             <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-4">
               {[

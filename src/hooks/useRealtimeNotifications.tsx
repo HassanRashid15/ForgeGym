@@ -17,24 +17,18 @@ import {
 } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { listNotifications } from "@/api/notifications";
 import type { Notification } from "@/lib/notifications";
 
-async function authHeaders(): Promise<HeadersInit> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  return token
-    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
-    : { "Content-Type": "application/json" };
-}
-
-async function fetchNotificationsApi(query = "limit=50") {
-  const headers = await authHeaders();
-  const response = await fetch(`/api/notifications?${query}`, {
-    headers,
-    credentials: "include",
-  });
-  if (!response.ok) throw new Error("Failed to fetch notifications");
-  return response.json();
+async function fetchNotificationsApi(
+  query: Record<string, string | number | boolean | null | undefined> = {
+    limit: 50,
+  },
+) {
+  return listNotifications(query) as Promise<{
+    notifications?: Notification[];
+    unreadCount?: number;
+  }>;
 }
 
 function mapAdminPayload(row: {
@@ -113,7 +107,7 @@ function useRealtimeNotificationsState(enabled: boolean): RealtimeNotificationsV
     if (!user?.id) return;
 
     try {
-      const data = await fetchNotificationsApi("limit=50");
+      const data = await fetchNotificationsApi({ limit: 50 });
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch (err) {
@@ -404,7 +398,7 @@ export function useUnreadCount() {
 
     const fetchInitialCount = async () => {
       try {
-        const data = await fetchNotificationsApi("count_only=true");
+        const data = await fetchNotificationsApi({ count_only: true });
         if (!cancelled) setUnreadCount(data.unreadCount || 0);
       } catch (err) {
         console.error("Error fetching unread count:", err);

@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/api/client";
+import { unsubscribeNewsletter } from "@/api/newsletter";
 
 function UnsubscribeInner() {
   const params = useSearchParams();
@@ -22,24 +24,21 @@ function UnsubscribeInner() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/newsletter/unsubscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: emailParam, token: tokenParam }),
+        const data = await unsubscribeNewsletter({
+          email: emailParam,
+          token: tokenParam,
         });
-        const data = await res.json().catch(() => ({}));
         if (cancelled) return;
-        if (!res.ok) {
-          setStatus("error");
-          setMessage(data.error || "Could not unsubscribe");
-          return;
-        }
         setStatus("done");
         setMessage(data.message || "Unsubscribed successfully");
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setStatus("error");
-          setMessage("Something went wrong. Try again.");
+          setMessage(
+            err instanceof ApiError
+              ? err.message
+              : "Something went wrong. Try again.",
+          );
         }
       }
     })();
@@ -51,22 +50,19 @@ function UnsubscribeInner() {
   async function confirmManual() {
     setStatus("loading");
     try {
-      const res = await fetch("/api/newsletter/unsubscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, token: tokenParam }),
+      const data = await unsubscribeNewsletter({
+        email,
+        token: tokenParam,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(data.error || "Could not unsubscribe");
-        return;
-      }
       setStatus("done");
       setMessage(data.message || "Unsubscribed successfully");
-    } catch {
+    } catch (err) {
       setStatus("error");
-      setMessage("Something went wrong. Try again.");
+      setMessage(
+        err instanceof ApiError
+          ? err.message
+          : "Something went wrong. Try again.",
+      );
     }
   }
 

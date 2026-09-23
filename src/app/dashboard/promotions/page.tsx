@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,22 +28,16 @@ import {
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-
-type Promotion = {
-  id: string;
-  title: string;
-  body: string;
-  cta_label: string | null;
-  cta_href: string | null;
-  image_url: string | null;
-  is_published: boolean;
-  show_on_home: boolean;
-  starts_at: string | null;
-  ends_at: string | null;
-  email_sent_at: string | null;
-  email_recipient_count: number | null;
-  created_at: string;
-};
+import { ApiError } from "@/api/client";
+import {
+  listAdminPromotions,
+  createAdminPromotion,
+  updateAdminPromotion,
+  deleteAdminPromotion,
+  getPromotionEmailLogs,
+  uploadPromotionImage,
+  type Promotion,
+} from "@/api/promotions";
 
 function promoLifecycle(p: Promotion): "Draft" | "Scheduled" | "Live" | "Ended" {
   if (!p.is_published) return "Draft";
@@ -65,12 +60,21 @@ const emptyForm = {
   sendEmail: true,
 };
 
+function toLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [logPromoId, setLogPromoId] = useState<string | null>(null);
   const [emailLogs, setEmailLogs] = useState<
@@ -81,15 +85,12 @@ export default function PromotionsPage() {
   const fetchPromotions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/promotions", { credentials: "include" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Failed to load promotions");
-        return;
-      }
+      const data = await listAdminPromotions();
       setPromotions(data.promotions || []);
-    } catch {
-      toast.error("Failed to load promotions");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load promotions",
+      );
     } finally {
       setLoading(false);
     }
@@ -99,6 +100,40 @@ export default function PromotionsPage() {
     void fetchPromotions();
   }, [fetchPromotions]);
 
+  function resetForm() {
+    setForm(emptyForm);
+    setEditingId(null);
+    setShowForm(false);
+  }
+
+  function startCreate() {
+    if (showForm && !editingId) {
+      resetForm();
+      return;
+    }
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
+
+  function startEdit(p: Promotion) {
+    setEditingId(p.id);
+    setForm({
+      title: p.title,
+      body: p.body,
+      ctaLabel: p.cta_label || "",
+      ctaHref: p.cta_href || "",
+      imageUrl: p.image_url || "",
+      startsAt: toLocalInput(p.starts_at),
+      endsAt: toLocalInput(p.ends_at),
+      isPublished: p.is_published,
+      showOnHome: p.show_on_home,
+      sendEmail: false,
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim() || !form.body.trim()) {
@@ -107,28 +142,18 @@ export default function PromotionsPage() {
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/admin/promotions", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: form.title.trim(),
-          body: form.body.trim(),
-          ctaLabel: form.ctaLabel.trim() || null,
-          ctaHref: form.ctaHref.trim() || null,
-          imageUrl: form.imageUrl.trim() || null,
-          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
-          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
-          isPublished: form.isPublished,
-          showOnHome: form.showOnHome,
-          sendEmail: form.sendEmail,
-        }),
+      const data = await createAdminPromotion({
+        title: form.title.trim(),
+        body: form.body.trim(),
+        ctaLabel: form.ctaLabel.trim() || null,
+        ctaHref: form.ctaHref.trim() || null,
+        imageUrl: form.imageUrl.trim() || null,
+        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        isPublished: form.isPublished,
+        showOnHome: form.showOnHome,
+        sendEmail: form.sendEmail,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Failed to create promotion");
-        return;
-      }
       const email = data.email as
         | { sent: number; skipped: number; mode: string }
         | null
@@ -142,11 +167,45 @@ export default function PromotionsPage() {
       } else {
         toast.success("Promotion created");
       }
-      setForm(emptyForm);
-      setShowForm(false);
+      resetForm();
       await fetchPromotions();
-    } catch {
-      toast.error("Failed to create promotion");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to create promotion",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    if (!form.title.trim() || !form.body.trim()) {
+      toast.error("Title and body are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateAdminPromotion({
+        id: editingId,
+        title: form.title.trim(),
+        body: form.body.trim(),
+        ctaLabel: form.ctaLabel.trim() || null,
+        ctaHref: form.ctaHref.trim() || null,
+        imageUrl: form.imageUrl.trim() || null,
+        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        isPublished: form.isPublished,
+        showOnHome: form.showOnHome,
+      });
+      toast.success("Promotion updated");
+      resetForm();
+      await fetchPromotions();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to update promotion",
+      );
     } finally {
       setSaving(false);
     }
@@ -160,15 +219,12 @@ export default function PromotionsPage() {
     setLogPromoId(id);
     setLogLoading(true);
     try {
-      const res = await fetch(`/api/admin/promotions?emailLogId=${encodeURIComponent(id)}`, {
-        credentials: "include",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Could not load email log");
-        return;
-      }
+      const data = await getPromotionEmailLogs(id);
       setEmailLogs(data.logs || []);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Could not load email log",
+      );
     } finally {
       setLogLoading(false);
     }
@@ -177,22 +233,13 @@ export default function PromotionsPage() {
   async function uploadImage(file: File) {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/admin/promotions/upload", {
-        method: "POST",
-        credentials: "include",
-        body: fd,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Image upload failed");
-        return;
-      }
-      setForm((f) => ({ ...f, imageUrl: data.imageUrl || "" }));
+      const data = await uploadPromotionImage(file);
+      setForm((f) => ({ ...f, imageUrl: data.imageUrl || data.url || "" }));
       toast.success("Image uploaded");
-    } catch {
-      toast.error("Image upload failed");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Image upload failed",
+      );
     } finally {
       setUploading(false);
     }
@@ -200,37 +247,17 @@ export default function PromotionsPage() {
 
   async function togglePublish(p: Promotion) {
     try {
-      const res = await fetch("/api/admin/promotions", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: p.id, isPublished: !p.is_published }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "Update failed");
-        return;
-      }
+      await updateAdminPromotion({ id: p.id, isPublished: !p.is_published });
       toast.success(p.is_published ? "Unpublished" : "Published");
       await fetchPromotions();
-    } catch {
-      toast.error("Update failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Update failed");
     }
   }
 
   async function resendEmail(p: Promotion) {
     try {
-      const res = await fetch("/api/admin/promotions", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: p.id, sendEmail: true }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Email send failed");
-        return;
-      }
+      const data = await updateAdminPromotion({ id: p.id, sendEmail: true });
       const email = data.email as { sent: number; skipped: number; mode: string } | null;
       if (email?.mode === "brevo") {
         toast.success(`Emailed ${email.sent} subscribers`);
@@ -238,27 +265,19 @@ export default function PromotionsPage() {
         toast.success(`Queued for ${email?.skipped ?? 0} subscribers`);
       }
       await fetchPromotions();
-    } catch {
-      toast.error("Email send failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Email send failed");
     }
   }
 
   async function remove(id: string) {
     if (!confirm("Delete this promotion?")) return;
     try {
-      const res = await fetch(`/api/admin/promotions?id=${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || "Delete failed");
-        return;
-      }
+      await deleteAdminPromotion(id);
       toast.success("Deleted");
       await fetchPromotions();
-    } catch {
-      toast.error("Delete failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Delete failed");
     }
   }
 
@@ -284,9 +303,9 @@ export default function PromotionsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+          <Button size="sm" onClick={startCreate}>
             <Plus className="h-4 w-4" />
-            {showForm ? "Cancel" : "New promotion"}
+            {showForm && !editingId ? "Cancel" : "New promotion"}
           </Button>
         </div>
       </div>
@@ -294,13 +313,17 @@ export default function PromotionsPage() {
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Create promotion</CardTitle>
+            <CardTitle>{editingId ? "Edit promotion" : "Create promotion"}</CardTitle>
             <CardDescription>
-              Published promotions with “Show on home” appear for everyone on the homepage.
+              Published promotions with “Show on home” open as a homepage popup on every visit
+              until Ends time (or forever if Ends is empty). Image + X close for that visit only.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={(e) => void handleCreate(e)} className="space-y-4">
+            <form
+              onSubmit={(e) => void (editingId ? handleUpdate(e) : handleCreate(e))}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="promo-title">Title</Label>
                 <Input
@@ -381,12 +404,22 @@ export default function PromotionsPage() {
                   </p>
                 )}
                 {form.imageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={form.imageUrl}
-                    alt="Promotion preview"
-                    className="mt-2 h-28 w-full max-w-sm rounded-lg border object-cover"
-                  />
+                  <div className="mt-2 space-y-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={form.imageUrl}
+                      alt="Promotion preview"
+                      className="h-28 w-full max-w-sm rounded-lg border object-cover"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setForm((f) => ({ ...f, imageUrl: "" }))}
+                    >
+                      Remove image
+                    </Button>
+                  </div>
                 )}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -404,27 +437,41 @@ export default function PromotionsPage() {
                   />
                   Show on home
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={form.sendEmail}
-                    onCheckedChange={(v) => setForm((f) => ({ ...f, sendEmail: v }))}
-                  />
-                  Email newsletter subscribers
-                </label>
-              </div>
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    <Megaphone className="h-4 w-4" />
-                    Create promotion
-                  </>
+                {!editingId && (
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={form.sendEmail}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, sendEmail: v }))}
+                    />
+                    Email newsletter subscribers
+                  </label>
                 )}
-              </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : editingId ? (
+                    <>
+                      <Pencil className="h-4 w-4" />
+                      Save changes
+                    </>
+                  ) : (
+                    <>
+                      <Megaphone className="h-4 w-4" />
+                      Create promotion
+                    </>
+                  )}
+                </Button>
+                {editingId && (
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel edit
+                  </Button>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -503,6 +550,14 @@ export default function PromotionsPage() {
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startEdit(p)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Edit
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

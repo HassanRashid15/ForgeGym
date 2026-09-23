@@ -6,19 +6,23 @@ const STATUS_LINES = [
   "INITIALIZING SYSTEM PROTOCOLS",
   "CALIBRATING POWER SYSTEMS",
   "LOADING TRAINING MODULES",
-  "LET'S GET STARTED",
 ] as const;
 
+/** Matches `.forge-splash-bottom` fade-up delay in globals.css */
 const BOTTOM_REVEAL_MS = 4800;
-const ROTATE_MS = 1200;
+/** Progress fill duration */
+const PROGRESS_MS = 2800;
+/** Hold full bar briefly, then welcome animates in */
+const WELCOME_AFTER_FULL_MS = 280;
 
 /**
- * Dynamic status + neon progress line.
- * Last line is WELCOME, then the boot splash fades into home.
+ * Status copy advances with the neon progress line.
+ * After 100%, bar exits and “LET’S GET STARTED” animates in.
  */
 export function SplashStatusBar() {
-  const [index, setIndex] = useState(0);
   const [started, setStarted] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [phase, setPhase] = useState<"loading" | "full" | "welcome">("loading");
 
   useEffect(() => {
     const start = window.setTimeout(() => setStarted(true), BOTTOM_REVEAL_MS);
@@ -27,44 +31,70 @@ export function SplashStatusBar() {
 
   useEffect(() => {
     if (!started) return;
-    const id = window.setInterval(() => {
-      setIndex((i) => {
-        if (i >= STATUS_LINES.length - 1) {
-          window.clearInterval(id);
-          return i;
-        }
-        return i + 1;
-      });
-    }, ROTATE_MS);
-    return () => window.clearInterval(id);
+
+    let raf = 0;
+    let welcomeTimer = 0;
+    const t0 = performance.now();
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / PROGRESS_MS);
+      const eased =
+        t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      setProgress(eased * 100);
+
+      if (t < 1) {
+        raf = window.requestAnimationFrame(tick);
+      } else {
+        setProgress(100);
+        setPhase("full");
+        welcomeTimer = window.setTimeout(() => {
+          setPhase("welcome");
+        }, WELCOME_AFTER_FULL_MS);
+      }
+    };
+
+    raf = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(welcomeTimer);
+    };
   }, [started]);
 
-  const isWelcome = STATUS_LINES[index] === "LET'S GET STARTED";
+  const lineIndex = Math.min(
+    STATUS_LINES.length - 1,
+    Math.floor((Math.min(progress, 99.9) / 100) * STATUS_LINES.length),
+  );
+  const isWelcome = phase === "welcome";
+  const showBar = phase === "loading" || phase === "full";
 
   return (
     <div className="forge-splash-bottom flex w-full max-w-[min(72vw,280px)] flex-col items-center">
-      <p
-        className={`forge-splash-status mb-3 min-h-[1.25rem] text-center text-[10px] font-semibold uppercase tracking-wide sm:text-[11px] transition-all duration-700 ease-out ${
-          isWelcome 
-            ? "text-white -translate-y-8 text-[18px] sm:text-[20px]" 
-            : "text-[#FA1818] translate-y-0"
-        }`}
-        aria-live="polite"
-      >
-        {isWelcome ? (
-          <>
-            LET'S GET <span className="text-[#FA1818] font-bold">STARTED</span>
-          </>
-        ) : (
-          STATUS_LINES[index]
-        )}
-      </p>
+      {isWelcome ? (
+        <p
+          className="forge-splash-welcome forge-splash-status mb-3 text-center text-[18px] font-semibold uppercase tracking-wide text-white sm:text-[20px]"
+          aria-live="polite"
+        >
+          LET&apos;S GET <span className="font-bold text-[#FA1818]">STARTED</span>
+        </p>
+      ) : (
+        <p
+          key={STATUS_LINES[lineIndex]}
+          className="forge-splash-status mb-3 min-h-[1.25rem] text-center text-[10px] font-semibold uppercase tracking-wide text-[#FA1818] sm:text-[11px]"
+          aria-live="polite"
+        >
+          {STATUS_LINES[lineIndex]}
+        </p>
+      )}
 
-      {!isWelcome && (
-        <div className="forge-splash-track relative h-px w-full bg-[#FA1818]/20">
+      {showBar && (
+        <div
+          className={`forge-splash-track relative h-px w-full bg-[#FA1818]/20 transition-opacity duration-300 ${
+            phase === "full" ? "opacity-0" : "opacity-100"
+          }`}
+        >
           <div
             className="forge-splash-progress relative h-full bg-[#FA1818]"
-            style={{ width: 0 }}
+            style={{ width: `${progress}%` }}
           >
             <span className="forge-splash-progress-tip" aria-hidden />
           </div>

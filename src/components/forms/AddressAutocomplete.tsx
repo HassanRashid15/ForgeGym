@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, LocateFixed, MapPin, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { searchGeo, reverseGeo } from "@/api/geo";
+import { ApiError } from "@/api/client";
 
 export type AddressValue = {
   address: string;
@@ -81,8 +83,7 @@ export function AddressAutocomplete({
     setSearching(true);
     setError(null);
     try {
-      const res = await fetch(`/api/geo/search?q=${encodeURIComponent(q.trim())}`);
-      const data = await res.json();
+      const data = await searchGeo(q.trim());
       setSuggestions((data.results || []) as Suggestion[]);
       setOpen(true);
     } catch {
@@ -147,37 +148,34 @@ export function AddressAutocomplete({
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
         try {
-          const res = await fetch(
-            `/api/geo/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`,
-          );
-          const data = await res.json();
-          if (!res.ok) {
-            setError(data.error || "Could not resolve your location");
-            setCoords({ lat, lon });
-            onChange({
-              address: query || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
-              lat,
-              lon,
-              city: null,
-              region: null,
-            });
-            return;
-          }
+          const data = await reverseGeo(lat, lon);
           suppressSearchRef.current = true;
-          setQuery(data.label);
-          setCoords({ lat: data.lat, lon: data.lon });
+          setQuery(data.label || "");
+          setCoords({ lat: data.lat ?? lat, lon: data.lon ?? lon });
           setSuggestions([]);
           setOpen(false);
           onChange({
-            address: data.label,
-            lat: data.lat,
-            lon: data.lon,
+            address: data.label || "",
+            lat: data.lat ?? lat,
+            lon: data.lon ?? lon,
             city: data.city ?? null,
             region: data.region ?? null,
             country: data.country ?? null,
           });
-        } catch {
-          setError("Could not resolve your location");
+        } catch (err) {
+          setError(
+            err instanceof ApiError
+              ? err.message
+              : "Could not resolve your location",
+          );
+          setCoords({ lat, lon });
+          onChange({
+            address: query || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+            lat,
+            lon,
+            city: null,
+            region: null,
+          });
         } finally {
           setLocating(false);
         }

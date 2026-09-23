@@ -48,7 +48,12 @@ export type ProfileRecord = {
   gym_video_file_url?: string | null;
   gym_monthly_fee?: string | null;
   gym_trainer_fee?: string | null;
+  gym_latitude?: number | null;
+  gym_longitude?: number | null;
   preferred_trainer_id?: string | null;
+  pending_trainer_id?: string | null;
+  trainer_request_pending?: boolean | null;
+  fee_concession?: string | null;
 };
 
 export type ProfileUpdatePayload = Partial<{
@@ -86,6 +91,8 @@ export type ProfileUpdatePayload = Partial<{
   gym_video_file_url: string | null;
   gym_monthly_fee: string | null;
   gym_trainer_fee: string | null;
+  gym_latitude: number | null;
+  gym_longitude: number | null;
   preferred_trainer_id: string | null;
 }>;
 

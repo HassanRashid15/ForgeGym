@@ -22,6 +22,7 @@ import InteractiveBackground from "@/components/marketing/InteractiveBackground"
 import type { GymListItem } from "@/lib/gyms";
 import { formatDistanceKm, haversineKm } from "@/lib/geo/distance";
 import { GymCardSkeleton } from "@/components/loading/GymCardSkeleton";
+import { searchGeo, reverseGeo } from "@/api/geo";
 
 const NEAR_RADIUS_KM = 75;
 const CITY_GEO_CACHE_KEY = "forge_gym_city_geo_v1";
@@ -60,16 +61,20 @@ function saveCityCache(cache: Record<string, GeoPoint>) {
 async function geocodeCity(city: string): Promise<GeoPoint | null> {
   const q = city.trim();
   if (q.length < 2) return null;
-  const res = await fetch(`/api/geo/search?q=${encodeURIComponent(q)}`);
-  if (!res.ok) return null;
-  const data = (await res.json()) as {
-    results?: Array<{ lat: number; lon: number }>;
-  };
-  const first = data.results?.[0];
-  if (!first || !Number.isFinite(first.lat) || !Number.isFinite(first.lon)) {
+  try {
+    const data = await searchGeo(q);
+    const first = data.results?.[0];
+    if (
+      !first ||
+      !Number.isFinite(first.lat) ||
+      !Number.isFinite(first.lon)
+    ) {
+      return null;
+    }
+    return { lat: first.lat!, lon: first.lon! };
+  } catch {
     return null;
   }
-  return { lat: first.lat, lon: first.lon };
 }
 
 export default function GymsPageClient({ gyms }: GymsPageClientProps) {
@@ -159,25 +164,13 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
       setUserPoint(point);
 
       try {
-        const rev = await fetch(
-          `/api/geo/reverse?lat=${encodeURIComponent(String(point.lat))}&lon=${encodeURIComponent(String(point.lon))}`,
-        );
-        if (rev.ok) {
-          const data = (await rev.json()) as {
-            city?: string | null;
-            region?: string | null;
-            label?: string;
-          };
-          const label =
-            [data.city, data.region].filter(Boolean).join(", ") ||
-            data.label ||
-            "Your location";
-          setUserLabel(label);
-          setUserCity(data.city || null);
-        } else {
-          setUserLabel("Your location");
-          setUserCity(null);
-        }
+        const data = await reverseGeo(point.lat, point.lon);
+        const label =
+          [data.city, data.region].filter(Boolean).join(", ") ||
+          data.label ||
+          "Your location";
+        setUserLabel(label);
+        setUserCity(data.city || null);
       } catch {
         setUserLabel("Your location");
         setUserCity(null);
@@ -481,21 +474,22 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                     animation="fade-up"
                     delay={Math.min(index, 8) * 0.06}
                   >
-                  <Link href={`/gyms/${gym.ownerId}`} className="group block h-full">
-                    <div className="glass-card hover-lift flex h-full flex-col overflow-hidden rounded-2xl">
-                      <div className="relative aspect-[16/10] overflow-hidden bg-secondary/30">
+                  <Link href={`/gyms/${gym.ownerId}`} className="group block h-full outline-none [-webkit-tap-highlight-color:transparent]">
+                    <div className="glass-card hover-lift flex h-full flex-col overflow-hidden rounded-2xl bg-card will-change-transform [transform:translateZ(0)]">
+                      <div className="relative aspect-[16/10] overflow-hidden bg-card">
                         {gym.gymMainImageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={gym.gymMainImageUrl}
                             alt={gym.gymName}
-                            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                            className="h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-[1.04]"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-secondary/40 to-background">
                             <Building2 className="h-10 w-10 text-primary/70" />
                           </div>
                         )}
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-card via-card/50 to-transparent" />
                         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                           {gym.gymType && (
                             <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">

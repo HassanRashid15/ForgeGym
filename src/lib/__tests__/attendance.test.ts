@@ -9,12 +9,10 @@ import {
 } from "@/lib/attendance";
 import {
   canViewGymAttendance,
-  dailyCheckInCode,
   distanceMeters,
   filterByRole,
   isAttendanceOpen,
   requireBinaryGender,
-  verifyDailyCheckInCode,
   verifyPresence,
 } from "@/lib/attendance-security";
 
@@ -58,17 +56,21 @@ describe("attendance slots", () => {
   });
 
   it("treats midnight–4:59 as closed", () => {
-    // Construct a date whose Asia/Karachi hour is 2 if possible via UTC offset
-    // We assert slotFromHour directly for closed hours.
     expect(slotFromHour(2)).toBeNull();
-    expect(isAttendanceOpen(new Date("2026-09-20T21:00:00.000Z")) || !isAttendanceOpen(new Date("2026-09-20T21:00:00.000Z"))).toBeTypeOf("boolean");
+    expect(
+      isAttendanceOpen(new Date("2026-09-20T21:00:00.000Z")) ||
+        !isAttendanceOpen(new Date("2026-09-20T21:00:00.000Z")),
+    ).toBeTypeOf("boolean");
   });
 
   it("hourInTimezone returns a finite hour", () => {
     const h = hourInTimezone(new Date("2026-09-20T18:00:00.000Z"));
     expect(h).toBeGreaterThanOrEqual(0);
     expect(h).toBeLessThanOrEqual(23);
-    expect(currentSlot(new Date("2026-09-20T12:00:00.000Z")) === null || typeof currentSlot(new Date("2026-09-20T12:00:00.000Z")) === "string").toBe(true);
+    expect(
+      currentSlot(new Date("2026-09-20T12:00:00.000Z")) === null ||
+        typeof currentSlot(new Date("2026-09-20T12:00:00.000Z")) === "string",
+    ).toBe(true);
   });
 });
 
@@ -87,60 +89,53 @@ describe("attendance auth scopes", () => {
   });
 });
 
-describe("attendance presence (geo + code)", () => {
-  it("accepts valid daily check-in code", () => {
-    const gymId = "gym-owner-uuid";
-    const code = dailyCheckInCode(gymId);
-    expect(code).toMatch(/^[A-F0-9]{6}$/);
-    expect(verifyDailyCheckInCode(gymId, code)).toBe(true);
-    expect(verifyDailyCheckInCode(gymId, "ZZZZZZ")).toBe(false);
-  });
-
+describe("attendance presence (GPS only)", () => {
   it("accepts geo within radius", () => {
     const result = verifyPresence({
       gymLat: 24.86,
       gymLng: 67.0,
       userLat: 24.8601,
       userLng: 67.0001,
-      gymOwnerId: "g1",
-      checkInCode: null,
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.method).toBe("geo");
   });
 
-  it("rejects far geo without code", () => {
+  it("rejects far geo", () => {
     const result = verifyPresence({
       gymLat: 24.86,
       gymLng: 67.0,
       userLat: 25.5,
       userLng: 68.5,
-      gymOwnerId: "g1",
-      checkInCode: null,
-      radiusM: 250,
+      radiusM: 50,
     });
     expect(result.ok).toBe(false);
   });
 
-  it("accepts code when far from gym", () => {
-    const gymId = "g1";
+  it("rejects when gym GPS is missing", () => {
+    const result = verifyPresence({
+      gymLat: null,
+      gymLng: null,
+      userLat: 24.86,
+      userLng: 67.0,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects when user GPS is missing", () => {
     const result = verifyPresence({
       gymLat: 24.86,
       gymLng: 67.0,
-      userLat: 25.5,
-      userLng: 68.5,
-      gymOwnerId: gymId,
-      checkInCode: dailyCheckInCode(gymId),
+      userLat: null,
+      userLng: null,
     });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.method).toBe("code");
+    expect(result.ok).toBe(false);
   });
 
   it("admin bypass works", () => {
     const result = verifyPresence({
       gymLat: null,
       gymLng: null,
-      gymOwnerId: "g1",
       adminBypass: true,
     });
     expect(result.ok).toBe(true);

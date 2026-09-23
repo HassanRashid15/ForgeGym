@@ -44,6 +44,7 @@ import {
   Trophy,
   Clock,
   MessageSquare,
+  Star,
   Shield,
   Sparkles,
   Tag,
@@ -91,6 +92,7 @@ const trainItems: NavItem[] = [
   { title: "Membership", url: "/dashboard/membership", icon: CreditCard, comingSoon: true },
   { title: "Progress", url: "/dashboard/progress", icon: BarChart3 },
   { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
+  { title: "Feedback", url: "/dashboard/feedback", icon: Star },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
 
@@ -250,6 +252,13 @@ function formatNotificationTime(timestamp: string): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
+}
+
+function formatNotificationClock(timestamp: string): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function ShellChrome({ children }: { children: ReactNode }) {
@@ -546,39 +555,46 @@ function ShellChrome({ children }: { children: ReactNode }) {
                         <DropdownMenuItem key={notification.id} asChild>
                           <Link
                             href="/dashboard/notifications"
-                            className="cursor-pointer p-3 flex gap-3 items-start rounded-md hover:bg-accent"
+                            className="group flex cursor-pointer items-start gap-3 rounded-md p-3 text-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground"
                           >
                             <div
-                              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                                notification.unread ? "bg-primary/10" : "bg-muted"
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                                notification.unread
+                                  ? "bg-primary/10 text-primary group-hover:bg-primary-foreground/20 group-hover:text-primary-foreground"
+                                  : "bg-muted text-muted-foreground group-hover:bg-primary-foreground/15 group-hover:text-primary-foreground"
                               }`}
                             >
                               {getNotificationIcon(notification.type)}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex items-center gap-2">
                                 <span
                                   className={`text-xs font-medium ${
                                     notification.unread
-                                      ? "text-primary"
-                                      : "text-muted-foreground"
+                                      ? "text-primary group-hover:text-primary-foreground"
+                                      : "text-muted-foreground group-hover:text-primary-foreground/80"
                                   }`}
                                 >
                                   {getNotificationLabel(notification.type)}
                                 </span>
                                 {notification.unread && (
-                                  <span className="w-2 h-2 rounded-full bg-primary" />
+                                  <span className="h-2 w-2 rounded-full bg-primary group-hover:bg-primary-foreground" />
                                 )}
                               </div>
-                              <p className="text-sm font-medium truncate">
+                              <p className="truncate text-sm font-medium text-foreground group-hover:text-primary-foreground">
                                 {notification.title}
                               </p>
-                              <p className="text-xs text-muted-foreground line-clamp-2">
+                              <p className="line-clamp-2 text-xs text-muted-foreground group-hover:text-primary-foreground/80">
                                 {notification.message}
                               </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {formatNotificationTime(notification.created_at)}
-                              </p>
+                              <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground group-hover:text-primary-foreground/70">
+                                <span>
+                                  {formatNotificationTime(notification.created_at)}
+                                </span>
+                                <span className="shrink-0 tabular-nums">
+                                  {formatNotificationClock(notification.created_at)}
+                                </span>
+                              </div>
                             </div>
                           </Link>
                         </DropdownMenuItem>

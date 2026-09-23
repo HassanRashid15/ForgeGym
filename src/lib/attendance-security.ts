@@ -1,4 +1,3 @@
-import { createHmac } from "crypto";
 import {
   ATTENDANCE_TIMEZONE,
   hourInTimezone,
@@ -9,7 +8,7 @@ import {
 } from "@/lib/attendance";
 
 export const ATTENDANCE_GEO_RADIUS_M = Number(
-  process.env.ATTENDANCE_GEO_RADIUS_M || 250,
+  process.env.ATTENDANCE_GEO_RADIUS_M || 50,
 );
 
 export const ATTENDANCE_CLOSED_MESSAGE =
@@ -49,14 +48,6 @@ export function distanceMeters(
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-function codeSecret(): string {
-  return (
-    process.env.ATTENDANCE_CODE_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "forge-attendance-dev"
-  );
-}
-
 /** Local calendar date YYYY-MM-DD in attendance timezone. */
 export function localDateISO(now = new Date(), timeZone = ATTENDANCE_TIMEZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -67,36 +58,12 @@ export function localDateISO(now = new Date(), timeZone = ATTENDANCE_TIMEZONE): 
   }).format(now);
 }
 
-/** Daily 6-char gym check-in code (QR / posted at front desk). */
-export function dailyCheckInCode(
-  gymOwnerId: string,
-  now = new Date(),
-): string {
-  const day = localDateISO(now);
-  const digest = createHmac("sha256", codeSecret())
-    .update(`${gymOwnerId}:${day}`)
-    .digest("hex");
-  return digest.slice(0, 6).toUpperCase();
-}
-
-export function verifyDailyCheckInCode(
-  gymOwnerId: string,
-  code: string | null | undefined,
-  now = new Date(),
-): boolean {
-  const provided = String(code || "")
-    .trim()
-    .toUpperCase();
-  if (!/^[A-F0-9]{6}$/.test(provided)) return false;
-  return provided === dailyCheckInCode(gymOwnerId, now);
-}
-
 export type GeoCheckResult =
-  | { ok: true; method: "geo" | "code" | "admin_bypass" }
+  | { ok: true; method: "geo" | "admin_bypass" }
   | { ok: false; error: string };
 
 /**
- * Presence proof: within gym radius, or today's check-in code.
+ * Presence proof: must be within gym GPS radius.
  * Admin check-in for another member may bypass with adminBypass.
  */
 export function verifyPresence(params: {
@@ -104,18 +71,10 @@ export function verifyPresence(params: {
   gymLng: number | null;
   userLat?: number | null;
   userLng?: number | null;
-  gymOwnerId: string;
-  checkInCode?: string | null;
   adminBypass?: boolean;
   radiusM?: number;
 }): GeoCheckResult {
   if (params.adminBypass) return { ok: true, method: "admin_bypass" };
-
-  const codeOk = verifyDailyCheckInCode(
-    params.gymOwnerId,
-    params.checkInCode,
-  );
-  if (codeOk) return { ok: true, method: "code" };
 
   const hasGymGeo =
     typeof params.gymLat === "number" &&
@@ -123,39 +82,35 @@ export function verifyPresence(params: {
     Number.isFinite(params.gymLat) &&
     Number.isFinite(params.gymLng);
 
-  if (hasGymGeo) {
-    const uLat = params.userLat;
-    const uLng = params.userLng;
-    if (
-      typeof uLat !== "number" ||
-      typeof uLng !== "number" ||
-      !Number.isFinite(uLat) ||
-      !Number.isFinite(uLng)
-    ) {
-      return {
-        ok: false,
-        error:
-          "Share your location near the gym, or enter today's check-in code from the front desk.",
-      };
-    }
-    const dist = distanceMeters(
-      params.gymLat!,
-      params.gymLng!,
-      uLat,
-      uLng,
-    );
-    const radius = params.radiusM ?? ATTENDANCE_GEO_RADIUS_M;
-    if (dist <= radius) return { ok: true, method: "geo" };
+  if (!hasGymGeo) {
     return {
       ok: false,
-      error: `You are ~${Math.round(dist)}m from the gym (max ${radius}m). Move closer or use today's check-in code.`,
+      error:
+        "Gym GPS is not set. Ask the gym owner to set the gym location in Profile → Gym.",
     };
   }
 
+  const uLat = params.userLat;
+  const uLng = params.userLng;
+  if (
+    typeof uLat !== "number" ||
+    typeof uLng !== "number" ||
+    !Number.isFinite(uLat) ||
+    !Number.isFinite(uLng)
+  ) {
+    return {
+      ok: false,
+      error: "Share your location to check in. GPS is required.",
+    };
+  }
+
+  const dist = distanceMeters(params.gymLat!, params.gymLng!, uLat, uLng);
+  const radius = params.radiusM ?? ATTENDANCE_GEO_RADIUS_M;
+  if (dist <= radius) return { ok: true, method: "geo" };
+
   return {
     ok: false,
-    error:
-      "Enter today's check-in code from the gym front desk (or ask the gym owner to set gym location).",
+    error: `You are ~${Math.round(dist)}m from the gym (max ${radius}m). Move closer to check in.`,
   };
 }
 

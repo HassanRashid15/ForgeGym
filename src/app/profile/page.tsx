@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureMyProfile, getMyProfile, updateMyProfile, uploadMyAvatar } from "@/api/profiles";
 import type { ProfileRecord } from "@/api/profiles";
+import { getGym, getGymTrainers } from "@/api/gyms";
+import { getMyMembership } from "@/api/membership";
 import { getNameInitials } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,6 +115,9 @@ export default function ProfilePage() {
     gymVideoFileUrl: "",
     gymMonthlyFee: "",
     gymTrainerFee: "",
+    gymLatitude: "" as string,
+    gymLongitude: "" as string,
+    gymLocationLabel: "",
     adminApproved: false,
     isSuperAdmin: false,
     approvalRequestedAt: "",
@@ -240,6 +245,18 @@ export default function ProfilePage() {
           gymVideoFileUrl: dbProfile?.gym_video_file_url || meta.gym_video_file_url || "",
           gymMonthlyFee: dbProfile?.gym_monthly_fee || "",
           gymTrainerFee: dbProfile?.gym_trainer_fee || "",
+          gymLatitude:
+            dbProfile?.gym_latitude != null
+              ? String(dbProfile.gym_latitude)
+              : "",
+          gymLongitude:
+            dbProfile?.gym_longitude != null
+              ? String(dbProfile.gym_longitude)
+              : "",
+          gymLocationLabel:
+            dbProfile?.gym_latitude != null && dbProfile?.gym_longitude != null
+              ? `${Number(dbProfile.gym_latitude).toFixed(5)}, ${Number(dbProfile.gym_longitude).toFixed(5)}`
+              : "",
           adminApproved: dbProfile?.admin_approved === true,
           isSuperAdmin: dbProfile?.is_super_admin === true || isSuperAdmin === true,
           approvalRequestedAt: dbProfile?.approval_requested_at || "",
@@ -263,43 +280,38 @@ export default function ProfilePage() {
         const ownerId = dbProfile?.gym_owner_id || meta.gym_owner_id;
         if (ownerId && isSubscribed) {
           try {
-            const gymRes = await fetch(`/api/gyms/${encodeURIComponent(ownerId)}`);
-            if (gymRes.ok) {
-              const gymData = await gymRes.json().catch(() => ({}));
-              const fee =
-                gymData?.gym?.monthlyFee != null
-                  ? String(gymData.gym.monthlyFee)
-                  : "";
-              const trainerFee =
-                gymData?.gym?.trainerFee != null
-                  ? String(gymData.gym.trainerFee)
-                  : "";
-              const gymLabel = gymData?.gym?.gymName
-                ? String(gymData.gym.gymName)
-                : "";
-              const cityLabel = gymData?.gym?.gymCity
-                ? String(gymData.gym.gymCity)
-                : "";
-              if (isSubscribed) {
-                setProfileData((prev) => ({
-                  ...prev,
-                  associatedGymMonthlyFee: fee,
-                  associatedGymTrainerFee: trainerFee,
-                  gymName: prev.gymName || gymLabel,
-                  gymCity: prev.gymCity || cityLabel,
-                }));
-                setInitialData((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        associatedGymMonthlyFee: fee,
-                        associatedGymTrainerFee: trainerFee,
-                        gymName: prev.gymName || gymLabel,
-                        gymCity: prev.gymCity || cityLabel,
-                      }
-                    : prev,
-                );
-              }
+            const gymData = await getGym(ownerId);
+            const gym = gymData?.gym as {
+              monthlyFee?: string | number | null;
+              trainerFee?: string | number | null;
+              gymName?: string | null;
+              gymCity?: string | null;
+            } | undefined;
+            const fee =
+              gym?.monthlyFee != null ? String(gym.monthlyFee) : "";
+            const trainerFee =
+              gym?.trainerFee != null ? String(gym.trainerFee) : "";
+            const gymLabel = gym?.gymName ? String(gym.gymName) : "";
+            const cityLabel = gym?.gymCity ? String(gym.gymCity) : "";
+            if (isSubscribed) {
+              setProfileData((prev) => ({
+                ...prev,
+                associatedGymMonthlyFee: fee,
+                associatedGymTrainerFee: trainerFee,
+                gymName: prev.gymName || gymLabel,
+                gymCity: prev.gymCity || cityLabel,
+              }));
+              setInitialData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      associatedGymMonthlyFee: fee,
+                      associatedGymTrainerFee: trainerFee,
+                      gymName: prev.gymName || gymLabel,
+                      gymCity: prev.gymCity || cityLabel,
+                    }
+                  : prev,
+              );
             }
           } catch {
             /* ignore gym fee lookup */
@@ -307,10 +319,13 @@ export default function ProfilePage() {
         }
         if (trainerId && ownerId && isSubscribed) {
           try {
-            const res = await fetch(`/api/gyms/${encodeURIComponent(ownerId)}/trainers`);
-            const data = await res.json().catch(() => ({}));
+            const data = await getGymTrainers(ownerId);
             const trainers = Array.isArray(data?.trainers) ? data.trainers : [];
-            const match = trainers.find((t: { userId?: string }) => t.userId === trainerId);
+            const match = trainers.find(
+              (t) => (t as { userId?: string }).userId === trainerId,
+            ) as
+              | { fullName?: string | null; specialization?: string | null }
+              | undefined;
             if (match && isSubscribed) {
               const name = match.fullName
                 ? `${match.fullName}${match.specialization ? ` — ${match.specialization}` : ""}`
@@ -407,6 +422,12 @@ export default function ProfilePage() {
               gym_video_file_url: profileData.gymVideoFileUrl || null,
               gym_monthly_fee: profileData.gymMonthlyFee.trim() || null,
               gym_trainer_fee: profileData.gymTrainerFee.trim() || null,
+              gym_latitude: profileData.gymLatitude
+                ? parseFloat(profileData.gymLatitude)
+                : null,
+              gym_longitude: profileData.gymLongitude
+                ? parseFloat(profileData.gymLongitude)
+                : null,
             }
           : {
               date_of_birth: profileData.dateOfBirth || null,
@@ -543,15 +564,11 @@ export default function ProfilePage() {
 
   const syncMembershipLive = useCallback(async () => {
     try {
-      const [billingRes, profileRes] = await Promise.all([
-        fetch("/api/membership/me", { credentials: "include", cache: "no-store" }),
-        fetch("/api/profiles", { credentials: "include", cache: "no-store" }),
+      const [billing, profileJson] = await Promise.all([
+        getMyMembership(),
+        getMyProfile(),
       ]);
-      const billing = await billingRes.json().catch(() => ({}));
-      const profileJson = await profileRes.json().catch(() => ({}));
-      const profile = profileJson?.profile || {};
-
-      if (!billingRes.ok && !profileRes.ok) return;
+      const profile = profileJson?.profile;
 
       setProfileData((prev) => ({
         ...prev,
@@ -569,11 +586,11 @@ export default function ProfilePage() {
               ? String(billing.preferredTrainerId)
               : prev.preferredTrainerId,
         membershipStatus:
-          billing?.membershipStatus ||
+          (billing?.membershipStatus as string | undefined) ||
           profile?.membership_status ||
           prev.membershipStatus,
         joinDate:
-          billing?.joinedAt ||
+          (billing?.joinedAt as string | undefined) ||
           profile?.created_at ||
           profile?.join_date ||
           prev.joinDate,
@@ -1083,6 +1100,50 @@ export default function ProfilePage() {
                     <p className="text-[11px] text-muted-foreground">
                       These fees are yours to set. Members with a trainer are billed monthly + trainer.
                     </p>
+
+                    <div className="space-y-2 rounded-lg border border-border/60 bg-zinc-950/40 p-4">
+                      <Label>Gym check-in location (GPS)</Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Set your gym pin so members can check in by GPS (~50m).
+                        Check-in requires GPS — no desk code.
+                      </p>
+                      {isEditing ? (
+                        <AddressAutocomplete
+                          value={profileData.gymLocationLabel}
+                          onChange={(next) => {
+                            setProfileData({
+                              ...profileData,
+                              gymLocationLabel: next.address,
+                              gymLatitude:
+                                next.lat != null ? String(next.lat) : "",
+                              gymLongitude:
+                                next.lon != null ? String(next.lon) : "",
+                              gymCity: next.city?.trim()
+                                ? next.city
+                                : profileData.gymCity,
+                            });
+                          }}
+                          placeholder="Search gym address or use locate"
+                          showMap
+                        />
+                      ) : (
+                        <p className="text-sm text-foreground">
+                          {profileData.gymLatitude && profileData.gymLongitude
+                            ? `${Number(profileData.gymLatitude).toFixed(5)}, ${Number(profileData.gymLongitude).toFixed(5)}`
+                            : "Not set — members cannot check in until GPS is saved"}
+                        </p>
+                      )}
+                      {profileData.gymLatitude && profileData.gymLongitude ? (
+                        <p className="text-[11px] text-emerald-500">
+                          Location saved — GPS check-in enabled for members.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-amber-500">
+                          No GPS pin yet. Edit profile and search/locate your gym.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="gymOperatingDays">Operating Days / Week</Label>

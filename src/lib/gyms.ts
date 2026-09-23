@@ -175,7 +175,7 @@ export async function getGymByOwnerId(
     const { data: profile } = await service
       .from("profiles")
       .select(
-        "admin_approved, is_super_admin, bio, avatar_url, full_name, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee",
+        "admin_approved, is_super_admin, bio, avatar_url, full_name, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
       )
       .eq("user_id", ownerId)
       .maybeSingle();
@@ -186,6 +186,15 @@ export async function getGymByOwnerId(
 
     const optionalFromGym = (gymRow.optional_images_urls || []).filter(Boolean);
     const optionalFromProfile = (profile.gym_optional_images_urls || []).filter(Boolean);
+
+    const profileLat =
+      typeof (profile as { gym_latitude?: number | null }).gym_latitude === "number"
+        ? (profile as { gym_latitude: number }).gym_latitude
+        : null;
+    const profileLng =
+      typeof (profile as { gym_longitude?: number | null }).gym_longitude === "number"
+        ? (profile as { gym_longitude: number }).gym_longitude
+        : null;
 
     return {
       ownerId: gymRow.owner_user_id,
@@ -213,15 +222,17 @@ export async function getGymByOwnerId(
         (gymRow as { trainer_fee?: string | null }).trainer_fee ||
         (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee ||
         null,
-      latitude: typeof gymRow.latitude === "number" ? gymRow.latitude : null,
-      longitude: typeof gymRow.longitude === "number" ? gymRow.longitude : null,
+      latitude:
+        typeof gymRow.latitude === "number" ? gymRow.latitude : profileLat,
+      longitude:
+        typeof gymRow.longitude === "number" ? gymRow.longitude : profileLng,
     };
   }
 
   const { data: profile, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee",
+      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
     )
     .eq("user_id", ownerId)
     .maybeSingle();
@@ -252,14 +263,20 @@ export async function getGymByOwnerId(
     ownerName: profile.full_name,
     bio: profile.bio,
     avatarUrl: profile.avatar_url,
-    gymMainImageUrl: (profile as any).gym_main_image_url || null,
-    gymOptionalImagesUrls: (profile as any).gym_optional_images_urls || [],
-    gymVideoUrl: (profile as any).gym_video_url || null,
-    gymVideoFileUrl: (profile as any).gym_video_file_url || null,
-    monthlyFee: (profile as any).gym_monthly_fee || null,
-    trainerFee: (profile as any).gym_trainer_fee || null,
-    latitude: null,
-    longitude: null,
+    gymMainImageUrl: (profile as { gym_main_image_url?: string | null }).gym_main_image_url || null,
+    gymOptionalImagesUrls: (profile as { gym_optional_images_urls?: string[] | null }).gym_optional_images_urls || [],
+    gymVideoUrl: (profile as { gym_video_url?: string | null }).gym_video_url || null,
+    gymVideoFileUrl: (profile as { gym_video_file_url?: string | null }).gym_video_file_url || null,
+    monthlyFee: (profile as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
+    trainerFee: (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
+    latitude:
+      typeof (profile as { gym_latitude?: number | null }).gym_latitude === "number"
+        ? (profile as { gym_latitude: number }).gym_latitude
+        : null,
+    longitude:
+      typeof (profile as { gym_longitude?: number | null }).gym_longitude === "number"
+        ? (profile as { gym_longitude: number }).gym_longitude
+        : null,
   };
 }
 

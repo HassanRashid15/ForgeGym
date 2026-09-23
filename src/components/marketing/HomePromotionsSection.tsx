@@ -6,6 +6,7 @@ import { ArrowRight, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
+import { listPublicPromotions } from "@/api/promotions";
 
 type HomePromotion = {
   id: string;
@@ -24,8 +25,7 @@ export function HomePromotionsSection() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/promotions");
-        const data = await res.json().catch(() => ({}));
+        const data = await listPublicPromotions();
         if (!cancelled) setPromotions(data.promotions || []);
       } catch {
         if (!cancelled) setPromotions([]);

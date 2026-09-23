@@ -22,6 +22,7 @@ import {
   Dumbbell,
 } from "lucide-react";
 import type { AccountType, PublicGym, RegisterStep1Errors } from "./types";
+import { getGymTrainers } from "@/api/gyms";
 import { feeBreakdownLabel, formatCombinedFee } from "@/lib/fees";
 
 const inputCls = (hasError: boolean) =>
@@ -165,14 +166,10 @@ export function RegisterAccountStep({
     let cancelled = false;
     setLoadingTrainers(true);
 
-    fetch(`/api/gyms/${encodeURIComponent(selectedGymOwnerId)}/trainers`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load trainers");
-        return res.json() as Promise<{ trainers?: GymTrainerOption[] }>;
-      })
+    getGymTrainers(selectedGymOwnerId)
       .then((data) => {
         if (cancelled) return;
-        setTrainers(data.trainers || []);
+        setTrainers((data.trainers || []) as GymTrainerOption[]);
       })
       .catch(() => {
         if (!cancelled) setTrainers([]);

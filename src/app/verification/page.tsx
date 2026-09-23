@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { markEmailVerified, logoutAccount } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -62,19 +63,14 @@ function VerificationContent() {
 
     // Persist app-level verified flag while confirmation session may still exist
     try {
-      await fetch("/api/auth/mark-verified", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
+      await markEmailVerified();
     } catch {
       // trigger / polling may have already set is_verified
     }
 
     // Email confirm links create a Supabase session — sign out so user logs in manually
     try {
-      await supabase.auth.signOut({ scope: "local" });
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await logoutAccount();
     } catch {
       // ignore
     }

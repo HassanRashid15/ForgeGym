@@ -28,6 +28,7 @@ import {
   XCircle,
   Bell,
 } from "lucide-react";
+import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
 
 /**
  * Super admin home — live platform stats from DB (gym owners + approvals).
@@ -138,6 +139,8 @@ export function SuperAdminDashboardHome() {
           </div>
         ) : (
           <>
+            <ContactMessagesCard />
+
             <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border md:grid-cols-3 xl:grid-cols-6">
               {[
                 {

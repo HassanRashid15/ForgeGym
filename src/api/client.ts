@@ -98,15 +98,32 @@ export async function apiRequest<T>(
   const headers = new Headers(options.headers || {});
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
 
-  // Protected profile endpoints must have a token
+  // Protected endpoints must have a token before calling the route
   const requiresAuth =
     group === "profiles" ||
     group === "admin" ||
     group === "trainer" ||
+    group === "attendance" ||
+    group === "membership" ||
+    (group === "classes" &&
+      (action === "create" ||
+        action === "createSession" ||
+        action === "updateSession")) ||
+    group === "notifications" ||
+    group === "dev" ||
+    (group === "newsletter" && (action === "me" || action === "updateMe")) ||
+    (group === "gyms" && action === "submitReview") ||
+    (group === "reviews" &&
+      (action === "submit" ||
+        action === "getMine" ||
+        action === "getPending" ||
+        action === "moderate" ||
+        action === "updateMine" ||
+        action === "deleteMine")) ||
     (group === "progress" &&
       action !== "exerciseCatalog" &&
       action !== "exerciseDemo") ||
-    (group === "auth" && (action === "logout" || action === "me"));
+    (group === "auth" && action === "me");
 
   if (requiresAuth && !token) {
     throw new ApiError("Unauthorized — please log in again", 401);

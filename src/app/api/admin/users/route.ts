@@ -257,10 +257,12 @@ export async function GET(request: Request) {
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
   const cacheKey = `admin:users:${user.id}:${isSuperAdmin ? "sa" : "a"}:${gymOwnerId || "x"}:${q}`;
 
-  const cached = cacheGet<{ users: unknown[]; isSuperAdmin: boolean; gymOwnerId: string | null }>(
-    cacheKey,
-  );
-  if (cached) {
+  const cached = await cacheGet<{
+    users: unknown[];
+    isSuperAdmin: boolean;
+    gymOwnerId: string | null;
+  }>(cacheKey);
+  if (cached && Array.isArray(cached.users)) {
     return NextResponse.json(
       cached,
       withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), true),
@@ -405,7 +407,7 @@ export async function GET(request: Request) {
   }
 
   const payload = { users, isSuperAdmin, gymOwnerId };
-  cacheSet(cacheKey, payload, CacheTTL.adminList);
+  await cacheSet(cacheKey, payload, CacheTTL.adminList);
   return NextResponse.json(
     payload,
     withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), false),

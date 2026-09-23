@@ -7,6 +7,8 @@ import {
   updateManagedUser,
   type MonthlyMember,
 } from "@/api/admin-users";
+import { getGymTrainers } from "@/api/gyms";
+import { ApiError } from "@/api/client";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
@@ -65,13 +67,16 @@ export function MonthlyUsersTable() {
     queryKey: ["gym-trainers", gymOwnerId],
     enabled: Boolean(gymOwnerId),
     queryFn: async (): Promise<GymTrainerOption[]> => {
-      const res = await fetch(
-        `/api/gyms/${encodeURIComponent(gymOwnerId!)}/trainers`,
-        { credentials: "include" },
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || "Failed to load trainers");
-      return Array.isArray(json?.trainers) ? json.trainers : [];
+      try {
+        const json = await getGymTrainers(gymOwnerId!);
+        return Array.isArray(json?.trainers)
+          ? (json.trainers as GymTrainerOption[])
+          : [];
+      } catch (err) {
+        throw new Error(
+          err instanceof ApiError ? err.message : "Failed to load trainers",
+        );
+      }
     },
   });
 

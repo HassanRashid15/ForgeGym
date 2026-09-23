@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   Clock,
   Download,
-  KeyRound,
   Loader2,
   LogIn,
   LogOut,
@@ -32,6 +31,12 @@ import {
   Timer,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  checkInAttendance,
+  checkOutAttendance,
+  listAttendance,
+} from "@/api/attendance";
+import { ApiError } from "@/api/client";
 
 type AttendanceRow = {
   id: string;
@@ -61,7 +66,6 @@ type Meta = {
   genderError: string | null;
   geoRequired: boolean;
   geoRadiusM: number;
-  checkInCode: string | null;
   pagination: {
     page: number;
     pageSize: number;
@@ -151,28 +155,20 @@ export default function AttendancePage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const [checkInCode, setCheckInCode] = useState("");
 
   const canViewGym = meta?.canViewGym ?? isAdmin;
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams();
-    params.set("scope", isAdmin ? "gym" : "me");
-    params.set("page", String(page));
-    params.set("pageSize", "25");
-    if (isAdmin && roleFilter !== "all") params.set("role", roleFilter);
-    if (fromDate) params.set("from", fromDate);
-    if (toDate) params.set("to", toDate);
-
-    const res = await fetch(`/api/attendance?${params}`, {
-      credentials: "include",
+    const data = await listAttendance({
+      scope: isAdmin ? "gym" : "me",
+      page,
+      pageSize: 25,
+      role: isAdmin && roleFilter !== "all" ? roleFilter : undefined,
+      from: fromDate || undefined,
+      to: toDate || undefined,
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to load attendance");
-    }
-    setRows(data.checkins || []);
-    setMeta(data.meta || null);
+    setRows((data.checkins || []) as AttendanceRow[]);
+    setMeta((data.meta || null) as Meta | null);
   }, [isAdmin, page, roleFilter, fromDate, toDate]);
 
   useEffect(() => {
@@ -239,34 +235,23 @@ export default function AttendancePage() {
     setBusy(true);
     try {
       const gps = await readGps();
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: "manual",
-          lat: gps?.lat,
-          lng: gps?.lng,
-          checkInCode: checkInCode.trim() || undefined,
-        }),
+      const data = await checkInAttendance({
+        source: "manual",
+        lat: gps?.lat,
+        lng: gps?.lng,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Check-in failed");
-        return;
-      }
       if (data.needsCheckout) {
         toast.message("Already checked in — check out first");
       } else {
         toast.success(
-          `Checked in · ${formatSlotLabel(data.checkin?.slot)}${
-            data.presenceMethod ? ` · via ${data.presenceMethod}` : ""
-          }`,
+          `Checked in · ${formatSlotLabel(
+            (data.checkin?.slot as AttendanceSlot | null | undefined) ?? null,
+          )}${data.presenceMethod ? ` · via ${data.presenceMethod}` : ""}`,
         );
       }
       await load();
-    } catch {
-      toast.error("Check-in failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Check-in failed");
     } finally {
       setBusy(false);
     }
@@ -277,21 +262,11 @@ export default function AttendancePage() {
     const spent = formatElapsed(myOpen.checked_in_at, Date.now());
     setBusy(true);
     try {
-      const res = await fetch("/api/attendance", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: myOpen.id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Check-out failed");
-        return;
-      }
+      await checkOutAttendance({ id: myOpen.id });
       toast.success(`Checked out · spent ${spent}`);
       await load();
-    } catch {
-      toast.error("Check-out failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Check-out failed");
     } finally {
       setBusy(false);
     }
@@ -383,47 +358,31 @@ export default function AttendancePage() {
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <KeyRound className="h-4 w-4 text-primary" />
-              Today&apos;s check-in code
-            </p>
-            {canViewGym && meta?.checkInCode ? (
-              <p className="font-mono text-3xl font-semibold tracking-[0.3em] text-foreground">
-                {meta.checkInCode}
-              </p>
-            ) : (
-              <Input
-                value={checkInCode}
-                onChange={(e) => setCheckInCode(e.target.value.toUpperCase())}
-                placeholder="Enter 6-char desk code"
-                maxLength={6}
-                className="font-mono tracking-widest"
-              />
-            )}
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          <p className="flex items-center gap-2 text-sm font-medium">
+            <MapPin className="h-4 w-4 text-primary" />
+            Location check
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {meta?.geoRequired
+              ? `GPS must be within ~${meta.geoRadiusM}m of the gym to check in.`
+              : "Gym GPS not set — check-in is blocked until the owner sets location."}
+          </p>
+          {!meta?.geoRequired && (
             <p className="text-xs text-muted-foreground">
-              {canViewGym
-                ? "Post this at the front desk / QR board. Rotates daily."
-                : "Ask the front desk for today's code if GPS is unavailable."}
+              Gym owner: set location in{" "}
+              <Link
+                href="/profile?tab=gym"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Profile → Gym
+              </Link>
+              .
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <MapPin className="h-4 w-4 text-primary" />
-              Location check
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {meta?.geoRequired
-                ? `GPS must be within ~${meta.geoRadiusM}m of the gym, or use today's code.`
-                : "Gym GPS not set — use today's check-in code (gym owner should set location in profile)."}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {(["morning", "afternoon", "evening"] as AttendanceSlot[]).map(

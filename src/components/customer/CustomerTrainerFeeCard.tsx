@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { updateMyProfile } from "@/api/profiles";
+import { getMyProfile, updateMyProfile } from "@/api/profiles";
+import { getGym, getGymTrainers } from "@/api/gyms";
 import { Button } from "@/components/ui/button";
 import { Dumbbell, Loader2, Wallet, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,25 +55,27 @@ export function CustomerTrainerFeeCard({
     setLoading(true);
     (async () => {
       try {
-        const [gymRes, trainersRes, profileRes] = await Promise.all([
-          fetch(`/api/gyms/${encodeURIComponent(gymOwnerId)}`),
-          fetch(`/api/gyms/${encodeURIComponent(gymOwnerId)}/trainers`),
-          fetch("/api/profiles", { credentials: "include" }),
+        const [gymData, trainersData, profileData] = await Promise.all([
+          getGym(gymOwnerId),
+          getGymTrainers(gymOwnerId),
+          getMyProfile(),
         ]);
-        const gymData = await gymRes.json().catch(() => ({}));
-        const trainersData = await trainersRes.json().catch(() => ({}));
-        const profileData = await profileRes.json().catch(() => ({}));
         if (cancelled) return;
+        const gym = gymData?.gym as {
+          monthlyFee?: string | number | null;
+          trainerFee?: string | number | null;
+        } | undefined;
         setFees({
-          monthlyFee:
-            gymData?.gym?.monthlyFee != null ? String(gymData.gym.monthlyFee) : null,
-          trainerFee:
-            gymData?.gym?.trainerFee != null ? String(gymData.gym.trainerFee) : null,
+          monthlyFee: gym?.monthlyFee != null ? String(gym.monthlyFee) : null,
+          trainerFee: gym?.trainerFee != null ? String(gym.trainerFee) : null,
         });
-        setTrainers(Array.isArray(trainersData?.trainers) ? trainersData.trainers : []);
-        const profile = profileData?.profile || profileData;
-        const preferred =
-          profile?.preferred_trainer_id || "";
+        setTrainers(
+          Array.isArray(trainersData?.trainers)
+            ? (trainersData.trainers as GymTrainerOption[])
+            : [],
+        );
+        const profile = (profileData?.profile || {}) as Record<string, unknown>;
+        const preferred = profile?.preferred_trainer_id || "";
         setSelectedId(preferred ? String(preferred) : "");
         setRequestPending(profile?.trainer_request_pending === true);
         setPendingId(

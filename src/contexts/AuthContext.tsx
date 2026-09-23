@@ -24,13 +24,22 @@ import {
   withTimeout,
 } from "@/lib/auth/me-cache";
 import { trackEvent, trackException } from "@/lib/monitoring";
+import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [mounted, setMounted] = useState<boolean>(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [farewellName, setFarewellName] = useState<string | null>(null);
   const userRef = useRef<User | null>(null);
   const syncGenRef = useRef(0);
   const syncedUserIdRef = useRef<string | null>(null);
@@ -69,15 +78,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const syncUserProfile = async (
     sessionUser: { id?: string; email?: string | null; user_metadata?: Record<string, unknown> },
     options?: { force?: boolean },
-  ) => {
-    if (!sessionUser?.id) return;
+  ): Promise<string | null> => {
+    if (!sessionUser?.id) return null;
 
     const force = options?.force === true;
     const userId = sessionUser.id;
     const userEmail = (sessionUser.email || "").toLowerCase();
 
     if (!force && syncedUserIdRef.current === userId && userRef.current?.id === userId) {
-      return;
+      return userRef.current?.name || null;
     }
 
     const gen = ++syncGenRef.current;
@@ -104,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const me = await getMeOnce(userId, force);
-      if (gen !== syncGenRef.current) return;
+      if (gen !== syncGenRef.current) return fallbackName;
 
       if (!me) {
         // /api/auth/me failed (timeout/network) — do not force customer.
@@ -129,7 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             undefined,
         });
         syncedUserIdRef.current = userId;
-        return;
+        return fallbackName;
       }
 
       let appRole = resolveRole(
@@ -148,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         syncedUserIdRef.current = null;
         await supabase.auth.signOut({ scope: "local" });
         setUser(null);
-        return;
+        return null;
       }
 
       if (
@@ -159,14 +168,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         syncedUserIdRef.current = null;
         await supabase.auth.signOut({ scope: "local" });
         setUser(null);
-        return;
+        return null;
       }
 
       syncedUserIdRef.current = userId;
+      const resolvedName = me.name || fallbackName;
       const nextUser = {
         id: userId,
         email: me.email || userEmail,
-        name: me.name || fallbackName,
+        name: resolvedName,
         role: appRole,
         isSuperAdmin,
         avatar: me.avatar || (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
@@ -198,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.trial?.status === nextUser.trial?.status &&
         prev.trial?.daysLeft === nextUser.trial?.daysLeft;
       if (!unchanged) setUser(nextUser);
+      return resolvedName;
     } catch (error) {
       trackException(error, { action: "syncUserProfile" });
       if (!userRef.current) {
@@ -210,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         });
       }
+      return fallbackName;
     }
   };
 
@@ -338,9 +350,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!authUser) throw new Error("Login failed");
       syncedUserIdRef.current = null;
       meCacheRef.current = null;
-      await syncUserProfile(authUser, { force: true });
+      const name = await syncUserProfile(authUser, { force: true });
+      if (!name) {
+        throw new Error("Login failed");
+      }
       setIsLoading(false);
       trackEvent("auth.login", { userId: authUser.id });
+      return { name };
     } catch (err: unknown) {
       trackEvent("auth.login_failed");
       setIsLoading(false);
@@ -413,22 +429,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    if (logoutBusy) return;
+    const name = userRef.current?.name || user?.name || null;
+    setLogoutBusy(true);
+    setFarewellName(null);
+
+    const tipsHold = delay(1400);
+
     try {
       await logoutAccount();
     } catch {
       // always clear local state
     } finally {
+      await tipsHold;
+      setFarewellName(name || "Athlete");
+      await delay(1600);
+
       setUser(null);
       syncedUserIdRef.current = null;
       meCacheRef.current = null;
       meInflightRef.current = null;
       userRef.current = null;
-      // Hard navigate so protected routes re-run auth and land on login
+
       if (typeof window !== "undefined") {
         const path = window.location.pathname;
-        const onAuthPage = path.startsWith("/login") || path.startsWith("/register");
+        const onAuthPage =
+          path.startsWith("/login") || path.startsWith("/register");
         if (!onAuthPage) {
-          window.location.assign(`/login?redirect=${encodeURIComponent(path)}`);
+          window.location.assign(
+            `/login?redirect=${encodeURIComponent(path)}`,
+          );
+        } else {
+          setLogoutBusy(false);
+          setFarewellName(null);
         }
       }
     }
@@ -474,7 +507,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <AuthBusyOverlay
+        busy={logoutBusy}
+        mode="logout"
+        farewellName={farewellName}
+      />
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

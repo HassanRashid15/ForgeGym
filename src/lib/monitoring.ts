@@ -10,7 +10,9 @@ export type MonitorEvent =
   | "admin.approve"
   | "admin.reject"
   | "newsletter.rate_limited"
-  | "newsletter.subscribed";
+  | "newsletter.subscribed"
+  | "contact.rate_limited"
+  | "contact.submitted";
 
 /**
  * Lightweight production monitoring hook.

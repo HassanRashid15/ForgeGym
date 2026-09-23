@@ -5,6 +5,12 @@ import Link from "next/link";
 import { MapPin, Loader2, CheckCircle2, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import {
+  checkInAttendance,
+  checkOutAttendance,
+  listAttendance,
+} from "@/api/attendance";
+import { ApiError } from "@/api/client";
 
 type CheckinState = {
   openId: string | null;
@@ -30,19 +36,14 @@ export function CheckInButton({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<CheckinState>({ openId: null });
 
   async function refresh() {
-    const res = await fetch("/api/attendance?scope=me", {
-      credentials: "include",
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return;
-    const list =
-      (data.checkins as {
-        id: string;
-        checked_out_at?: string | null;
-        open?: boolean;
-      }[]) || [];
-    const open = list.find((c) => c.open || !c.checked_out_at);
-    setState({ openId: open?.id || null });
+    try {
+      const data = await listAttendance({ scope: "me" });
+      const list = data.checkins || [];
+      const open = list.find((c) => c.open || !c.checked_out_at);
+      setState({ openId: open?.id || null });
+    } catch {
+      /* ignore */
+    }
   }
 
   useEffect(() => {
@@ -53,29 +54,21 @@ export function CheckInButton({ compact = false }: { compact?: boolean }) {
     setLoading(true);
     try {
       const gps = await readGps();
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: "manual",
-          lat: gps?.lat,
-          lng: gps?.lng,
-        }),
+      const data = await checkInAttendance({
+        source: "manual",
+        lat: gps?.lat,
+        lng: gps?.lng,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Check-in failed — open Attendance for code/GPS");
-        return;
-      }
       if (data.needsCheckout) {
         toast.message("Already checked in — check out first");
       } else {
         toast.success("Checked in!");
       }
       await refresh();
-    } catch {
-      toast.error("Check-in failed");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Check-in failed — open Attendance for code/GPS",
+      );
     } finally {
       setLoading(false);
     }
@@ -84,21 +77,11 @@ export function CheckInButton({ compact = false }: { compact?: boolean }) {
   async function checkOut() {
     setLoading(true);
     try {
-      const res = await fetch("/api/attendance", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state.openId ? { id: state.openId } : {}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Check-out failed");
-        return;
-      }
+      await checkOutAttendance(state.openId ? { id: state.openId } : {});
       toast.success("Checked out");
       await refresh();
-    } catch {
-      toast.error("Check-out failed");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Check-out failed");
     } finally {
       setLoading(false);
     }

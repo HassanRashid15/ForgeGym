@@ -5,6 +5,8 @@ import { Star, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/api/client";
+import { getGymReviews, submitGymReview } from "@/api/gyms";
 import { toast } from "sonner";
 
 type Review = {
@@ -30,9 +32,8 @@ export function GymReviewsSection({ gymOwnerId }: { gymOwnerId: string }) {
 
   async function load() {
     try {
-      const res = await fetch(`/api/gyms/${gymOwnerId}/reviews`);
-      const data = await res.json().catch(() => ({}));
-      setReviews(data.reviews || []);
+      const data = await getGymReviews(gymOwnerId);
+      setReviews((data.reviews || []) as Review[]);
       setAverage(data.average ?? null);
       setCount(data.count || 0);
     } finally {
@@ -49,20 +50,14 @@ export function GymReviewsSection({ gymOwnerId }: { gymOwnerId: string }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch(`/api/gyms/${gymOwnerId}/reviews`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, body }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Could not save review");
-        return;
-      }
+      await submitGymReview(gymOwnerId, { rating, body });
       toast.success("Review saved");
       setBody("");
       await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Could not save review",
+      );
     } finally {
       setSaving(false);
     }

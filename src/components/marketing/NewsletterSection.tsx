@@ -5,6 +5,8 @@ import { Mail, ArrowRight, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/api/client";
+import { checkNewsletter, subscribeNewsletter } from "@/api/newsletter";
 
 export default function NewsletterSection() {
   const { user } = useAuth();
@@ -23,9 +25,7 @@ export default function NewsletterSection() {
       }
 
       try {
-        // Use the read-only check API
-        const response = await fetch(`/api/newsletter/check?email=${encodeURIComponent(user.email)}`);
-        const data = await response.json();
+        const data = await checkNewsletter(user.email);
 
         // If user is already subscribed, set the state
         if (data.success && data.is_subscribed && data.is_active) {
@@ -48,17 +48,9 @@ export default function NewsletterSection() {
     setMessage(null);
 
     try {
-      const response = await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const data = await subscribeNewsletter(email);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         if (data.no_change) {
           setMessage({
             type: "success",
@@ -97,7 +89,10 @@ export default function NewsletterSection() {
     } catch (error) {
       setMessage({
         type: "error",
-        text: "An error occurred. Please try again.",
+        text:
+          error instanceof ApiError
+            ? error.message
+            : "An error occurred. Please try again.",
       });
     } finally {
       setIsSubmitting(false);

@@ -49,15 +49,6 @@ async function requireSuperAdmin(request: Request) {
     };
   }
 
-  if (!profile?.admin_approved && email !== "superadmin@forge.test") {
-    return {
-      error: NextResponse.json(
-        { error: "Forbidden — your admin account is not approved yet" },
-        { status: 403 },
-      ),
-    };
-  }
-
   return { supabase: db, user };
 }
 
@@ -104,8 +95,8 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const cacheKey = `admin:pending:${auth.user.id}`;
-  const cached = cacheGet<Record<string, unknown>>(cacheKey);
-  if (cached) {
+  const cached = await cacheGet<Record<string, unknown>>(cacheKey);
+  if (cached && Array.isArray(cached.admins)) {
     return NextResponse.json(
       cached,
       withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), true),
@@ -181,7 +172,7 @@ export async function GET(request: Request) {
     admins,
     notifications: notifications || [],
   };
-  cacheSet(cacheKey, payload, CacheTTL.adminList);
+  await cacheSet(cacheKey, payload, CacheTTL.adminList);
   return NextResponse.json(
     payload,
     withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), false),

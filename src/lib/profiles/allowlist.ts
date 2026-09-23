@@ -37,6 +37,8 @@ export const PROFILE_SELF_UPDATE_ALLOWLIST = [
   "gym_video_file_url",
   "gym_monthly_fee",
   "gym_trainer_fee",
+  "gym_latitude",
+  "gym_longitude",
   "preferred_trainer_id",
 ] as const satisfies ReadonlyArray<keyof ProfileUpdatePayload>;
 

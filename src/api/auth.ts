@@ -147,6 +147,13 @@ export async function resendVerificationEmail(email: string) {
   });
 }
 
+/** auth.markVerified → /api/auth/mark-verified (cookie session from confirm link) */
+export async function markEmailVerified() {
+  return apiRequest<{ ok?: boolean; success?: boolean }>("auth", "markVerified", {
+    body: {},
+  });
+}
+
 /** auth.me → GET /api/auth/me */
 export async function fetchCurrentUser() {
   return apiRequest<{

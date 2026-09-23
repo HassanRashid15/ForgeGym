@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useRealtimeNotifications } from "@/hooks/useRealtimeNotifications";
+import { ApiError } from "@/api/client";
+import {
+  markAllNotificationsRead,
+  updateNotification,
+} from "@/api/notifications";
 import { 
   Bell, 
   Check, 
@@ -198,54 +203,44 @@ export default function NotificationsPage() {
 
   const handleAcknowledgeAll = async () => {
     try {
-      const response = await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mark_all_read" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to mark all as read");
+      await markAllNotificationsRead();
 
       // Real-time hook will automatically update the notifications
       toast.success("All notifications marked as read");
     } catch (error) {
       console.error("Error acknowledging all:", error);
-      toast.error("Failed to mark all as read");
+      toast.error(
+        error instanceof ApiError ? error.message : "Failed to mark all as read",
+      );
     }
   };
 
   const handleDismiss = async (id: string) => {
     try {
-      const response = await fetch(`/api/notifications/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to dismiss notification");
+      await updateNotification(id, "dismiss");
 
       // Real-time hook will automatically update the notifications
       toast.success("Notification dismissed");
     } catch (error) {
       console.error("Error dismissing notification:", error);
-      toast.error("Failed to dismiss notification");
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to dismiss notification",
+      );
     }
   };
 
   const handleAcknowledge = async (id: string) => {
     try {
-      const response = await fetch(`/api/notifications/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "mark_read" }),
-      });
-
-      if (!response.ok) throw new Error("Failed to mark as read");
+      await updateNotification(id, "mark_read");
 
       // Real-time hook will automatically update the notifications
     } catch (error) {
       console.error("Error acknowledging notification:", error);
-      toast.error("Failed to mark as read");
+      toast.error(
+        error instanceof ApiError ? error.message : "Failed to mark as read",
+      );
     }
   };
 
@@ -502,7 +497,7 @@ function NotificationCard({
           </div>
 
           <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 pr-8">
               <span
                 className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
                   notification.unread
@@ -512,9 +507,17 @@ function NotificationCard({
               >
                 {config.label}
               </span>
-              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 shrink-0" />
-                {formatTimestamp(notification.created_at)}
+              <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  {formatTimestamp(notification.created_at)}
+                </span>
+                <span className="tabular-nums">
+                  {new Date(notification.created_at).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </span>
               </span>
             </div>
             <h3 className="text-sm font-semibold leading-snug text-foreground">

@@ -6,6 +6,8 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import NewsletterSection from "@/components/marketing/NewsletterSection";
 import { HomePromotionsSection } from "@/components/marketing/HomePromotionsSection";
+import { HomePromotionModal } from "@/components/marketing/HomePromotionModal";
+import { ReviewSection } from "@/components/marketing/ReviewSection";
 import {
   ArrowRight,
   Zap,
@@ -202,6 +204,9 @@ export default function HomePageClient({
         </div>
       </section>
 
+      {/* Newsletter Section */}
+      <NewsletterSection />
+
       {/* Features Section */}
       <section id="features" className="scroll-mt-20 bg-background py-24">
         <div className="container mx-auto px-4">
@@ -245,12 +250,13 @@ export default function HomePageClient({
                     </p>
                     <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
                   </div>
-                  <Button variant="outline" asChild className="hidden md:flex">
-                    <Link href="/gyms">
-                      View All Gyms
-                      <ChevronRight className="w-4 h-4" />
-                    </Link>
-                  </Button>
+                  <Link 
+                    href="/gyms" 
+                    className="link--metis hidden items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-colors hover:text-primary md:inline-flex"
+                  >
+                    View All Gyms
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
                 </div>
                 
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -258,23 +264,24 @@ export default function HomePageClient({
                     <Link
                       key={gym.ownerId}
                       href={`/gyms/${gym.ownerId}`}
-                      className="group"
+                      className="group outline-none [-webkit-tap-highlight-color:transparent]"
                     >
-                      <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_50px_-28px_hsl(var(--primary)/0.45)]">
-                        <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+                      <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-[transform,box-shadow,border-color] duration-300 will-change-transform [transform:translateZ(0)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_50px_-28px_hsl(var(--primary)/0.45)]">
+                        <div className="relative aspect-[16/10] overflow-hidden bg-card">
                           {gym.gymMainImageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={gym.gymMainImageUrl}
                               alt={gym.gymName}
-                              className="h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"
+                              className="h-full w-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-[1.04]"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-background">
                               <Building2 className="h-10 w-10 text-primary/70" />
                             </div>
                           )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent opacity-90" />
+                          {/* Opaque bottom fade — stops light image edges flashing white on hover scale */}
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card via-card/70 to-transparent" />
                           {gym.gymType && (
                             <span className="absolute left-3 top-3 rounded-md bg-background/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground backdrop-blur-sm">
                               {gym.gymType}
@@ -288,7 +295,7 @@ export default function HomePageClient({
                           )}
                         </div>
 
-                        <div className="relative -mt-8 flex flex-1 flex-col px-5 pb-5 pt-0">
+                        <div className="relative -mt-8 flex flex-1 flex-col bg-card px-5 pb-5 pt-0">
                           <div className="mb-4 flex items-end gap-3">
                             {gym.avatarUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -351,7 +358,7 @@ export default function HomePageClient({
 
                 {/* Mobile View All Button */}
                 <div className="mt-6 md:hidden">
-                  <Button variant="outline" asChild className="w-full">
+                  <Button variant="ghost" asChild className="w-full link--metis border-0">
                     <Link href="/gyms">
                       View All Gyms
                       <ChevronRight className="w-4 h-4" />
@@ -467,9 +474,11 @@ export default function HomePageClient({
 
       <HomePromotionsSection />
 
-      <NewsletterSection />
+      <ReviewSection />
 
       <Footer />
+
+      <HomePromotionModal />
     </div>
   );
 }

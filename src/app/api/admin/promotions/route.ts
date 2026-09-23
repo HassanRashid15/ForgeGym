@@ -131,7 +131,7 @@ export async function POST(request: Request) {
       .from("platform_promotions" as never)
       .update({
         email_sent_at: new Date().toISOString(),
-        email_recipient_count: emailResult.sent || recipients.length,
+        email_recipient_count: emailResult.sent,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", (data as { id: string }).id);
@@ -197,7 +197,7 @@ export async function PATCH(request: Request) {
       .from("platform_promotions" as never)
       .update({
         email_sent_at: new Date().toISOString(),
-        email_recipient_count: emailResult.sent || recipients.length,
+        email_recipient_count: emailResult.sent,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", id);

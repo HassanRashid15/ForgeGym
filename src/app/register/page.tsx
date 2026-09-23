@@ -28,10 +28,11 @@ import { heightToCm } from "@/lib/validation/height";
 import { useRegisterPassword } from "@/hooks/useRegisterPassword";
 import { RegisterShell } from "@/components/register/RegisterShell";
 import { RegisterAccountStep } from "@/components/register/RegisterAccountStep";
-import { checkPhoneExists } from "@/api/auth";
+import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
+import { checkPhoneExists, checkGymDuplicate } from "@/api/auth";
+import { listGyms, getGym } from "@/api/gyms";
 import { phonesMatch } from "@/lib/phone";
 import type { AccountType, PublicGym } from "@/components/register/types";
-import { checkGymDuplicate } from "@/api/auth";
 import { formatCityLocation, placeFromAddressLabel } from "@/lib/geo/place";
 
 const CITY_OPTIONS = [
@@ -58,6 +59,7 @@ function RegisterContent() {
   const { register, checkAccountExists } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
 
   // ── Step 1 ──────────────────────────────────────────────────────────────────
   const [accountType, setAccountType] = useState<AccountType>("customer");
@@ -122,28 +124,33 @@ function RegisterContent() {
 
     (async () => {
       try {
-        const listRes = await fetch("/api/gyms");
-        const listData = await listRes.json().catch(() => ({}));
-        let list: PublicGym[] = Array.isArray(listData?.gyms) ? listData.gyms : [];
+        const listData = await listGyms();
+        let list: PublicGym[] = Array.isArray(listData?.gyms)
+          ? (listData.gyms as PublicGym[])
+          : [];
 
         // Ensure the gym from ?gym= is present even if list timing/filter differs
         if (queryGymOwnerId) {
           const inList = list.some((g) => g.ownerId === queryGymOwnerId);
           if (!inList) {
-            const detailRes = await fetch(`/api/gyms/${encodeURIComponent(queryGymOwnerId)}`);
-            const detailData = await detailRes.json().catch(() => ({}));
-            if (detailRes.ok && detailData?.gym?.ownerId) {
-              list = [
-                {
-                  ownerId: detailData.gym.ownerId,
-                  gymName: detailData.gym.gymName,
-                  gymType: detailData.gym.gymType,
-                  gymCity: detailData.gym.gymCity,
-                  monthlyFee: detailData.gym.monthlyFee ?? null,
-                  trainerFee: detailData.gym.trainerFee ?? null,
-                },
-                ...list,
-              ];
+            try {
+              const detailData = await getGym(queryGymOwnerId);
+              const gym = detailData?.gym as PublicGym | undefined;
+              if (gym?.ownerId) {
+                list = [
+                  {
+                    ownerId: gym.ownerId,
+                    gymName: gym.gymName,
+                    gymType: gym.gymType,
+                    gymCity: gym.gymCity,
+                    monthlyFee: gym.monthlyFee ?? null,
+                    trainerFee: gym.trainerFee ?? null,
+                  },
+                  ...list,
+                ];
+              }
+            } catch {
+              /* gym detail optional */
             }
           }
         }
@@ -902,6 +909,8 @@ function RegisterContent() {
           : undefined,
       );
 
+      // Same welcome beat as login — then success / verification step
+      setWelcomeName(firstName.trim() || fullName || "Athlete");
       toast.success(
         isAdminAccount
           ? "Admin account created! Verify email, then wait for super admin approval — your 1-month free trial starts when they approve."
@@ -914,10 +923,19 @@ function RegisterContent() {
       } else {
         toast.message("Your selected gym was notified to approve your membership.");
       }
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+      await new Promise((r) => window.setTimeout(r, 2000));
+
       setCurrentStep(4);
     } catch (error: any) {
       toast.error(error?.message || "Failed to create account");
     } finally {
+      setWelcomeName(null);
       setIsLoading(false);
     }
   };
@@ -951,6 +969,11 @@ function RegisterContent() {
   // ──────────────────────────────────────────────────────────────────────────────
   return (
     <RegisterShell>
+          <AuthBusyOverlay
+            busy={isLoading}
+            mode={isAdminAccount ? "register-admin" : "register"}
+            welcomeName={welcomeName}
+          />
           {/* Mobile logo */}
           {currentStep <= 3 && (
             <Link href="/" className="mb-6 inline-flex items-center gap-2.5 lg:hidden">

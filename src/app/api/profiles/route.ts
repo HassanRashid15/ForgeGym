@@ -19,6 +19,10 @@ async function syncGymCatalogMedia(
     gym_video_file_url?: string | null;
     gym_monthly_fee?: string | null;
     gym_trainer_fee?: string | null;
+    gym_latitude?: number | null;
+    gym_longitude?: number | null;
+    gym_name?: string | null;
+    gym_city?: string | null;
   },
 ) {
   const service = createSupabaseServiceClient();
@@ -45,6 +49,18 @@ async function syncGymCatalogMedia(
   }
   if ("gym_trainer_fee" in profile) {
     patch.trainer_fee = profile.gym_trainer_fee ?? null;
+  }
+  if ("gym_latitude" in profile) {
+    patch.latitude = profile.gym_latitude ?? null;
+  }
+  if ("gym_longitude" in profile) {
+    patch.longitude = profile.gym_longitude ?? null;
+  }
+  if ("gym_name" in profile && profile.gym_name) {
+    patch.name = profile.gym_name;
+  }
+  if ("gym_city" in profile) {
+    patch.city = profile.gym_city ?? null;
   }
 
   if (Object.keys(patch).length <= 1) return;

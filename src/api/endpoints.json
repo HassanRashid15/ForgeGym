@@ -30,6 +30,11 @@
       "path": "/api/auth/resend-verification",
       "description": "Resend signup verification email"
     },
+    "markVerified": {
+      "method": "POST",
+      "path": "/api/auth/mark-verified",
+      "description": "Mark the current user's email as verified after confirm link"
+    },
     "me": {
       "method": "GET",
       "path": "/api/auth/me",
@@ -61,6 +66,16 @@
       "method": "GET",
       "path": "/api/admin/pending-members",
       "description": "Get pending members for approval (optimized for polling)"
+    },
+    "contactMessages": {
+      "method": "GET",
+      "path": "/api/admin/contact-messages",
+      "description": "List contact form messages from /contact"
+    },
+    "updateContactMessage": {
+      "method": "PATCH",
+      "path": "/api/admin/contact-messages",
+      "description": "Mark contact message read/archived"
     },
     "listUsers": {
       "method": "GET",
@@ -106,6 +121,56 @@
       "method": "PATCH",
       "path": "/api/admin/membership-fees",
       "description": "Set a gym owner's platform monthly fee (after free trial)"
+    },
+    "newsletter": {
+      "method": "GET",
+      "path": "/api/admin/newsletter",
+      "description": "List newsletter subscribers (admin)"
+    },
+    "deleteNewsletter": {
+      "method": "DELETE",
+      "path": "/api/admin/newsletter",
+      "description": "Remove a newsletter subscriber"
+    },
+    "cleanupNewsletter": {
+      "method": "POST",
+      "path": "/api/admin/newsletter/cleanup",
+      "description": "Clean up invalid or duplicate newsletter rows"
+    },
+    "promotions": {
+      "method": "GET",
+      "path": "/api/admin/promotions",
+      "description": "List platform promotions for admin management"
+    },
+    "createPromotion": {
+      "method": "POST",
+      "path": "/api/admin/promotions",
+      "description": "Create a platform promotion"
+    },
+    "updatePromotion": {
+      "method": "PATCH",
+      "path": "/api/admin/promotions",
+      "description": "Update a platform promotion"
+    },
+    "deletePromotion": {
+      "method": "DELETE",
+      "path": "/api/admin/promotions",
+      "description": "Delete a platform promotion"
+    },
+    "uploadPromotion": {
+      "method": "POST",
+      "path": "/api/admin/promotions/upload",
+      "description": "Upload promotion image to storage"
+    },
+    "checkPermissions": {
+      "method": "GET",
+      "path": "/api/admin/check-permissions",
+      "description": "Check current admin permission flags"
+    },
+    "applyMigration": {
+      "method": "POST",
+      "path": "/api/admin/apply-migration",
+      "description": "Apply a guarded admin SQL/migration helper"
     }
   },
   "profiles": {
@@ -133,6 +198,60 @@
       "method": "POST",
       "path": "/api/gym-media",
       "description": "Upload gym main/optional image or video to gym-media bucket"
+    },
+    "deleteGymMedia": {
+      "method": "DELETE",
+      "path": "/api/gym-media",
+      "description": "Delete gym media from gym-media bucket"
+    }
+  },
+  "reviews": {
+    "submit": {
+      "method": "POST",
+      "path": "/api/reviews",
+      "description": "Submit a review or feedback"
+    },
+    "get": {
+      "method": "GET",
+      "path": "/api/reviews",
+      "description": "Get approved reviews"
+    },
+    "getMine": {
+      "method": "GET",
+      "path": "/api/reviews",
+      "description": "Get current user's reviews"
+    },
+    "getPending": {
+      "method": "GET",
+      "path": "/api/reviews",
+      "description": "Get pending reviews for moderators"
+    },
+    "moderate": {
+      "method": "PATCH",
+      "path": "/api/reviews",
+      "description": "Approve, feature, or reject a review"
+    },
+    "updateMine": {
+      "method": "PATCH",
+      "path": "/api/reviews",
+      "description": "Update own review (re-queues for approval)"
+    },
+    "deleteMine": {
+      "method": "DELETE",
+      "path": "/api/reviews",
+      "description": "Delete own review"
+    }
+  },
+  "contact": {
+    "get": {
+      "method": "GET",
+      "path": "/api/contact",
+      "description": "Public contact details"
+    },
+    "submit": {
+      "method": "POST",
+      "path": "/api/contact",
+      "description": "Submit contact form message"
     }
   },
   "progress": {
@@ -161,7 +280,6 @@
       "path": "/api/progress/exercise-demo",
       "description": "Resolve a YouTube form demo for an exercise name"
     },
-
     "deleteExercise": {
       "method": "DELETE",
       "path": "/api/progress/exercises",
@@ -183,6 +301,159 @@
       "method": "GET",
       "path": "/api/trainer/clients/:userId/progress",
       "description": "Fetch an assigned member's workout progress and exercises"
+    }
+  },
+  "attendance": {
+    "list": {
+      "method": "GET",
+      "path": "/api/attendance",
+      "description": "List attendance rows (admin gym scope or member scope=me)"
+    },
+    "checkIn": {
+      "method": "POST",
+      "path": "/api/attendance",
+      "description": "Create a check-in / attendance record"
+    },
+    "update": {
+      "method": "PATCH",
+      "path": "/api/attendance",
+      "description": "Update attendance (e.g. check-out)"
+    }
+  },
+  "classes": {
+    "list": {
+      "method": "GET",
+      "path": "/api/classes",
+      "description": "List gym classes for the authenticated admin"
+    },
+    "create": {
+      "method": "POST",
+      "path": "/api/classes",
+      "description": "Create a gym class"
+    },
+    "createSession": {
+      "method": "POST",
+      "path": "/api/classes/sessions",
+      "description": "Create a class session"
+    },
+    "updateSession": {
+      "method": "PUT",
+      "path": "/api/classes/sessions",
+      "description": "Update a class session"
+    }
+  },
+  "gyms": {
+    "list": {
+      "method": "GET",
+      "path": "/api/gyms",
+      "description": "Public list of gyms for registration and discovery"
+    },
+    "get": {
+      "method": "GET",
+      "path": "/api/gyms/:ownerId",
+      "description": "Public gym detail by owner id"
+    },
+    "reviews": {
+      "method": "GET",
+      "path": "/api/gyms/:ownerId/reviews",
+      "description": "Published reviews for a gym"
+    },
+    "submitReview": {
+      "method": "POST",
+      "path": "/api/gyms/:ownerId/reviews",
+      "description": "Submit a gym review"
+    },
+    "trainers": {
+      "method": "GET",
+      "path": "/api/gyms/:ownerId/trainers",
+      "description": "Public trainers for a gym"
+    }
+  },
+  "membership": {
+    "me": {
+      "method": "GET",
+      "path": "/api/membership/me",
+      "description": "Current member fee cycle and due status"
+    }
+  },
+  "newsletter": {
+    "check": {
+      "method": "GET",
+      "path": "/api/newsletter/check",
+      "description": "Check if an email is subscribed"
+    },
+    "me": {
+      "method": "GET",
+      "path": "/api/newsletter/me",
+      "description": "Get authenticated user's newsletter preference"
+    },
+    "updateMe": {
+      "method": "PATCH",
+      "path": "/api/newsletter/me",
+      "description": "Update authenticated user's newsletter preference"
+    },
+    "subscribe": {
+      "method": "POST",
+      "path": "/api/newsletter/subscribe",
+      "description": "Subscribe an email to the newsletter"
+    },
+    "unsubscribe": {
+      "method": "POST",
+      "path": "/api/newsletter/unsubscribe",
+      "description": "Unsubscribe via form/body"
+    },
+    "unsubscribeLink": {
+      "method": "GET",
+      "path": "/api/newsletter/unsubscribe",
+      "description": "Unsubscribe via email link query params"
+    }
+  },
+  "notifications": {
+    "list": {
+      "method": "GET",
+      "path": "/api/notifications",
+      "description": "List notifications for the current user"
+    },
+    "markAll": {
+      "method": "PATCH",
+      "path": "/api/notifications",
+      "description": "Bulk mark notifications read/dismissed"
+    },
+    "updateOne": {
+      "method": "PATCH",
+      "path": "/api/notifications/:id",
+      "description": "Mark one notification read or dismiss"
+    },
+    "deleteOne": {
+      "method": "DELETE",
+      "path": "/api/notifications/:id",
+      "description": "Delete one notification"
+    }
+  },
+  "promotions": {
+    "list": {
+      "method": "GET",
+      "path": "/api/promotions",
+      "description": "Published home promotions (public)"
+    }
+  },
+  "geo": {
+    "search": {
+      "method": "GET",
+      "path": "/api/geo/search",
+      "description": "Geocode / place search"
+    },
+    "reverse": {
+      "method": "GET",
+      "path": "/api/geo/reverse",
+      "description": "Reverse geocode coordinates to place"
+    }
+  },
+  "dev": {
+    "testNotifications": {
+      "method": "POST",
+      "path": "/api/test-notifications",
+      "description": "Sample notifications (non-production, super admin only)"
     }
   }
 }

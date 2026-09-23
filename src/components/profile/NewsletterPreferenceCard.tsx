@@ -6,6 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ApiError } from "@/api/client";
+import {
+  getMyNewsletterPreference,
+  updateMyNewsletterPreference,
+} from "@/api/newsletter";
 
 /**
  * Newsletter preference for members / gym admins (not shown for superadmin).
@@ -19,9 +24,8 @@ export function NewsletterPreferenceCard() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/newsletter/me", { credentials: "include" });
-        const data = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok) {
+        const data = await getMyNewsletterPreference();
+        if (!cancelled) {
           setSubscribed(Boolean(data.subscribed));
         }
       } catch {
@@ -40,22 +44,15 @@ export function NewsletterPreferenceCard() {
     const prev = subscribed;
     setSubscribed(next);
     try {
-      const res = await fetch("/api/newsletter/me", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscribe: next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSubscribed(prev);
-        toast.error(data.error || "Could not update newsletter preference");
-        return;
-      }
+      await updateMyNewsletterPreference(next);
       toast.success(next ? "Subscribed to newsletter" : "Unsubscribed from newsletter");
-    } catch {
+    } catch (err) {
       setSubscribed(prev);
-      toast.error("Could not update newsletter preference");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "Could not update newsletter preference",
+      );
     } finally {
       setSaving(false);
     }

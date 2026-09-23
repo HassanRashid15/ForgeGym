@@ -16,7 +16,6 @@ import {
   ATTENDANCE_CLOSED_MESSAGE,
   ATTENDANCE_GEO_RADIUS_M,
   canViewGymAttendance,
-  dailyCheckInCode,
   filterByRole,
   isAttendanceOpen,
   requireBinaryGender,
@@ -312,10 +311,6 @@ export async function GET(request: Request) {
         genderError: genderGate.ok === false ? genderGate.error : null,
         geoRequired: Boolean(gym?.latitude != null && gym?.longitude != null),
         geoRadiusM: ATTENDANCE_GEO_RADIUS_M,
-        checkInCode:
-          actor.canViewGym && actor.gymOwnerId
-            ? dailyCheckInCode(actor.gymOwnerId)
-            : null,
         pagination: {
           page,
           pageSize,
@@ -474,8 +469,6 @@ export async function POST(request: Request) {
     gymLng: gym?.longitude ?? null,
     userLat: Number.isFinite(userLat as number) ? (userLat as number) : null,
     userLng: Number.isFinite(userLng as number) ? (userLng as number) : null,
-    gymOwnerId: targetGymOwnerId,
-    checkInCode: body?.checkInCode ? String(body.checkInCode) : null,
     adminBypass,
   });
   if (presence.ok === false) {

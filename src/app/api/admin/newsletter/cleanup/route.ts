@@ -1,84 +1,88 @@
 import { NextResponse } from "next/server";
-import { createSupabaseCookieClient } from "@/lib/supabase/server";
-import { getRequestId } from "@/lib/api/errors";
+import {
+  createSupabaseServiceClient,
+  requireAuth,
+} from "@/lib/supabase/server";
 
-/** POST /api/admin/newsletter/cleanup - Clean up expired subscriptions (superadmin only) */
+async function requireSuperAdmin(request: Request) {
+  const auth = await requireAuth(request);
+  if ("error" in auth) return auth;
+
+  const { supabase, user } = auth;
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
+
+  const { data: profile } = await db
+    .from("profiles")
+    .select("is_super_admin, email")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const email = (profile?.email || user.email || "").toLowerCase();
+  const isSuperAdmin =
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
+    email === "superadmin@forge.test";
+
+  if (!isSuperAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: "Forbidden — super admin only" },
+        { status: 403 },
+      ),
+    };
+  }
+
+  return { supabase: db, user };
+}
+
+/** POST /api/admin/newsletter/cleanup — deactivate expired subscriptions */
 export async function POST(request: Request) {
-  const requestId = getRequestId(request);
-  const supabase = await createSupabaseCookieClient();
+  const auth = await requireSuperAdmin(request);
+  if ("error" in auth) return auth.error;
 
-  try {
-    // Check if user is superadmin
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error("Auth error:", userError);
-      return NextResponse.json(
-        { error: "Authentication failed", details: userError.message },
-        { status: 401 }
-      );
-    }
-    
-    if (!user) {
-      console.error("No user found in session");
-      return NextResponse.json(
-        { error: "No authenticated user found" },
-        { status: 401 }
-      );
-    }
+  const { supabase } = auth;
 
-    // Check superadmin status
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("is_super_admin")
-      .eq("user_id", user.id)
-      .single();
-
-    if (profileError) {
-      console.error("Profile fetch error:", profileError);
-      return NextResponse.json(
-        { error: "Failed to verify user permissions", details: profileError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!profile) {
-      console.error("No profile found for user:", user.id);
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!profile.is_super_admin) {
-      console.error("User is not superadmin:", user.id);
-      return NextResponse.json(
-        { error: "Forbidden - Superadmin access required" },
-        { status: 403 }
-      );
-    }
-
-    // Call the cleanup function
-    const { data, error } = await (supabase.rpc as any)("cleanup_expired_subscriptions");
-
-    if (error) {
-      console.error("Error cleaning up expired subscriptions:", error);
-      return NextResponse.json(
-        { error: "Failed to cleanup expired subscriptions" },
-        { status: 500 }
-      );
-    }
-
+  const rpc = await (supabase.rpc as any)("cleanup_expired_subscriptions");
+  if (!rpc.error) {
+    const deleted = typeof rpc.data === "number" ? rpc.data : Number(rpc.data) || 0;
     return NextResponse.json({
       success: true,
-      deleted_count: data,
-      message: `Cleaned up ${data} expired subscription(s)`,
+      deleted_count: deleted,
+      message: `Cleaned up ${deleted} expired subscription(s)`,
     });
-  } catch (error) {
-    console.error("Newsletter cleanup API error:", error);
+  }
+
+  // Fallback: mark inactive subscriptions older than 365 days as cleaned
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 365);
+
+  const { data, error } = await supabase
+    .from("newsletter_subscriptions" as any)
+    .update({
+      is_active: false,
+      unsubscribed_at: new Date().toISOString(),
+      unsubscribe_reason: "cleanup_expired",
+    } as never)
+    .eq("is_active", true)
+    .lt("created_at", cutoff.toISOString())
+    .select("id");
+
+  if (error) {
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      {
+        error:
+          rpc.error?.message ||
+          error.message ||
+          "Failed to cleanup expired subscriptions",
+      },
+      { status: 400 },
     );
   }
+
+  const deleted = (data || []).length;
+  return NextResponse.json({
+    success: true,
+    deleted_count: deleted,
+    message: `Cleaned up ${deleted} expired subscription(s)`,
+  });
 }

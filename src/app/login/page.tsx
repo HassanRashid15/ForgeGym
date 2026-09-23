@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   UserX,
 } from "lucide-react";
+import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
 
 function LoginContent() {
   const router = useRouter();
@@ -36,6 +37,7 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const safeRedirect =
@@ -43,14 +45,14 @@ function LoginContent() {
       ? redirectTo
       : "/dashboard";
 
-  // If already logged in, redirect to dashboard — except right after email verification
-  // (user must sign in manually with password)
+  // If already logged in, redirect — but never during the sign-in welcome beat
   useEffect(() => {
     if (queryVerified) return;
+    if (isLoading || welcomeName) return;
     if (!isAuthLoading && user) {
       window.location.assign(safeRedirect);
     }
-  }, [user, isAuthLoading, queryVerified, safeRedirect]);
+  }, [user, isAuthLoading, queryVerified, safeRedirect, isLoading, welcomeName]);
 
   // Prefill from query if present
   useEffect(() => {
@@ -140,12 +142,20 @@ function LoginContent() {
     }
 
     setIsLoading(true);
+    setWelcomeName(null);
     setPendingAdminApproval(false);
     setPendingMemberApproval(false);
     try {
-      await login(cleanEmail, password);
+      const { name } = await login(cleanEmail, password);
+      // Paint welcome before holding — setState alone can miss a frame
+      setWelcomeName(name.trim() || "Athlete");
       toast.success("Welcome back! Let's crush it today.");
-      // Full navigation so proxy sees refreshed auth cookies
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+      await new Promise((r) => window.setTimeout(r, 2000));
       window.location.assign(safeRedirect);
     } catch (error: any) {
       const msg = error instanceof Error ? error.message : "Login failed";
@@ -175,7 +185,7 @@ function LoginContent() {
         console.warn("Login failed:", msg);
         toast.error(msg);
       }
-    } finally {
+      setWelcomeName(null);
       setIsLoading(false);
     }
   };
@@ -189,6 +199,7 @@ function LoginContent() {
 
   return (
     <div className="h-screen w-screen overflow-hidden grid lg:grid-cols-2">
+      <AuthBusyOverlay busy={isLoading} mode="login" welcomeName={welcomeName} />
       {/* ═══════════════ LEFT — Image Panel ═══════════════ */}
       <aside className="hidden lg:flex flex-col relative overflow-hidden">
         <img

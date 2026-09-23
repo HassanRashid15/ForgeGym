@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CustomerTrainerFeeCard } from "@/components/customer/CustomerTrainerFeeCard";
+import { getMyMembership } from "@/api/membership";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -69,12 +70,8 @@ export function MemberBillingCard() {
 
   const loadBilling = useCallback(async () => {
     try {
-      const res = await fetch("/api/membership/me", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const json = await res.json().catch(() => ({}));
-      if (res.ok) setData(json);
+      const json = await getMyMembership();
+      setData(json);
     } catch {
       /* ignore */
     }

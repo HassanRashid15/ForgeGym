@@ -81,7 +81,7 @@ export type RegisterMediaFiles = {
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ name: string }>;
   register: (
     email: string,
     password: string,

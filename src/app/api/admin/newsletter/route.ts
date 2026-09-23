@@ -1,177 +1,129 @@
 import { NextResponse } from "next/server";
-import { createSupabaseCookieClient } from "@/lib/supabase/server";
-import { getRequestId } from "@/lib/api/errors";
+import {
+  createSupabaseServiceClient,
+  requireAuth,
+} from "@/lib/supabase/server";
 
-/** GET /api/admin/newsletter - Get all newsletter subscribers (superadmin only) */
-export async function GET(request: Request) {
-  const requestId = getRequestId(request);
-  const supabase = await createSupabaseCookieClient();
+async function requireSuperAdmin(request: Request) {
+  const auth = await requireAuth(request);
+  if ("error" in auth) return auth;
 
-  try {
-    // Check if user is superadmin
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error("Auth error:", userError);
-      return NextResponse.json(
-        { error: "Authentication failed", details: userError.message },
-        { status: 401 }
-      );
-    }
-    
-    if (!user) {
-      console.error("No user found in session");
-      return NextResponse.json(
-        { error: "No authenticated user found" },
-        { status: 401 }
-      );
-    }
+  const { supabase, user } = auth;
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
 
-    // Check superadmin status
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("is_super_admin")
-      .eq("user_id", user.id)
-      .single();
+  const { data: profile } = await db
+    .from("profiles")
+    .select("is_super_admin, email")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-    if (profileError) {
-      console.error("Profile fetch error:", profileError);
-      return NextResponse.json(
-        { error: "Failed to verify user permissions", details: profileError.message },
-        { status: 500 }
-      );
-    }
+  const email = (profile?.email || user.email || "").toLowerCase();
+  const isSuperAdmin =
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
+    email === "superadmin@forge.test";
 
-    if (!profile) {
-      console.error("No profile found for user:", user.id);
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!profile.is_super_admin) {
-      console.error("User is not superadmin:", user.id);
-      return NextResponse.json(
-        { error: "Forbidden - Superadmin access required" },
-        { status: 403 }
-      );
-    }
-
-    // Get all newsletter subscriptions
-    const { data: subscriptions, error } = await (supabase.rpc as any)("get_newsletter_subscriptions");
-
-    if (error) {
-      console.error("Error fetching newsletter subscriptions:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch subscriptions" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      subscriptions: subscriptions || [],
-      total: subscriptions?.length || 0,
-    });
-  } catch (error) {
-    console.error("Newsletter subscribers API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  if (!isSuperAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: "Forbidden — super admin only" },
+        { status: 403 },
+      ),
+    };
   }
+
+  return { supabase: db, user };
 }
 
-/** DELETE /api/admin/newsletter - Unsubscribe a user (superadmin only) */
-export async function DELETE(request: Request) {
-  const requestId = getRequestId(request);
-  const supabase = await createSupabaseCookieClient();
+/** GET /api/admin/newsletter — list subscribers (super admin) */
+export async function GET(request: Request) {
+  const auth = await requireSuperAdmin(request);
+  if ("error" in auth) return auth.error;
 
-  try {
-    // Check if user is superadmin
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    
-    if (userError) {
-      console.error("Auth error:", userError);
-      return NextResponse.json(
-        { error: "Authentication failed", details: userError.message },
-        { status: 401 }
-      );
-    }
-    
-    if (!user) {
-      console.error("No user found in session");
-      return NextResponse.json(
-        { error: "No authenticated user found" },
-        { status: 401 }
-      );
-    }
+  const { supabase } = auth;
 
-    // Check superadmin status
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("is_super_admin")
-      .eq("user_id", user.id)
-      .single();
-
-    if (profileError) {
-      console.error("Profile fetch error:", profileError);
-      return NextResponse.json(
-        { error: "Failed to verify user permissions", details: profileError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!profile) {
-      console.error("No profile found for user:", user.id);
-      return NextResponse.json(
-        { error: "User profile not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!profile.is_super_admin) {
-      console.error("User is not superadmin:", user.id);
-      return NextResponse.json(
-        { error: "Forbidden - Superadmin access required" },
-        { status: 403 }
-      );
-    }
-
-    const body = await request.json();
-    const email = body?.email;
-
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
-    }
-
-    // Unsubscribe the user using the function
-    const { data, error } = await (supabase.rpc as any)("unsubscribe_from_newsletter", {
-      p_email: email,
-      p_reason: body?.reason || null
+  // Prefer RPC when present; fall back to table read via service role
+  const rpc = await (supabase.rpc as any)("get_newsletter_subscriptions");
+  if (!rpc.error && Array.isArray(rpc.data)) {
+    return NextResponse.json({
+      success: true,
+      subscriptions: rpc.data,
+      total: rpc.data.length,
     });
+  }
 
-    if (error) {
-      console.error("Error unsubscribing user:", error);
-      return NextResponse.json(
-        { error: "Failed to unsubscribe user" },
-        { status: 500 }
-      );
-    }
+  const { data, error } = await supabase
+    .from("newsletter_subscriptions" as any)
+    .select("*")
+    .order("created_at", { ascending: false });
 
+  if (error) {
+    return NextResponse.json(
+      {
+        error:
+          rpc.error?.message ||
+          error.message ||
+          "Failed to fetch newsletter subscriptions",
+      },
+      { status: 400 },
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    subscriptions: data || [],
+    total: (data || []).length,
+  });
+}
+
+/** DELETE /api/admin/newsletter — unsubscribe by email (super admin) */
+export async function DELETE(request: Request) {
+  const auth = await requireSuperAdmin(request);
+  if ("error" in auth) return auth.error;
+
+  const { supabase } = auth;
+  const body = (await request.json().catch(() => null)) as {
+    email?: string;
+    reason?: string;
+  } | null;
+
+  const email = String(body?.email || "")
+    .trim()
+    .toLowerCase();
+  if (!email) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  }
+
+  const rpc = await (supabase.rpc as any)("unsubscribe_from_newsletter", {
+    p_email: email,
+    p_reason: body?.reason || null,
+  });
+
+  if (!rpc.error) {
     return NextResponse.json({
       success: true,
       message: "User unsubscribed successfully",
     });
-  } catch (error) {
-    console.error("Newsletter unsubscribe API error:", error);
+  }
+
+  const { error } = await supabase
+    .from("newsletter_subscriptions" as any)
+    .update({
+      is_active: false,
+      unsubscribed_at: new Date().toISOString(),
+      unsubscribe_reason: body?.reason || null,
+    } as never)
+    .eq("email", email);
+
+  if (error) {
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      { error: rpc.error?.message || error.message || "Failed to unsubscribe" },
+      { status: 400 },
     );
   }
+
+  return NextResponse.json({
+    success: true,
+    message: "User unsubscribed successfully",
+  });
 }

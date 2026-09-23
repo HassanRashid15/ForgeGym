@@ -9,19 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
-
-interface NewsletterSubscription {
-  id: string;
-  email: string;
-  subscribed_at: string;
-  is_active: boolean;
-  unsubscribed_at: string | null;
-  unsubscribe_reason: string | null;
-  deletion_scheduled_at: string | null;
-  metadata: any;
-  created_at: string;
-  updated_at: string;
-}
+import { ApiError } from "@/api/client";
+import {
+  listAdminNewsletter,
+  deleteAdminNewsletter,
+  subscribeNewsletter,
+  cleanupAdminNewsletter,
+  type NewsletterSubscription,
+} from "@/api/newsletter";
 
 export default function NewsletterPage() {
   const [subscriptions, setSubscriptions] = useState<NewsletterSubscription[]>([]);
@@ -34,17 +29,18 @@ export default function NewsletterPage() {
   const fetchSubscriptions = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/newsletter");
-      const data = await response.json();
+      const data = await listAdminNewsletter();
 
-      if (response.ok && data.success) {
+      if (data.success) {
         setSubscriptions(data.subscriptions);
         setFilteredSubscriptions(data.subscriptions);
       } else {
         toast.error(data.error || "Failed to fetch subscriptions");
       }
     } catch (error) {
-      toast.error("Failed to fetch subscriptions");
+      toast.error(
+        error instanceof ApiError ? error.message : "Failed to fetch subscriptions",
+      );
     } finally {
       setLoading(false);
     }
@@ -91,24 +87,18 @@ export default function NewsletterPage() {
   const handleUnsubscribe = async (email: string) => {
     setUnsubscribingEmail(email);
     try {
-      const response = await fetch("/api/admin/newsletter", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const data = await deleteAdminNewsletter(email);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         toast.success(data.message || "User unsubscribed successfully");
         await fetchSubscriptions();
       } else {
         toast.error(data.error || "Failed to unsubscribe user");
       }
     } catch (error) {
-      toast.error("Failed to unsubscribe user");
+      toast.error(
+        error instanceof ApiError ? error.message : "Failed to unsubscribe user",
+      );
     } finally {
       setUnsubscribingEmail(null);
     }
@@ -116,43 +106,39 @@ export default function NewsletterPage() {
 
   const handleReactivate = async (email: string) => {
     try {
-      const response = await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const data = await subscribeNewsletter(email);
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         toast.success("Subscription reactivated successfully");
         await fetchSubscriptions();
       } else {
         toast.error(data.error || "Failed to reactivate subscription");
       }
     } catch (error) {
-      toast.error("Failed to reactivate subscription");
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to reactivate subscription",
+      );
     }
   };
 
   const handleCleanup = async () => {
     try {
-      const response = await fetch("/api/admin/newsletter/cleanup", {
-        method: "POST",
-      });
+      const data = await cleanupAdminNewsletter();
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data.success) {
         toast.success(`Cleaned up ${data.deleted_count} expired subscription(s)`);
         await fetchSubscriptions();
       } else {
         toast.error(data.error || "Failed to cleanup expired subscriptions");
       }
     } catch (error) {
-      toast.error("Failed to cleanup expired subscriptions");
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Failed to cleanup expired subscriptions",
+      );
     }
   };
 

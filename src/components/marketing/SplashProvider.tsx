@@ -42,14 +42,6 @@ function unlockSplashScroll() {
  * Non-home routes: unlock scroll immediately.
  * Home splash is owned by the SSR HomePage + HomeBootSplash (10s).
  */
-function homeAlreadySeenSplash() {
-  if (typeof document === "undefined") return false;
-  const cookieSeen = document.cookie
-    .split(";")
-    .some((c) => c.trim().startsWith("forge_splash_seen=1"));
-  return cookieSeen || !document.getElementById("forge-ssr-splash");
-}
-
 export function SplashProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isHome = pathname === "/";
@@ -57,12 +49,7 @@ export function SplashProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isHome) {
-      // Returning visitors / skipped splash → ready immediately
-      if (homeAlreadySeenSplash()) {
-        unlockSplashScroll();
-        setSplashReady(true);
-        return;
-      }
+      // Home page owns the 10s SSR preloader
       setSplashReady(false);
       return;
     }

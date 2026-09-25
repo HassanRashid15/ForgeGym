@@ -9,7 +9,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { splashSeenCookieScript } from "@/lib/splash-cookie";
 
 const HOLD_MS = 9_600;
 const FADE_MS = 600;
@@ -40,10 +39,6 @@ function lockSplashScroll() {
   document.body.style.height = "100%";
 }
 
-function markSplashSeenCookie() {
-  document.cookie = splashSeenCookieScript();
-}
-
 type HomeBootSplashProps = {
   /** First child: SSR SplashScreen. Second: home content. */
   children: ReactNode;
@@ -52,7 +47,6 @@ type HomeBootSplashProps = {
 /**
  * Keeps the SSR preloader visible for ~10s, then fades and reveals home content.
  * Logo fade-in runs once from SSR CSS — do not restart it on hydrate.
- * Sets forge_splash_seen cookie so return visits skip the preloader.
  */
 export function HomeBootSplash({ children }: HomeBootSplashProps) {
   const [phase, setPhase] = useState<"show" | "fade" | "done">("show");
@@ -71,7 +65,6 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
   }, []);
 
   useLayoutEffect(() => {
-    markSplashSeenCookie();
     lockSplashScroll();
     document.getElementById("forge-instant-splash")?.remove();
 
@@ -89,7 +82,6 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
   }, [releaseScrollBlock]);
 
   const finish = useCallback(() => {
-    markSplashSeenCookie();
     releaseScrollBlock();
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.getElementById("forge-instant-splash")?.remove();

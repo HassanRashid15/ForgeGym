@@ -142,20 +142,18 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  if (location.pathname !== '/') return;
-                  var seen = document.cookie.split(';').some(function(c) {
-                    return c.trim().indexOf('forge_splash_seen=1') === 0;
-                  });
-                  if (seen) return;
-                  document.documentElement.classList.add('forge-splash-lock');
-                  if (!document.getElementById('forge-instant-splash')) {
-                    var s = document.createElement('div');
-                    s.id = 'forge-instant-splash';
-                    s.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:#0D0D0D;');
-                    document.documentElement.appendChild(s);
-                    document.addEventListener('DOMContentLoaded', function() {
-                      if (s.parentNode) s.parentNode.removeChild(s);
-                    });
+                  if (location.pathname === '/') {
+                    document.documentElement.classList.add('forge-splash-lock');
+                    if (!document.getElementById('forge-instant-splash')) {
+                      var s = document.createElement('div');
+                      s.id = 'forge-instant-splash';
+                      s.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:#0D0D0D;');
+                      document.documentElement.appendChild(s);
+                      document.addEventListener('DOMContentLoaded', function() {
+                        var boot = document.getElementById('forge-ssr-splash');
+                        if (boot && s.parentNode) s.parentNode.removeChild(s);
+                      });
+                    }
                   }
                 } catch (e) {}
               })();

@@ -449,13 +449,6 @@
       "description": "Reverse geocode coordinates to place"
     }
   },
-  "splash": {
-    "visit": {
-      "method": "POST",
-      "path": "/api/splash-visit",
-      "description": "Record visitor IP for once-only home preloader"
-    }
-  },
   "dev": {
     "testNotifications": {
       "method": "POST",

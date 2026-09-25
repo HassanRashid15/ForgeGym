@@ -868,9 +868,22 @@ export default function ProfilePage() {
                         value={profileData.address}
                         placeholder="Search, detect location, or type your address"
                         inputClassName="bg-zinc-900 border-zinc-700"
-                        onChange={({ address }) =>
-                          setProfileData({ ...profileData, address })
-                        }
+                    onChange={({ address, lat, lon, city }) =>
+                      setProfileData({
+                        ...profileData,
+                        address,
+                        ...(lat != null && lon != null
+                          ? {
+                              gymLatitude: String(lat),
+                              gymLongitude: String(lon),
+                              gymLocationLabel: address,
+                              ...(city?.trim()
+                                ? { gymCity: city.trim() }
+                                : {}),
+                            }
+                          : {}),
+                      })
+                    }
                       />
                     ) : (
                       <div className="relative">

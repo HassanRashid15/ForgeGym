@@ -1,30 +1,3 @@
-/** Extract city / region from Nominatim addressdetails */
-export function placeFromNominatimAddress(address: Record<string, string> | undefined | null): {
-  city: string | null;
-  region: string | null;
-  country: string | null;
-} {
-  if (!address) return { city: null, region: null, country: null };
-
-  const city =
-    address.city ||
-    address.town ||
-    address.village ||
-    address.municipality ||
-    address.county ||
-    address.suburb ||
-    null;
-
-  const region = address.state || address.province || address.region || null;
-  const country = address.country || null;
-
-  return {
-    city: city ? String(city).trim() : null,
-    region: region ? String(region).trim() : null,
-    country: country ? String(country).trim() : null,
-  };
-}
-
 /** Best-effort parse from a freeform address label (comma-separated) */
 export function placeFromAddressLabel(label: string): {
   city: string | null;
@@ -38,18 +11,33 @@ export function placeFromAddressLabel(label: string): {
   if (parts.length === 0) return { city: null, region: null };
   if (parts.length === 1) return { city: parts[0], region: null };
 
-  // Typical: street, area, city, province, country
-  const withoutCountry =
-    parts.length >= 2 && /pakistan|india|uae|usa|uk|united/i.test(parts[parts.length - 1])
-      ? parts.slice(0, -1)
-      : parts;
+  // Drop country + postal codes (e.g. "54000") so city isn't "Lahore" / region "54000"
+  const cleaned = parts.filter(
+    (p, i) =>
+      !(i === parts.length - 1 && /pakistan|india|uae|usa|uk|united/i.test(p)) &&
+      !/^\d{4,6}$/.test(p),
+  );
 
-  if (withoutCountry.length === 1) {
-    return { city: withoutCountry[0], region: null };
+  if (cleaned.length === 0) return { city: null, region: null };
+  if (cleaned.length === 1) return { city: cleaned[0], region: null };
+
+  // Prefer a known Pakistani city token when present
+  const knownCities =
+    /\b(lahore|karachi|islamabad|rawalpindi|faisalabad|multan|peshawar|quetta|sialkot|gujranwala|hyderabad)\b/i;
+  const cityHit = [...cleaned].reverse().find((p) => knownCities.test(p));
+  if (cityHit) {
+    const regionHit = [...cleaned]
+      .reverse()
+      .find(
+        (p) =>
+          p !== cityHit &&
+          /punjab|sindh|balochistan|khyber|kpk|gilgit|ajk|islamabad/i.test(p),
+      );
+    return { city: cityHit, region: regionHit || null };
   }
 
-  const region = withoutCountry[withoutCountry.length - 1] || null;
-  const city = withoutCountry[withoutCountry.length - 2] || withoutCountry[0] || null;
+  const region = cleaned[cleaned.length - 1] || null;
+  const city = cleaned[cleaned.length - 2] || cleaned[0] || null;
   return { city, region };
 }
 

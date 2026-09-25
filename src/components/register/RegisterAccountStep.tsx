@@ -59,6 +59,8 @@ export type RegisterAccountStepProps = {
     city?: string | null;
     region?: string | null;
     country?: string | null;
+    lat?: number | null;
+    lon?: number | null;
   }) => void;
   emergencyContact: string;
   setEmergencyContact: (v: string) => void;
@@ -385,9 +387,9 @@ export function RegisterAccountStep({
           disabled={isLoading}
           placeholder="Search, detect location, or type your address"
           inputClassName={inputCls(false)}
-          onChange={({ address: next, city, region, country }) => {
+          onChange={({ address: next, city, region, country, lat, lon }) => {
             setAddress(next);
-            onAddressPlace?.({ city, region, country });
+            onAddressPlace?.({ city, region, country, lat, lon });
           }}
         />
       </div>

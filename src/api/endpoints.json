@@ -466,6 +466,11 @@
       "method": "GET",
       "path": "/api/geo/reverse",
       "description": "Reverse geocode coordinates to place"
+    },
+    "distance": {
+      "method": "POST",
+      "path": "/api/geo/distance",
+      "description": "Google Distance Matrix from user to gyms"
     }
   },
   "dev": {

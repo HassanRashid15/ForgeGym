@@ -454,6 +454,16 @@ export async function POST(request: Request) {
               requestedRole === "admin" ? fitnessData.gym_monthly_fee || null : null,
             gym_trainer_fee:
               requestedRole === "admin" ? fitnessData.gym_trainer_fee || null : null,
+            gym_latitude:
+              requestedRole === "admin" &&
+              Number.isFinite(Number(fitnessData.gym_latitude))
+                ? Number(fitnessData.gym_latitude)
+                : null,
+            gym_longitude:
+              requestedRole === "admin" &&
+              Number.isFinite(Number(fitnessData.gym_longitude))
+                ? Number(fitnessData.gym_longitude)
+                : null,
             preferred_trainer_id:
               requestedRole === "user" ? fitnessData.preferred_trainer_id || null : null,
             date_of_birth: fitnessData.date_of_birth || null,

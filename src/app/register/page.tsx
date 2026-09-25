@@ -70,6 +70,8 @@ function RegisterContent() {
   const [address, setAddress] = useState("");
   const [addressCity, setAddressCity] = useState<string | null>(null);
   const [addressRegion, setAddressRegion] = useState<string | null>(null);
+  const [addressLat, setAddressLat] = useState<number | null>(null);
+  const [addressLon, setAddressLon] = useState<number | null>(null);
   const [emergencyContact, setEmergencyContact] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -867,6 +869,14 @@ function RegisterContent() {
               gym_member_capacity: gymMemberCapacity || undefined,
               gym_services: gymServices.length > 0 ? gymServices : undefined,
               gym_video_url: gymVideoUrl.trim() || undefined,
+              gym_latitude:
+                addressLat != null && Number.isFinite(addressLat)
+                  ? addressLat
+                  : undefined,
+              gym_longitude:
+                addressLon != null && Number.isFinite(addressLon)
+                  ? addressLon
+                  : undefined,
             }
           : (() => {
               const heightCm = heightToCm(height, heightUnit);
@@ -1060,9 +1070,15 @@ function RegisterContent() {
               phoneTaken={phoneTaken}
               address={address}
               setAddress={setAddress}
-              onAddressPlace={({ city, region }) => {
+              onAddressPlace={({ city, region, lat, lon }) => {
                 setAddressCity(city || null);
                 setAddressRegion(region || null);
+                setAddressLat(
+                  typeof lat === "number" && Number.isFinite(lat) ? lat : null,
+                );
+                setAddressLon(
+                  typeof lon === "number" && Number.isFinite(lon) ? lon : null,
+                );
               }}
               emergencyContact={emergencyContact}
               setEmergencyContact={setEmergencyContact}

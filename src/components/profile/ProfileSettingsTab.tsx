@@ -32,6 +32,9 @@ export type ProfileSettingsFormSlice = {
   gymOptionalImagesUrls: string[];
   gymVideoUrl: string;
   gymVideoFileUrl: string;
+  gymLatitude?: string;
+  gymLongitude?: string;
+  gymLocationLabel?: string;
 };
 
 type ProfileSettingsTabProps = {
@@ -232,8 +235,20 @@ export function ProfileSettingsTab({
                     value={profileData.address}
                     placeholder="Search or type gym address"
                     inputClassName="bg-zinc-900 border-zinc-700"
-                    showMap={false}
-                    onChange={({ address }) => patch({ address })}
+                    showMap
+                    onChange={({ address, lat, lon, city }) =>
+                      patch({
+                        address,
+                        ...(lat != null && lon != null
+                          ? {
+                              gymLatitude: String(lat),
+                              gymLongitude: String(lon),
+                              gymLocationLabel: address,
+                              ...(city?.trim() ? { gymCity: city.trim() } : {}),
+                            }
+                          : { gymLatitude: "", gymLongitude: "" }),
+                      })
+                    }
                   />
                 ) : (
                   <Input

@@ -6,6 +6,7 @@ export type GymListItem = {
   gymName: string;
   gymType: string | null;
   gymCity: string | null;
+  address: string | null;
   facilities: string[];
   services: string[];
   peakHours: string | null;
@@ -20,7 +21,7 @@ export type GymListItem = {
   trainerFee: string | null;
 };
 
-/** Public gym detail — no email/phone/address PII. */
+/** Public gym detail — contact phone for visitors (address comes from list item). */
 export type GymDetail = GymListItem & {
   operatingDays: number | null;
   bio: string | null;
@@ -30,6 +31,8 @@ export type GymDetail = GymListItem & {
   gymVideoFileUrl: string | null;
   monthlyFee: string | null;
   trainerFee: string | null;
+  /** Gym contact number from owner profile */
+  phone: string | null;
 };
 
 /** Prefer public.gyms catalog; fall back to profiles (no PII) pre-migration. */
@@ -59,7 +62,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
 
       const { data: ownerProfiles } = await service
         .from("profiles")
-        .select("user_id, admin_approved, is_super_admin, gym_main_image_url")
+        .select("user_id, admin_approved, is_super_admin, gym_main_image_url, address")
         .in("user_id", ownerIds);
 
       const profileByUser = new Map(
@@ -84,6 +87,9 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
           gymName: row.name,
           gymType: row.gym_type,
           gymCity: row.city,
+          address:
+            (profile as { address?: string | null } | undefined)?.address?.trim() ||
+            null,
           facilities: row.facilities || [],
           services: row.services || [],
           peakHours: row.peak_hours,
@@ -115,7 +121,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
   const { data: profiles, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee",
+      "user_id, full_name, gym_name, gym_type, gym_city, address, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee",
     )
     .in("user_id", adminIds)
     .eq("admin_approved", true)
@@ -132,6 +138,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
       gymName: p.gym_name!,
       gymType: p.gym_type,
       gymCity: p.gym_city,
+      address: (p as { address?: string | null }).address?.trim() || null,
       facilities: p.gym_facilities || [],
       services: p.gym_services || [],
       peakHours: p.gym_peak_hours,
@@ -175,7 +182,7 @@ export async function getGymByOwnerId(
     const { data: profile } = await service
       .from("profiles")
       .select(
-        "admin_approved, is_super_admin, bio, avatar_url, full_name, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
+        "admin_approved, is_super_admin, bio, avatar_url, full_name, address, phone, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
       )
       .eq("user_id", ownerId)
       .maybeSingle();
@@ -226,13 +233,15 @@ export async function getGymByOwnerId(
         typeof gymRow.latitude === "number" ? gymRow.latitude : profileLat,
       longitude:
         typeof gymRow.longitude === "number" ? gymRow.longitude : profileLng,
+      address: (profile as { address?: string | null }).address?.trim() || null,
+      phone: (profile as { phone?: string | null }).phone?.trim() || null,
     };
   }
 
   const { data: profile, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
+      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, address, phone, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
     )
     .eq("user_id", ownerId)
     .maybeSingle();
@@ -277,6 +286,8 @@ export async function getGymByOwnerId(
       typeof (profile as { gym_longitude?: number | null }).gym_longitude === "number"
         ? (profile as { gym_longitude: number }).gym_longitude
         : null,
+    address: (profile as { address?: string | null }).address?.trim() || null,
+    phone: (profile as { phone?: string | null }).phone?.trim() || null,
   };
 }
 

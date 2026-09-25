@@ -52,6 +52,7 @@ import {
   PieChart,
   Mail,
   Megaphone,
+  Globe,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getNameInitials } from "@/lib/utils";
@@ -116,6 +117,7 @@ const superAdminItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
   { title: "Membership Set", url: "/dashboard/membership-set", icon: Wallet },
   { title: "Stats", url: "/dashboard/statistics", icon: PieChart },
+  { title: "Public Traffic", url: "/dashboard/traffic", icon: Globe },
   { title: "Newsletter", url: "/dashboard/newsletter", icon: Mail },
   { title: "Promotions", url: "/dashboard/promotions", icon: Megaphone },
 ];
@@ -329,7 +331,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
                   href={gymDetailHref}
                   className="group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!gap-0"
                 >
-                  <div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary text-primary-foreground group-data-[collapsible=icon]:size-8">
+                  <div className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg  text-primary-foreground group-data-[collapsible=icon]:size-8">
                     {user?.gymMainImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -383,7 +385,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
                   >
                     <div
                       data-sidebar-avatar
-                      className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary"
+                      className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
                     >
                       <Avatar className="size-8 rounded-lg">
                         <AvatarImage src={user?.avatar} alt={user?.name || "Account"} />

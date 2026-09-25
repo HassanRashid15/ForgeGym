@@ -10,6 +10,7 @@ import {
   Clock,
   Dumbbell,
   MapPin,
+  Phone,
   Users,
   Wallet,
 } from "lucide-react";
@@ -196,7 +197,7 @@ export default async function GymDetailPage({ params }: PageProps) {
                 <img
                   src={gym.avatarUrl}
                   alt={`${gym.gymName} logo`}
-                  className="h-16 w-16 shrink-0 rounded-2xl border border-border bg-card object-cover shadow-lg sm:h-20 sm:w-20 md:h-24 md:w-24"
+                  className="h-16 w-16 shrink-0 object-cover sm:h-20 sm:w-20 md:h-24 md:w-24"
                 />
               ) : (
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-card sm:h-20 sm:w-20 md:h-24 md:w-24">
@@ -212,6 +213,25 @@ export default async function GymDetailPage({ params }: PageProps) {
               {gym.bio?.trim() ||
                 `Train at ${gym.gymName}${gym.gymCity ? ` in ${gym.gymCity}` : ""}. Join as a member and get approved by the gym owner.`}
             </p>
+
+            {gym.address && (
+              <p className="mt-3 flex max-w-xl items-start gap-2 text-sm text-muted-foreground md:text-base">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span>{gym.address}</span>
+              </p>
+            )}
+
+            {gym.phone && (
+              <p className="mt-2 flex max-w-xl items-center gap-2 text-sm text-muted-foreground md:text-base">
+                <Phone className="h-4 w-4 shrink-0 text-primary" />
+                <a
+                  href={`tel:${gym.phone.replace(/\s+/g, "")}`}
+                  className="hover:text-foreground hover:underline"
+                >
+                  {gym.phone}
+                </a>
+              </p>
+            )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" variant="hero">

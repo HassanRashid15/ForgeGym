@@ -26,6 +26,8 @@ import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 import { TextType } from "@/components/marketing/TextType";
 import { HomeStatsSection } from "@/components/marketing/HomeStatsSection";
 import type { PlatformPublicStats } from "@/lib/platform-stats";
+import { useLivePlatformStats } from "@/hooks/useLivePlatformStats";
+import { useMemo } from "react";
 
 const heroHighlights = [
   {
@@ -50,6 +52,7 @@ export type FeaturedGym = {
   gymName: string;
   gymType: string | null;
   gymCity: string | null;
+  address?: string | null;
   gymMainImageUrl: string | null;
   avatarUrl: string | null;
   memberCount?: number;
@@ -107,6 +110,18 @@ export default function HomePageClient({
   featuredGyms?: FeaturedGym[];
   platformStats?: PlatformPublicStats;
 }) {
+  const liveStats = useLivePlatformStats(platformStats);
+
+  const gyms = useMemo(
+    () =>
+      featuredGyms.map((g) => ({
+        ...g,
+        memberCount:
+          liveStats?.memberCountsByOwner?.[g.ownerId] ?? g.memberCount ?? 0,
+      })),
+    [featuredGyms, liveStats],
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -223,7 +238,7 @@ export default function HomePageClient({
       </section>
 
       {/* Featured gyms — core product */}
-      {featuredGyms.length > 0 && (
+      {gyms.length > 0 && (
         <section className="bg-gradient-to-b from-background to-card/50 py-24">
           <div className="container mx-auto px-4">
             <ScrollAnimate animation="fade-up">
@@ -244,7 +259,7 @@ export default function HomePageClient({
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                {featuredGyms.map((gym) => (
+                {gyms.map((gym) => (
                   <Link
                     key={gym.ownerId}
                     href={`/gyms/${gym.ownerId}`}
@@ -299,10 +314,12 @@ export default function HomePageClient({
                           </div>
                         </div>
 
-                        {gym.gymCity && (
-                          <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                            <span className="truncate">{gym.gymCity}</span>
+                        {(gym.address || gym.gymCity) && (
+                          <div className="mb-4 flex items-start gap-1.5 text-sm text-muted-foreground">
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="line-clamp-2">
+                              {gym.address || gym.gymCity}
+                            </span>
                           </div>
                         )}
 
@@ -383,7 +400,7 @@ export default function HomePageClient({
       </section>
 
       {/* Social proof — numbers */}
-      <HomeStatsSection stats={platformStats} />
+      <HomeStatsSection stats={liveStats} />
 
       {/* Social proof — people */}
       <ReviewSection />

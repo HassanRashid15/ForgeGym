@@ -201,7 +201,11 @@ const Navbar = () => {
                       variant="ghost"
                       size={scrolled ? "default" : "lg"}
                       asChild
-                      className="transition-all duration-300 hidden lg:inline-flex"
+                      className={`hidden transition-all duration-300 lg:inline-flex ${
+                        isLightThemePage
+                          ? "text-black/80 hover:bg-primary/10 hover:text-primary"
+                          : "text-white hover:bg-primary/15 hover:text-primary"
+                      }`}
                       suppressHydrationWarning
                     >
                       <Link href="/login" suppressHydrationWarning>
@@ -284,8 +288,10 @@ const Navbar = () => {
                 <>
                   <Button
                     variant="ghost"
-                    className={`w-full ${
-                      isLightThemePage ? "text-black" : "text-white"
+                    className={`w-full transition-colors ${
+                      isLightThemePage
+                        ? "text-black hover:bg-primary/10 hover:text-primary"
+                        : "text-white hover:bg-primary/15 hover:text-primary"
                     }`}
                     asChild
                     suppressHydrationWarning

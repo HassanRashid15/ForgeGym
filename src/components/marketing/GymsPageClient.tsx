@@ -523,10 +523,12 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                           </h3>
                         </div>
 
-                        {gym.gymCity && (
-                          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 shrink-0 text-primary" />
-                            <span>{gym.gymCity}</span>
+                        {(gym.address || gym.gymCity) && (
+                          <div className="mb-3 flex items-start gap-2 text-sm text-muted-foreground">
+                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <span className="line-clamp-2">
+                              {gym.address || gym.gymCity}
+                            </span>
                           </div>
                         )}
 

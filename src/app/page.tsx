@@ -19,6 +19,7 @@ async function HomeContent() {
     gymName: g.gymName,
     gymType: g.gymType,
     gymCity: g.gymCity,
+    address: g.address,
     gymMainImageUrl: g.gymMainImageUrl,
     avatarUrl: g.avatarUrl,
     memberCount: platformStats.memberCountsByOwner[g.ownerId] || 0,

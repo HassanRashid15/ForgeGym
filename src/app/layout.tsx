@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SplashProvider } from "@/components/marketing/SplashProvider";
+import { PublicTrafficBeacon } from "@/components/marketing/PublicTrafficBeacon";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
 import {
@@ -221,6 +222,7 @@ export default function RootLayout({
               <TooltipProvider>
                 <SplashProvider>
                   <RegisterServiceWorker />
+                  <PublicTrafficBeacon />
                   <Toaster />
                   <Sonner />
                   {children}

@@ -137,6 +137,11 @@
       "path": "/api/admin/newsletter/cleanup",
       "description": "Clean up invalid or duplicate newsletter rows"
     },
+    "traffic": {
+      "method": "GET",
+      "path": "/api/admin/traffic",
+      "description": "List public site approaches (super admin)"
+    },
     "promotions": {
       "method": "GET",
       "path": "/api/admin/promotions",
@@ -369,6 +374,13 @@
       "description": "Public trainers for a gym"
     }
   },
+  "platform": {
+    "publicStats": {
+      "method": "GET",
+      "path": "/api/platform/public-stats",
+      "description": "Live public platform counters for home page"
+    }
+  },
   "membership": {
     "me": {
       "method": "GET",
@@ -435,6 +447,13 @@
       "method": "GET",
       "path": "/api/promotions",
       "description": "Published home promotions (public)"
+    }
+  },
+  "traffic": {
+    "record": {
+      "method": "POST",
+      "path": "/api/traffic",
+      "description": "Record a public page approach"
     }
   },
   "geo": {

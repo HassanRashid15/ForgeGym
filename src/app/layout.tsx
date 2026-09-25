@@ -164,6 +164,8 @@ export default function RootLayout({
                         'style',
                         'position:fixed;inset:0;z-index:10000;overflow:hidden;background:#0D0D0D;'
                       );
+                      // Background only — mid logo must not paint here or it flashes
+                      // again when the SSR splash fade-up starts.
                       var bg = document.createElement('img');
                       bg.src = '/splash_img.png';
                       bg.alt = '';
@@ -173,22 +175,10 @@ export default function RootLayout({
                         'style',
                         'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 28%;'
                       );
-                      var logo = document.createElement('img');
-                      logo.src = '/preloader_logo.png';
-                      logo.alt = 'FORGE';
-                      logo.decoding = 'async';
-                      logo.fetchPriority = 'high';
-                      logo.setAttribute(
-                        'style',
-                        'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(72vw,320px);height:auto;z-index:1;'
-                      );
                       s.appendChild(bg);
-                      s.appendChild(logo);
                       document.documentElement.appendChild(s);
-                      document.addEventListener('DOMContentLoaded', function() {
-                        var boot = document.getElementById('forge-ssr-splash');
-                        if (boot && s.parentNode) s.parentNode.removeChild(s);
-                      });
+                      // Hand off in HomeBootSplash layout effect only — avoids
+                      // revealing opacity:0 SSR logo mid-animation.
                     }
                   }
                 } catch (e) {}

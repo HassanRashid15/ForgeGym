@@ -4,6 +4,7 @@
  */
 
 import { SplashStatusBar } from "@/components/marketing/SplashStatusBar";
+import { SplashLogo } from "@/components/marketing/SplashLogo";
 
 const RED = "#FA1818";
 
@@ -90,16 +91,7 @@ export function SplashScreen({
 
       {/* Center stack: logo + pillars directly under it */}
       <div className="relative z-10 flex flex-col items-center px-6">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/preloader_logo.png"
-          alt="FORGE — Train. Build. Become."
-          className="forge-splash-logo w-[min(72vw,320px)] object-contain drop-shadow-[0_0_40px_rgba(250,24,24,0.35)]"
-          draggable={false}
-          decoding="async"
-          loading="eager"
-          fetchPriority="high"
-        />
+        <SplashLogo />
 
         <div className="forge-splash-pillars mt-6 flex items-center justify-center sm:mt-8">
           {PILLARS.map(({ label, Icon, className }, index) => (

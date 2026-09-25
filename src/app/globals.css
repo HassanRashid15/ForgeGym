@@ -457,11 +457,20 @@
     }
   }
 
-  /* Logo: delay 450ms, duration 1100ms (RN fadeSlideIn) */
+  /* Logo: delay 450ms, duration 1100ms — once; --done freezes after play / remount */
   .forge-splash-logo {
     opacity: 0;
     transform: translateY(18px);
+  }
+
+  .forge-splash-logo.forge-splash-logo--animate {
     animation: forge-fade-up 1.1s cubic-bezier(0.33, 1, 0.68, 1) 0.45s forwards;
+  }
+
+  .forge-splash-logo.forge-splash-logo--done {
+    opacity: 1;
+    transform: translateY(0);
+    animation: none;
   }
 
   /* Pillars start after logo hold — TRAIN → FUEL → CONQUER (320ms stagger) */

@@ -100,7 +100,7 @@ const Navbar = () => {
                   onClick={closeMenu}
                 >
                   <img
-                    src={isLightThemePage ? "/forge_white.png" : "/forge.png"}
+                    src={isLightThemePage ? "/preloader_logo.png" : "/preloader_logo.png"}
                     alt="FORGE Gym"
                     className="h-10 w-28 object-contain sm:h-12 sm:w-32"
                   />

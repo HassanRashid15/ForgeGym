@@ -120,9 +120,11 @@ export function AuthBusyOverlay({
 
       <div className="relative z-10 flex max-w-[min(92vw,420px)] flex-col items-center px-6 text-center">
         <div
-          className={`forge-auth-busy-mark relative mb-10 flex h-36 w-36 items-center justify-center sm:h-40 sm:w-40 ${
-            isHero ? "forge-auth-busy-mark--welcome" : ""
-          }`}
+          className={`forge-auth-busy-mark relative mb-5 flex items-center justify-center ${
+            isHero
+              ? "h-auto w-[min(70vw,260px)]"
+              : "h-28 w-28 sm:h-32 sm:w-32"
+          } ${isHero ? "forge-auth-busy-mark--welcome" : ""}`}
         >
           {!isHero && <span className="forge-auth-busy-ring" aria-hidden />}
           <span className="forge-auth-busy-pulse" aria-hidden />
@@ -130,7 +132,11 @@ export function AuthBusyOverlay({
           <img
             src="/preloader_logo.png"
             alt="FORGE"
-            className="relative z-10 h-24 w-24 object-contain drop-shadow-[0_0_28px_rgba(250,24,24,0.5)] sm:h-28 sm:w-28"
+            className={`relative z-10 object-contain drop-shadow-[0_0_28px_rgba(250,24,24,0.5)] ${
+              isHero
+                ? "h-14 w-auto sm:h-16"
+                : "h-16 w-16 sm:h-20 sm:w-20"
+            }`}
             draggable={false}
           />
         </div>
@@ -159,7 +165,7 @@ export function AuthBusyOverlay({
         </p>
 
         {isWelcome ? (
-          <p className="forge-auth-busy-tip mt-4 text-base text-zinc-400 sm:text-lg">
+          <p className="forge-auth-busy-tip mt-3 text-base text-zinc-400 sm:text-lg">
             {mode === "login"
               ? "Taking you to your dashboard…"
               : mode === "register-admin"
@@ -167,13 +173,13 @@ export function AuthBusyOverlay({
                 : "Next: verify your email to continue…"}
           </p>
         ) : isFarewell ? (
-          <p className="forge-auth-busy-tip mt-4 text-base text-zinc-400 sm:text-lg">
+          <p className="forge-auth-busy-tip mt-3 text-base text-zinc-400 sm:text-lg">
             Come back stronger…
           </p>
         ) : (
           <p
             key={tips[tipIndex]}
-            className="forge-auth-busy-tip mt-4 min-h-[1.5rem] text-base text-[#FA1818]/90 sm:text-lg"
+            className="forge-auth-busy-tip mt-3 min-h-[1.5rem] text-base text-[#FA1818]/90 sm:text-lg"
           >
             {tips[tipIndex]}
           </p>

@@ -976,11 +976,16 @@ function RegisterContent() {
           />
           {/* Mobile logo */}
           {currentStep <= 3 && (
-            <Link href="/" className="mb-6 inline-flex items-center gap-2.5 lg:hidden">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 shadow-md shadow-red-500/30">
-                <Flame className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-sm font-bold uppercase tracking-widest text-white">Forge Gym</span>
+            <Link
+              href="/"
+              className="mb-3 block h-7 w-[7.25rem] overflow-hidden lg:hidden"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/preloader_logo.png"
+                alt="Forge Gym"
+                className="block h-9 w-full object-cover object-top"
+              />
             </Link>
           )}
 

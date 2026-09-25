@@ -14,7 +14,6 @@ import {
   LockKeyhole,
   Loader2,
   Mail,
-  Flame,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -247,11 +246,16 @@ function LoginContent() {
         <div className="w-full max-w-[420px] border border-red-500/30 rounded-2xl bg-zinc-900/50 backdrop-blur-sm p-8 shadow-2xl shadow-red-500/10">
           
           {/* Mobile logo */}
-          <Link href="/" className="mb-6 inline-flex items-center gap-2.5 lg:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-red-500 to-orange-500 shadow-md shadow-red-500/30">
-              <Flame className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-bold uppercase tracking-wide text-white">Forge Gym</span>
+          <Link
+            href="/"
+            className="mb-3 block h-7 w-[7.25rem] overflow-hidden lg:hidden"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/preloader_logo.png"
+              alt="Forge Gym"
+              className="block h-9 w-full object-cover object-top"
+            />
           </Link>
 
           {/* Verification Banner if arrived from /verification */}

@@ -204,32 +204,177 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* Newsletter Section */}
-      <NewsletterSection />
+      {/* Soft launch — set expectations early */}
+      <section className="py-16 md:py-20">
+        <div className="container mx-auto px-4">
+          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
+              Soft launch
+            </p>
+            <h2 className="font-display mb-4 text-4xl tracking-normal md:text-5xl">
+              Built with real gyms
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Forge is opening with partner gyms first — honest numbers, real coaches, and room to
+              grow. Join early and help shape what comes next.
+            </p>
+          </ScrollAnimate>
+        </div>
+      </section>
 
-      {/* Features Section */}
+      {/* Featured gyms — core product */}
+      {featuredGyms.length > 0 && (
+        <section className="bg-gradient-to-b from-background to-card/50 py-24">
+          <div className="container mx-auto px-4">
+            <ScrollAnimate animation="fade-up">
+              <div className="mb-8 flex items-center justify-between">
+                <div>
+                  <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">
+                    Featured gyms
+                  </p>
+                  <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
+                </div>
+                <Link
+                  href="/gyms"
+                  className="link--metis hidden items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-colors hover:text-primary md:inline-flex"
+                >
+                  View All Gyms
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {featuredGyms.map((gym) => (
+                  <Link
+                    key={gym.ownerId}
+                    href={`/gyms/${gym.ownerId}`}
+                    className="group outline-none [-webkit-tap-highlight-color:transparent]"
+                  >
+                    <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-[transform,box-shadow,border-color] duration-300 will-change-transform [transform:translateZ(0)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_50px_-28px_hsl(var(--primary)/0.45)]">
+                      <div className="relative aspect-[16/10] overflow-hidden bg-card">
+                        {gym.gymMainImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={gym.gymMainImageUrl}
+                            alt={gym.gymName}
+                            className="h-full w-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-[1.04]"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-background">
+                            <Building2 className="h-10 w-10 text-primary/70" />
+                          </div>
+                        )}
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card via-card/70 to-transparent" />
+                        {gym.gymType && (
+                          <span className="absolute left-3 top-3 rounded-md bg-background/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground backdrop-blur-sm">
+                            {gym.gymType}
+                          </span>
+                        )}
+                        {gym.monthlyFee && (
+                          <span className="absolute right-3 top-3 rounded-md bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">
+                            {gym.monthlyFee}
+                            <span className="font-medium opacity-80">/mo</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="relative -mt-8 flex flex-1 flex-col bg-card px-5 pb-5 pt-0">
+                        <div className="mb-4 flex items-end gap-3">
+                          {gym.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={gym.avatarUrl}
+                              alt={`${gym.gymName} logo`}
+                              className="h-14 w-14 shrink-0 rounded-xl border-2 border-card object-cover shadow-md"
+                            />
+                          ) : (
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-card bg-primary/10 shadow-md">
+                              <Building2 className="h-6 w-6 text-primary" />
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1 pb-1">
+                            <h3 className="font-display text-xl font-bold leading-tight tracking-normal transition-colors group-hover:text-primary sm:text-2xl">
+                              {gym.gymName}
+                            </h3>
+                          </div>
+                        </div>
+
+                        {gym.gymCity && (
+                          <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="truncate">{gym.gymCity}</span>
+                          </div>
+                        )}
+
+                        <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/60 pt-4">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <Users className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="leading-tight">
+                              {(gym.memberCount ?? 0) > 0 ? (
+                                <>
+                                  <p className="text-sm font-semibold text-foreground">
+                                    {(gym.memberCount ?? 0).toLocaleString()}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Active members
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  Be the first member
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-all group-hover:gap-2">
+                            Visit
+                            <ChevronRight className="h-4 w-4" />
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="mt-6 md:hidden">
+                <Button variant="ghost" asChild className="w-full link--metis border-0">
+                  <Link href="/gyms">
+                    View All Gyms
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </Button>
+              </div>
+            </ScrollAnimate>
+          </div>
+        </section>
+      )}
+
+      {/* Why Forge */}
       <section id="features" className="scroll-mt-20 bg-background py-24">
         <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="text-center mb-16">
-            <h2 className="font-display text-5xl md:text-6xl mb-4">WHY CHOOSE FORGE</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <ScrollAnimate animation="fade-up" className="mb-16 text-center">
+            <h2 className="font-display mb-4 text-5xl md:text-6xl">WHY CHOOSE FORGE</h2>
+            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
               We provide everything you need to achieve your fitness goals in one place.
             </p>
           </ScrollAnimate>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, index) => (
               <ScrollAnimate
                 key={feature.title}
                 animation="fade-up"
                 delay={index * 0.1}
               >
-                <div className="glass-card rounded-xl p-8 hover-lift h-full">
-                  <div className="w-14 h-14 rounded-lg bg-primary/10 flex items-center justify-center mb-6">
-                    <feature.icon className="w-7 h-7 text-primary" />
+                <div className="glass-card hover-lift h-full rounded-xl p-8">
+                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10">
+                    <feature.icon className="h-7 w-7 text-primary" />
                   </div>
-                  <h3 className="font-display text-2xl mb-3">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm">{feature.description}</p>
+                  <h3 className="font-display mb-3 text-2xl">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.description}</p>
                 </div>
               </ScrollAnimate>
             ))}
@@ -237,138 +382,18 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* Classes Preview */}
-      <section className="py-24 bg-gradient-to-b from-background to-card/50">
+      {/* Social proof — numbers */}
+      <HomeStatsSection stats={platformStats} />
+
+      {/* Social proof — people */}
+      <ReviewSection />
+
+      {/* Live offers */}
+      <HomePromotionsSection />
+
+      {/* Future — classes */}
+      <section className="py-24">
         <div className="container mx-auto px-4">
-          {featuredGyms.length > 0 && (
-            <ScrollAnimate animation="fade-up">
-              <div className="mb-16">
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">
-                      Featured gyms
-                    </p>
-                    <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
-                  </div>
-                  <Link 
-                    href="/gyms" 
-                    className="link--metis hidden items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-colors hover:text-primary md:inline-flex"
-                  >
-                    View All Gyms
-                    <ChevronRight className="h-4 w-4" />
-                  </Link>
-                </div>
-                
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-                  {featuredGyms.map((gym) => (
-                    <Link
-                      key={gym.ownerId}
-                      href={`/gyms/${gym.ownerId}`}
-                      className="group outline-none [-webkit-tap-highlight-color:transparent]"
-                    >
-                      <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card transition-[transform,box-shadow,border-color] duration-300 will-change-transform [transform:translateZ(0)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_20px_50px_-28px_hsl(var(--primary)/0.45)]">
-                        <div className="relative aspect-[16/10] overflow-hidden bg-card">
-                          {gym.gymMainImageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={gym.gymMainImageUrl}
-                              alt={gym.gymName}
-                              className="h-full w-full object-cover transition-transform duration-700 ease-out will-change-transform group-hover:scale-[1.04]"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-muted to-background">
-                              <Building2 className="h-10 w-10 text-primary/70" />
-                            </div>
-                          )}
-                          {/* Opaque bottom fade — stops light image edges flashing white on hover scale */}
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card via-card/70 to-transparent" />
-                          {gym.gymType && (
-                            <span className="absolute left-3 top-3 rounded-md bg-background/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground backdrop-blur-sm">
-                              {gym.gymType}
-                            </span>
-                          )}
-                          {gym.monthlyFee && (
-                            <span className="absolute right-3 top-3 rounded-md bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">
-                              {gym.monthlyFee}
-                              <span className="font-medium opacity-80">/mo</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="relative -mt-8 flex flex-1 flex-col bg-card px-5 pb-5 pt-0">
-                          <div className="mb-4 flex items-end gap-3">
-                            {gym.avatarUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={gym.avatarUrl}
-                                alt={`${gym.gymName} logo`}
-                                className="h-14 w-14 shrink-0 rounded-xl border-2 border-card object-cover shadow-md"
-                              />
-                            ) : (
-                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-card bg-primary/10 shadow-md">
-                                <Building2 className="h-6 w-6 text-primary" />
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1 pb-1">
-                              <h3 className="font-display text-xl font-bold leading-tight tracking-normal transition-colors group-hover:text-primary sm:text-2xl">
-                                {gym.gymName}
-                              </h3>
-                            </div>
-                          </div>
-
-                          {gym.gymCity && (
-                            <div className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{gym.gymCity}</span>
-                            </div>
-                          )}
-
-                          <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-                            <div className="flex items-center gap-2">
-                              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                <Users className="h-3.5 w-3.5" />
-                              </span>
-                              <div className="leading-tight">
-                                {(gym.memberCount ?? 0) > 0 ? (
-                                  <>
-                                    <p className="text-sm font-semibold text-foreground">
-                                      {(gym.memberCount ?? 0).toLocaleString()}
-                                    </p>
-                                    <p className="text-[11px] text-muted-foreground">
-                                      Active members
-                                    </p>
-                                  </>
-                                ) : (
-                                  <p className="text-sm font-medium text-muted-foreground">
-                                    Be the first member
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary transition-all group-hover:gap-2">
-                              Visit
-                              <ChevronRight className="h-4 w-4" />
-                            </span>
-                          </div>
-                        </div>
-                      </article>
-                    </Link>
-                  ))}
-                </div>
-
-                {/* Mobile View All Button */}
-                <div className="mt-6 md:hidden">
-                  <Button variant="ghost" asChild className="w-full link--metis border-0">
-                    <Link href="/gyms">
-                      View All Gyms
-                      <ChevronRight className="w-4 h-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </ScrollAnimate>
-          )}
-
           <ComingSoonOverlay
             mode="section"
             title="Classes coming soon"
@@ -426,55 +451,33 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* Stats Section */}
-      <HomeStatsSection stats={platformStats} />
-
-      {/* Soft launch */}
-      <section className="py-24">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
-              Soft launch
-            </p>
-            <h2 className="font-display mb-4 text-5xl tracking-normal md:text-6xl">
-              Built with real gyms
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Forge is opening with partner gyms first — honest numbers, real coaches, and room to
-              grow. Join early and help shape what comes next.
-            </p>
-          </ScrollAnimate>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24 bg-card relative overflow-hidden">
+      {/* Convert */}
+      <section className="relative overflow-hidden bg-card py-24">
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary rounded-full blur-3xl" />
+          <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-primary blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-primary blur-3xl" />
         </div>
-        <div className="container mx-auto px-4 relative z-10">
-          <ScrollAnimate animation="scale" className="text-center max-w-3xl mx-auto">
-            <h2 className="font-display text-5xl md:text-7xl mb-6">
+        <div className="container relative z-10 mx-auto px-4">
+          <ScrollAnimate animation="scale" className="mx-auto max-w-3xl text-center">
+            <h2 className="font-display mb-6 text-5xl md:text-7xl">
               READY TO <span className="text-gradient">TRANSFORM</span>?
             </h2>
-            <p className="text-muted-foreground text-lg mb-8">
+            <p className="mb-8 text-lg text-muted-foreground">
               Find a partner gym near you and start training with Forge. New members get a clear path
               from signup to approval — no inflated promises.
             </p>
             <Button variant="hero" size="xl" asChild>
               <Link href="/gyms">
                 Browse gyms
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
           </ScrollAnimate>
         </div>
       </section>
 
-      <HomePromotionsSection />
-
-      <ReviewSection />
+      {/* Capture leads last */}
+      <NewsletterSection />
 
       <Footer />
 

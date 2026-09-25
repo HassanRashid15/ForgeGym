@@ -76,12 +76,15 @@ export function SplashScreen({
       <img
         src="/splash_img.png"
         alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ objectPosition: "50% 20%" }}
+        className="absolute inset-0 h-full w-full object-cover brightness-[1.25] contrast-[1.05] sm:brightness-100 sm:contrast-100"
+        style={{ objectPosition: "50% 28%" }}
         draggable={false}
         fetchPriority="high"
       />
-      <div className="absolute inset-0 bg-black/35" />
+      {/* Mobile: no full wash — soft bottom fade for status text only.
+          Desktop: light overlay for contrast. */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent sm:hidden" />
+      <div className="absolute inset-0 hidden bg-black/30 sm:block" />
 
       {/* Center stack: logo + pillars directly under it */}
       <div className="relative z-10 flex flex-col items-center px-6">

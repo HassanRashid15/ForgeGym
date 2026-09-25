@@ -19,7 +19,7 @@ export function RegisterShell({ children }: RegisterShellProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
         <div className="absolute inset-0 z-10 flex flex-col overflow-hidden p-8 xl:p-12">
           <div className="mb-8 shrink-0">
-            <img src="/forge.png" alt="Forge Gym Logo" className="h-10 w-40 object-contain" />
+            <img src="/preloader_logo.png" alt="Forge Gym Logo" className="h-10 w-40 object-contain" />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center">
             <h2 className="mb-4 text-4xl font-bold leading-tight xl:text-5xl xl:leading-[3.5rem]">

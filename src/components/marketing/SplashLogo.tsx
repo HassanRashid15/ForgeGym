@@ -2,42 +2,34 @@
 
 import { useLayoutEffect, useRef } from "react";
 
-/** Survives Strict Mode / hydrate remounts — fade runs once per page load. */
+/** After the fade finishes, remounts keep the final state (no second flash). */
 let splashLogoStarted = false;
 let splashLogoPlayed = false;
 
 /**
- * Mid-splash FORGE logo.
- * Starts the fade only once in layout (after instant bg cover is gone) so
- * SSR → hydrate never flashes the logo twice.
+ * Mid-splash FORGE logo — original fade-up (0.45s delay, 1.1s duration).
+ * Replays once when the instant bg cover is removed so the fade is visible.
  */
 export function SplashLogo() {
   const ref = useRef<HTMLImageElement>(null);
 
   useLayoutEffect(() => {
+    document.getElementById("forge-instant-splash")?.remove();
     const el = ref.current;
     if (!el) return;
 
-    // Reveal SSR splash under the early bg cover, then animate once.
-    document.getElementById("forge-instant-splash")?.remove();
-
     if (splashLogoPlayed) {
       el.classList.add("forge-splash-logo--done");
-      el.classList.remove("forge-splash-logo--animate");
       return;
     }
 
-    if (splashLogoStarted) {
-      // Remount mid-play — freeze final state instead of restarting.
-      splashLogoPlayed = true;
-      el.classList.add("forge-splash-logo--done");
-      el.classList.remove("forge-splash-logo--animate");
-      return;
-    }
-
+    if (splashLogoStarted) return;
     splashLogoStarted = true;
+
+    // Restart the CSS fade so it plays on screen (not under the early cover).
+    el.style.animation = "none";
     void el.offsetWidth;
-    el.classList.add("forge-splash-logo--animate");
+    el.style.animation = "";
   }, []);
 
   return (
@@ -51,12 +43,10 @@ export function SplashLogo() {
       decoding="async"
       loading="eager"
       fetchPriority="high"
-      onAnimationEnd={() => {
+      onAnimationEnd={(e) => {
+        if (e.target !== ref.current) return;
         splashLogoPlayed = true;
-        const el = ref.current;
-        if (!el) return;
-        el.classList.add("forge-splash-logo--done");
-        el.classList.remove("forge-splash-logo--animate");
+        ref.current?.classList.add("forge-splash-logo--done");
       }}
     />
   );

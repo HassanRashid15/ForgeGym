@@ -242,20 +242,20 @@ export default function HomePageClient({
         <section className="bg-gradient-to-b from-background to-card/50 py-24">
           <div className="container mx-auto px-4">
             <ScrollAnimate animation="fade-up">
-              <div className="mb-8 flex items-center justify-between">
-                <div>
-                  <p className="mb-2 text-sm font-semibold uppercase tracking-wider text-primary">
+              <div className="mb-8">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold uppercase tracking-wider text-primary">
                     Featured gyms
                   </p>
-                  <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
+                  <Link
+                    href="/gyms"
+                    className="link--metis inline-flex shrink-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-foreground transition-colors hover:text-primary sm:text-sm [-webkit-tap-highlight-color:transparent]"
+                  >
+                    View All Gyms
+                    <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  </Link>
                 </div>
-                <Link
-                  href="/gyms"
-                  className="link--metis hidden items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-foreground transition-colors hover:text-primary md:inline-flex"
-                >
-                  View All Gyms
-                  <ChevronRight className="h-4 w-4" />
-                </Link>
+                <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -354,15 +354,6 @@ export default function HomePageClient({
                     </article>
                   </Link>
                 ))}
-              </div>
-
-              <div className="mt-6 md:hidden">
-                <Button variant="ghost" asChild className="w-full link--metis border-0">
-                  <Link href="/gyms">
-                    View All Gyms
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </Button>
               </div>
             </ScrollAnimate>
           </div>

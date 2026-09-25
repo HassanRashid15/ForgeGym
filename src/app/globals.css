@@ -285,6 +285,8 @@
     width: fit-content;
     max-width: 100%;
     padding-inline: 0;
+    padding-bottom: 2px;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .link--metis::before {
@@ -302,9 +304,20 @@
     z-index: 1;
   }
 
-  .link--metis:hover::before {
+  .link--metis:hover::before,
+  .link--metis:focus-visible::before,
+  .link--metis:active::before {
     transform-origin: 0% 50%;
     transform: scale3d(1, 1, 1);
+  }
+
+  /* Touch devices: keep underline visible while pressed / focused */
+  @media (hover: none) {
+    .link--metis:focus::before,
+    .link--metis:active::before {
+      transform-origin: 0% 50%;
+      transform: scale3d(1, 1, 1);
+    }
   }
 }
 

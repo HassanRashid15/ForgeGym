@@ -79,6 +79,8 @@ export function SplashScreen({
         className="absolute inset-0 h-full w-full object-cover brightness-[1.25] contrast-[1.05] sm:brightness-100 sm:contrast-100"
         style={{ objectPosition: "50% 28%" }}
         draggable={false}
+        decoding="async"
+        loading="eager"
         fetchPriority="high"
       />
       {/* Mobile: no full wash — soft bottom fade for status text only.
@@ -94,6 +96,8 @@ export function SplashScreen({
           alt="FORGE — Train. Build. Become."
           className="forge-splash-logo w-[min(72vw,320px)] object-contain drop-shadow-[0_0_40px_rgba(250,24,24,0.35)]"
           draggable={false}
+          decoding="async"
+          loading="eager"
           fetchPriority="high"
         />
 

@@ -40,13 +40,14 @@ function lockSplashScroll() {
 }
 
 type HomeBootSplashProps = {
-  /** First child: SSR SplashScreen. Second: home content. */
+  /** First child: SSR SplashScreen. Rest: home content (async Suspense). */
   children: ReactNode;
 };
 
 /**
  * Keeps the SSR preloader visible for ~10s, then fades and reveals home content.
- * Logo fade-in runs once from SSR CSS — do not restart it on hydrate.
+ * Splash HTML is still server-rendered (RSC child) so it streams before hydrate;
+ * images are also preloaded from layout head for first paint.
  */
 export function HomeBootSplash({ children }: HomeBootSplashProps) {
   const [phase, setPhase] = useState<"show" | "fade" | "done">("show");
@@ -68,9 +69,6 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
     lockSplashScroll();
     document.getElementById("forge-instant-splash")?.remove();
 
-    // Do not restart .forge-splash-logo animation here — SSR already starts it.
-    // Resetting on hydrate made the logo fade in twice.
-
     const block = (e: Event) => e.preventDefault();
     blockRef.current = block;
     window.addEventListener("wheel", block, { passive: false });
@@ -85,7 +83,6 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
     releaseScrollBlock();
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.getElementById("forge-instant-splash")?.remove();
-    document.getElementById("forge-ssr-splash")?.remove();
     setPhase("done");
   }, [releaseScrollBlock]);
 
@@ -98,15 +95,27 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
     };
   }, [finish]);
 
+  useEffect(() => {
+    const el = document.getElementById("forge-ssr-splash");
+    const instant = document.getElementById("forge-instant-splash");
+    if (phase === "fade") {
+      el?.classList.add("opacity-0", "pointer-events-none");
+      el?.setAttribute("aria-hidden", "true");
+      if (instant) {
+        instant.style.transition = "opacity 500ms ease-out";
+        instant.style.opacity = "0";
+      }
+    } else if (phase === "show") {
+      el?.classList.remove("opacity-0", "pointer-events-none");
+      el?.setAttribute("aria-hidden", "false");
+    }
+  }, [phase]);
+
   const showSplash = phase !== "done";
 
   return (
     <>
-      {showSplash && (
-        <div className={phase === "fade" ? "pointer-events-none" : undefined}>
-          <SplashFadeBridge fading={phase === "fade"}>{splash}</SplashFadeBridge>
-        </div>
-      )}
+      {showSplash ? splash : null}
       <div
         className={showSplash ? "pointer-events-none select-none" : undefined}
         aria-hidden={showSplash}
@@ -127,30 +136,4 @@ export function HomeBootSplash({ children }: HomeBootSplashProps) {
       </div>
     </>
   );
-}
-
-function SplashFadeBridge({
-  children,
-  fading,
-}: {
-  children: ReactNode;
-  fading: boolean;
-}) {
-  useEffect(() => {
-    const el = document.getElementById("forge-ssr-splash");
-    const instant = document.getElementById("forge-instant-splash");
-    if (fading) {
-      el?.classList.add("opacity-0", "pointer-events-none");
-      el?.setAttribute("aria-hidden", "true");
-      if (instant) {
-        instant.style.transition = "opacity 500ms ease-out";
-        instant.style.opacity = "0";
-      }
-    } else {
-      el?.classList.remove("opacity-0", "pointer-events-none");
-      el?.setAttribute("aria-hidden", "false");
-    }
-  }, [fading]);
-
-  return <>{children}</>;
 }

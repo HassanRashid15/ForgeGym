@@ -32,16 +32,21 @@ async function HomeContent() {
 }
 
 /**
- * SSR home — SplashScreen is streamed immediately (no await ahead of it).
- * Client keeps the preloader up for ~10s, then reveals content.
+ * SplashScreen streams immediately (no await ahead of it). HomeContent loads
+ * under Suspense while the splash stays up. Preload links hoist to <head> so
+ * splash images start before body paint.
  */
-export default async function HomePage() {
+export default function HomePage() {
   return (
-    <HomeBootSplash>
-      <SplashScreen />
-      <Suspense fallback={null}>
-        <HomeContent />
-      </Suspense>
-    </HomeBootSplash>
+    <>
+      <link rel="preload" href="/splash_img.png" as="image" fetchPriority="high" />
+      <link rel="preload" href="/preloader_logo.png" as="image" fetchPriority="high" />
+      <HomeBootSplash>
+        <SplashScreen />
+        <Suspense fallback={null}>
+          <HomeContent />
+        </Suspense>
+      </HomeBootSplash>
+    </>
   );
 }

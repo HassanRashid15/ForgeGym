@@ -103,7 +103,7 @@ export default function NewsletterSection() {
     <section className="py-24 bg-gradient-to-b from-card to-background">
       <div className="container mx-auto px-4">
         <ScrollAnimate animation="fade-up" className="max-w-4xl mx-auto">
-          <div className="glass-card rounded-2xl p-8 md:p-12 text-center relative overflow-hidden">
+          <div className="glass-card relative overflow-hidden rounded-2xl p-6 text-center sm:p-8 md:p-12">
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
             
@@ -126,24 +126,30 @@ export default function NewsletterSection() {
                 </div>
               ) : !isSubscribed ? (
                 <>
-                  <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+                  <form
+                    onSubmit={handleSubmit}
+                    className="mx-auto flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3"
+                  >
                     <input
                       type="email"
                       name="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Enter your email"
-                      className="flex-1 h-12 px-4 rounded-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      autoComplete="email"
+                      inputMode="email"
+                      enterKeyHint="send"
+                      className="box-border min-h-12 w-full flex-1 appearance-none rounded-full border border-border bg-background px-5 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 [-webkit-appearance:none]"
                       required
                       disabled={isSubmitting}
                     />
                     <Button
                       type="submit"
-                      className="h-12 px-8 rounded-full bg-primary text-white font-semibold hover:bg-primary/90 transition"
+                      className="box-border inline-flex h-auto min-h-12 w-full shrink-0 items-center justify-center rounded-full bg-primary px-8 py-3 text-base font-semibold text-white transition hover:bg-primary/90 sm:w-auto"
                       disabled={isSubmitting}
                     >
                       {isSubmitting ? "Subscribing..." : "Subscribe"}
-                      {!isSubmitting && <ArrowRight className="w-4 h-4 ml-2" />}
+                      {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
                     </Button>
                   </form>
 

@@ -62,7 +62,9 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
 
       const { data: ownerProfiles } = await service
         .from("profiles")
-        .select("user_id, admin_approved, is_super_admin, gym_main_image_url, address")
+        .select(
+          "user_id, admin_approved, is_super_admin, gym_main_image_url, address, gym_latitude, gym_longitude",
+        )
         .in("user_id", ownerIds);
 
       const profileByUser = new Map(
@@ -82,6 +84,16 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
 
       return validGyms.map((row) => {
         const profile = profileByUser.get(row.owner_user_id);
+        const profileLat =
+          typeof (profile as { gym_latitude?: number | null } | undefined)?.gym_latitude ===
+          "number"
+            ? (profile as { gym_latitude: number }).gym_latitude
+            : null;
+        const profileLng =
+          typeof (profile as { gym_longitude?: number | null } | undefined)?.gym_longitude ===
+          "number"
+            ? (profile as { gym_longitude: number }).gym_longitude
+            : null;
         return {
           ownerId: row.owner_user_id,
           gymName: row.name,
@@ -99,8 +111,10 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
           avatarUrl: row.avatar_url,
           gymMainImageUrl:
             row.main_image_url || profile?.gym_main_image_url || null,
-          latitude: typeof row.latitude === "number" ? row.latitude : null,
-          longitude: typeof row.longitude === "number" ? row.longitude : null,
+          latitude:
+            typeof row.latitude === "number" ? row.latitude : profileLat,
+          longitude:
+            typeof row.longitude === "number" ? row.longitude : profileLng,
           monthlyFee: (row as { monthly_fee?: string | null }).monthly_fee || null,
           trainerFee: (row as { trainer_fee?: string | null }).trainer_fee || null,
         };

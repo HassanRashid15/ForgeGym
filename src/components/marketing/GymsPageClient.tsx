@@ -21,11 +21,15 @@ import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import type { GymListItem } from "@/lib/gyms";
 import { formatDistanceKm, haversineKm } from "@/lib/geo/distance";
+import { getBestGeolocation } from "@/lib/geo/get-best-position";
 import { GymCardSkeleton } from "@/components/loading/GymCardSkeleton";
+import { GymImageLightbox } from "@/components/gyms/GymImageLightbox";
 import { searchGeo, reverseGeo } from "@/api/geo";
 
 const NEAR_RADIUS_KM = 75;
-const CITY_GEO_CACHE_KEY = "forge_gym_city_geo_v1";
+const GEO_CACHE_KEY = "forge_gym_geo_v3";
+/** Mark distance as approximate when GPS accuracy is worse than this (meters). */
+const APPROX_USER_ACCURACY_M = 150;
 
 type GymsPageClientProps = {
   gyms: GymListItem[];
@@ -35,14 +39,16 @@ type GeoPoint = { lat: number; lon: number };
 
 type GymWithDistance = GymListItem & {
   distanceKm: number | null;
+  /** True when coords/GPS are coarse (city geocode or weak mobile GPS). */
+  distanceApproximate: boolean;
   resolvedLat: number | null;
   resolvedLon: number | null;
 };
 
-function loadCityCache(): Record<string, GeoPoint> {
+function loadGeoCache(): Record<string, GeoPoint> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = sessionStorage.getItem(CITY_GEO_CACHE_KEY);
+    const raw = sessionStorage.getItem(GEO_CACHE_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, GeoPoint>;
   } catch {
@@ -50,31 +56,68 @@ function loadCityCache(): Record<string, GeoPoint> {
   }
 }
 
-function saveCityCache(cache: Record<string, GeoPoint>) {
+function saveGeoCache(cache: Record<string, GeoPoint>) {
   try {
-    sessionStorage.setItem(CITY_GEO_CACHE_KEY, JSON.stringify(cache));
+    sessionStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache));
   } catch {
     /* ignore quota */
   }
 }
 
-async function geocodeCity(city: string): Promise<GeoPoint | null> {
-  const q = city.trim();
-  if (q.length < 2) return null;
+function normalizeGeoQuery(q: string): string {
+  let query = q.trim();
+  if (!query) return "";
+  if (!/pakistan|pk\b/i.test(query)) {
+    query = `${query}, Pakistan`;
+  }
+  return query;
+}
+
+/** Pick the Nominatim hit that best matches the gym city / street address. */
+async function geocodeQuery(
+  q: string,
+  preferCity?: string | null,
+): Promise<GeoPoint | null> {
+  const query = normalizeGeoQuery(q);
+  if (query.length < 2) return null;
   try {
-    const data = await searchGeo(q);
-    const first = data.results?.[0];
-    if (
-      !first ||
-      !Number.isFinite(first.lat) ||
-      !Number.isFinite(first.lon)
-    ) {
+    const data = await searchGeo(query);
+    const results = data.results || [];
+    if (results.length === 0) return null;
+
+    const city = (preferCity || "").trim().toLowerCase();
+    const ranked = [...results].sort((a, b) => {
+      const score = (r: (typeof results)[number]) => {
+        let s = 0;
+        const label = (r.label || "").toLowerCase();
+        const rCity = (r.city || "").toLowerCase();
+        if (city && (rCity === city || label.includes(city))) s += 5;
+        if (/\d/.test(label)) s += 2;
+        if (/road|rd|street|st\b|town|circular/i.test(label)) s += 1;
+        return s;
+      };
+      return score(b) - score(a);
+    });
+
+    const best = ranked[0];
+    if (!best || !Number.isFinite(best.lat) || !Number.isFinite(best.lon)) {
       return null;
     }
-    return { lat: first.lat!, lon: first.lon! };
+    return { lat: best.lat!, lon: best.lon! };
   } catch {
     return null;
   }
+}
+
+function gymAddressCacheKey(g: GymListItem): string | null {
+  const address = (g.address || "").trim().toLowerCase();
+  if (address.length >= 8) return `addr:${address}`;
+  return null;
+}
+
+function gymCityCacheKey(g: GymListItem): string | null {
+  const city = (g.gymCity || "").trim().toLowerCase();
+  return city ? `city:${city}` : null;
 }
 
 export default function GymsPageClient({ gyms }: GymsPageClientProps) {
@@ -101,41 +144,58 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [nearMe, setNearMe] = useState(false);
   const [userPoint, setUserPoint] = useState<GeoPoint | null>(null);
+  const [userAccuracyM, setUserAccuracyM] = useState<number | null>(null);
   const [userLabel, setUserLabel] = useState<string | null>(null);
   const [userCity, setUserCity] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-  const [cityCoords, setCityCoords] = useState<Record<string, GeoPoint>>({});
-  const [resolvingCities, setResolvingCities] = useState(false);
+  const [geoCache, setGeoCache] = useState<Record<string, GeoPoint>>({});
+  const [resolvingGeo, setResolvingGeo] = useState(false);
+  const [preview, setPreview] = useState<{
+    images: string[];
+    alt: string;
+  } | null>(null);
 
   const resolveGymCoords = useCallback(async (list: GymListItem[]) => {
-    const cache = { ...loadCityCache() };
-    const uniqueCities = [
-      ...new Set(
-        list
-          .filter((g) => g.latitude == null || g.longitude == null)
-          .map((g) => (g.gymCity || "").trim())
-          .filter(Boolean),
-      ),
-    ].filter((c) => !cache[c.toLowerCase()]);
+    const cache = { ...loadGeoCache() };
+    const jobs: Array<{ key: string; query: string; city: string | null }> = [];
 
-    if (uniqueCities.length === 0) {
-      setCityCoords(cache);
+    for (const g of list) {
+      const addrKey = gymAddressCacheKey(g);
+      if (addrKey && !cache[addrKey] && g.address) {
+        jobs.push({ key: addrKey, query: g.address, city: g.gymCity });
+      } else if ((g.latitude == null || g.longitude == null) && !addrKey) {
+        const cityKey = gymCityCacheKey(g);
+        if (cityKey && !cache[cityKey] && g.gymCity) {
+          jobs.push({ key: cityKey, query: g.gymCity, city: g.gymCity });
+        }
+      }
+    }
+
+    const seen = new Set<string>();
+    const uniqueJobs = jobs.filter((j) => {
+      if (seen.has(j.key)) return false;
+      seen.add(j.key);
+      return true;
+    });
+
+    if (uniqueJobs.length === 0) {
+      setGeoCache(cache);
       return cache;
     }
 
-    setResolvingCities(true);
+    setResolvingGeo(true);
     try {
-      for (const city of uniqueCities) {
-        const point = await geocodeCity(city);
-        if (point) cache[city.toLowerCase()] = point;
+      for (const job of uniqueJobs) {
+        const point = await geocodeQuery(job.query, job.city);
+        if (point) cache[job.key] = point;
         await new Promise((r) => setTimeout(r, 350));
       }
-      saveCityCache(cache);
-      setCityCoords(cache);
+      saveGeoCache(cache);
+      setGeoCache(cache);
       return cache;
     } finally {
-      setResolvingCities(false);
+      setResolvingGeo(false);
     }
   }, []);
 
@@ -149,12 +209,10 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
     setGeoError(null);
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60_000,
-        });
+      const position = await getBestGeolocation({
+        targetAccuracyM: 50,
+        timeoutMs: 18_000,
+        maxAcceptableAccuracyM: 3_000,
       });
 
       const point = {
@@ -162,6 +220,11 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
         lon: position.coords.longitude,
       };
       setUserPoint(point);
+      setUserAccuracyM(
+        Number.isFinite(position.coords.accuracy)
+          ? position.coords.accuracy
+          : null,
+      );
 
       try {
         const data = await reverseGeo(point.lat, point.lon);
@@ -184,16 +247,26 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
         err && typeof err === "object" && "code" in err
           ? Number((err as GeolocationPositionError).code)
           : null;
+      const message =
+        err instanceof Error && err.message && !err.message.includes("timed out")
+          ? err.message
+          : null;
       if (code === 1) {
-        setGeoError("Location permission denied. Allow location access to find nearby gyms.");
+        setGeoError(
+          "Location permission denied. On iPhone: Settings → Safari → Location → Allow, and turn Precise Location On.",
+        );
       } else if (code === 2) {
-        setGeoError("Unable to determine your location. Try again outdoors or check GPS.");
+        setGeoError(
+          message ||
+            "Unable to determine your location. Turn on Precise Location and try outdoors.",
+        );
       } else if (code === 3) {
-        setGeoError("Location request timed out. Please try again.");
+        setGeoError("Location request timed out. Please try again outdoors.");
       } else {
         setGeoError("Could not get your location. Please try again.");
       }
       setNearMe(false);
+      setUserAccuracyM(null);
     } finally {
       setLocating(false);
     }
@@ -202,6 +275,7 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
   const clearNearMe = () => {
     setNearMe(false);
     setUserPoint(null);
+    setUserAccuracyM(null);
     setUserLabel(null);
     setUserCity(null);
     setGeoError(null);
@@ -215,19 +289,37 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
   };
 
   const enriched: GymWithDistance[] = useMemo(() => {
+    const weakGps =
+      userAccuracyM != null && userAccuracyM > APPROX_USER_ACCURACY_M;
+
     return gyms.map((g) => {
-      let resolvedLat = g.latitude;
-      let resolvedLon = g.longitude;
-      if (
-        (resolvedLat == null || resolvedLon == null) &&
-        g.gymCity
+      const addrKey = gymAddressCacheKey(g);
+      const cityKey = gymCityCacheKey(g);
+      const addrPoint = addrKey ? geoCache[addrKey] : null;
+      const cityPoint = cityKey ? geoCache[cityKey] : null;
+
+      let resolvedLat: number | null = null;
+      let resolvedLon: number | null = null;
+      let distanceApproximate = false;
+
+      // Prefer street-address geocode when available (fixes wrong/city-level DB pins).
+      if (addrPoint) {
+        resolvedLat = addrPoint.lat;
+        resolvedLon = addrPoint.lon;
+        distanceApproximate = true;
+      } else if (
+        typeof g.latitude === "number" &&
+        typeof g.longitude === "number"
       ) {
-        const cached = cityCoords[g.gymCity.trim().toLowerCase()];
-        if (cached) {
-          resolvedLat = cached.lat;
-          resolvedLon = cached.lon;
-        }
+        resolvedLat = g.latitude;
+        resolvedLon = g.longitude;
+      } else if (cityPoint) {
+        resolvedLat = cityPoint.lat;
+        resolvedLon = cityPoint.lon;
+        distanceApproximate = true;
       }
+
+      if (weakGps) distanceApproximate = true;
 
       let distanceKm: number | null = null;
       if (
@@ -247,11 +339,12 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
       return {
         ...g,
         distanceKm,
-        resolvedLat: resolvedLat ?? null,
-        resolvedLon: resolvedLon ?? null,
+        distanceApproximate,
+        resolvedLat,
+        resolvedLon,
       };
     });
-  }, [gyms, cityCoords, nearMe, userPoint]);
+  }, [gyms, geoCache, nearMe, userPoint, userAccuracyM]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -269,6 +362,7 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
           g.gymCity,
           g.gymType,
           g.ownerName,
+          g.address,
           ...(g.facilities || []),
           ...(g.services || []),
         ]
@@ -323,7 +417,6 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
         </div>
       </section>
 
-      {/* Filters */}
       <section className="sticky top-16 z-40 border-b border-border bg-background/80 py-4 backdrop-blur-lg">
         <div className="container mx-auto space-y-4 px-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -340,9 +433,9 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
               variant={nearMe ? "default" : "outline"}
               className="gap-2 shrink-0"
               onClick={() => (nearMe ? clearNearMe() : void enableNearMe())}
-              disabled={locating || resolvingCities}
+              disabled={locating || resolvingGeo}
             >
-              {locating || resolvingCities ? (
+              {locating || resolvingGeo ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : nearMe ? (
                 <Navigation className="h-4 w-4" />
@@ -350,9 +443,9 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                 <LocateFixed className="h-4 w-4" />
               )}
               {locating
-                ? "Locating…"
-                : resolvingCities
-                  ? "Mapping cities…"
+                ? "Improving GPS…"
+                : resolvingGeo
+                  ? "Mapping gyms…"
                   : nearMe
                     ? "Near you · On"
                     : "Near your location"}
@@ -360,9 +453,17 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
           </div>
 
           {nearMe && userLabel && (
-            <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 text-primary" />
-              Showing gyms within {NEAR_RADIUS_KM} km of {userLabel}
+            <p className="flex flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground sm:flex-row sm:gap-2">
+              <span className="inline-flex items-center gap-2">
+                <MapPin className="h-3.5 w-3.5 text-primary" />
+                Showing gyms within {NEAR_RADIUS_KM} km of {userLabel}
+              </span>
+              {userAccuracyM != null && userAccuracyM > APPROX_USER_ACCURACY_M && (
+                <span className="text-xs text-amber-500">
+                  GPS ±{Math.round(userAccuracyM)} m — enable Precise Location for
+                  better km
+                </span>
+              )}
             </p>
           )}
           {geoError && (
@@ -461,7 +562,7 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {resolvingCities ? (
+              {resolvingGeo ? (
                 <>
                   {[1, 2, 3, 4, 5, 6].map((i) => (
                     <GymCardSkeleton key={i} />
@@ -474,23 +575,34 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                     animation="fade-up"
                     delay={Math.min(index, 8) * 0.06}
                   >
-                  <Link href={`/gyms/${gym.ownerId}`} className="group block h-full outline-none [-webkit-tap-highlight-color:transparent]">
                     <div className="glass-card hover-lift flex h-full flex-col overflow-hidden rounded-2xl bg-card will-change-transform [transform:translateZ(0)]">
-                      <div className="relative aspect-[16/10] overflow-hidden bg-card">
+                      <div className="relative aspect-[16/10] overflow-hidden bg-muted/30">
                         {gym.gymMainImageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={gym.gymMainImageUrl}
-                            alt={gym.gymName}
-                            className="h-full w-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-[1.04]"
-                          />
+                          <button
+                            type="button"
+                            className="absolute inset-0 block h-full w-full cursor-zoom-in"
+                            onClick={() =>
+                              setPreview({
+                                images: [gym.gymMainImageUrl!],
+                                alt: gym.gymName,
+                              })
+                            }
+                            aria-label={`Preview ${gym.gymName} photo`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={gym.gymMainImageUrl}
+                              alt={gym.gymName}
+                              className="h-full w-full object-cover object-center transition-transform duration-500 ease-out will-change-transform hover:scale-[1.04]"
+                            />
+                          </button>
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/20 via-secondary/40 to-background">
                             <Building2 className="h-10 w-10 text-primary/70" />
                           </div>
                         )}
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-card via-card/50 to-transparent" />
-                        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-card/90 via-card/40 to-transparent" />
+                        <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-2">
                           {gym.gymType && (
                             <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
                               {gym.gymType}
@@ -498,13 +610,19 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                           )}
                           {nearMe && gym.distanceKm != null && (
                             <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                              {formatDistanceKm(gym.distanceKm)}
+                              {formatDistanceKm(
+                                gym.distanceKm,
+                                gym.distanceApproximate,
+                              )}
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex flex-1 flex-col p-6">
+                      <Link
+                        href={`/gyms/${gym.ownerId}`}
+                        className="group flex flex-1 flex-col p-6 outline-none [-webkit-tap-highlight-color:transparent]"
+                      >
                         <div className="mb-2 flex items-center gap-3">
                           {gym.avatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -532,7 +650,8 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                           </div>
                         )}
 
-                        {(gym.facilities?.length > 0 || gym.services?.length > 0) && (
+                        {(gym.facilities?.length > 0 ||
+                          gym.services?.length > 0) && (
                           <div className="mb-4 flex flex-wrap gap-1.5">
                             {[...(gym.facilities || []), ...(gym.services || [])]
                               .slice(0, 3)
@@ -547,7 +666,7 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                           </div>
                         )}
 
-                        <div className="mt-auto flex items-center justify-between border-t border-border/50 pt-4">
+                        <div className="mt-auto flex items-center justify-between pt-4">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Users className="h-4 w-4" />
                             <span>{gym.capacity || "Open membership"}</span>
@@ -557,16 +676,22 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                             <ChevronRight className="h-4 w-4" />
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     </div>
-                  </Link>
-                </ScrollAnimate>
+                  </ScrollAnimate>
                 ))
               )}
             </div>
           )}
         </div>
       </section>
+
+      <GymImageLightbox
+        images={preview?.images ?? []}
+        alt={preview?.alt}
+        open={preview != null}
+        onClose={() => setPreview(null)}
+      />
 
       <Footer />
     </div>

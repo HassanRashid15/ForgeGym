@@ -38,7 +38,10 @@ export async function GET(request: Request) {
     url.searchParams.set("q", q);
     url.searchParams.set("format", "json");
     url.searchParams.set("addressdetails", "1");
-    url.searchParams.set("limit", "6");
+    url.searchParams.set("limit", "8");
+    // Bias to Pakistan gyms (Forge launch market) for more accurate street pins
+    url.searchParams.set("countrycodes", "pk");
+    url.searchParams.set("dedupe", "1");
 
     const res = await fetch(url.toString(), {
       headers: { Accept: "application/json", "User-Agent": UA },

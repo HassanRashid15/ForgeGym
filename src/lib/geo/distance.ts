@@ -15,9 +15,11 @@ export function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function formatDistanceKm(km: number): string {
+export function formatDistanceKm(km: number, approximate = false): string {
   if (!Number.isFinite(km)) return "";
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km)} km`;
+  const prefix = approximate ? "~" : "";
+  if (km < 1) return `${prefix}${Math.round(km * 1000)} m`;
+  if (km < 10) return `${prefix}${km.toFixed(1)} km`;
+  if (km < 100) return `${prefix}${km.toFixed(1)} km`;
+  return `${prefix}${Math.round(km)} km`;
 }

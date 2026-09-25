@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { getGymByOwnerId, getGymTrainers } from "@/lib/gyms";
 import { getGymLiveStats } from "@/lib/platform-stats";
+import { GymGallery } from "@/components/gyms/GymGallery";
+import { GymHeroImage } from "@/components/gyms/GymHeroImage";
 import { GymOfferingsTabs } from "@/components/gyms/GymOfferingsTabs";
 import { GymReviewsSection } from "@/components/gyms/GymReviewsSection";
 import { ShareGymButton } from "@/components/gyms/ShareGymButton";
@@ -158,20 +160,19 @@ export default async function GymDetailPage({ params }: PageProps) {
 
       <section className="relative min-h-[78vh] overflow-hidden md:min-h-[88vh]">
         {gym.gymMainImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <GymHeroImage
             src={gym.gymMainImageUrl}
             alt={gym.gymName}
-            className="absolute inset-0 h-full w-full object-cover"
+            gallery={gallery}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-muted to-background" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/75 to-background/25" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/80 via-background/20 to-background/50" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/75 to-background/25" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/80 via-background/20 to-background/50" />
 
         <div className="container relative z-10 mx-auto flex min-h-[78vh] flex-col justify-end px-4 pb-14 pt-28 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
-          <div className="max-w-3xl">
+          <div className="pointer-events-auto max-w-3xl">
             <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
               {gym.gymType && (
                 <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
@@ -337,25 +338,7 @@ export default async function GymDetailPage({ params }: PageProps) {
             <h2 className="font-display mb-10 text-4xl tracking-normal md:text-5xl">
               See the space
             </h2>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-              {gallery.map((src, i) => (
-                <div
-                  key={`${src}-${i}`}
-                  className={`relative overflow-hidden rounded-xl border border-border ${
-                    i === 0
-                      ? "col-span-2 aspect-[16/9] md:col-span-2 md:row-span-2 md:aspect-auto md:min-h-[420px]"
-                      : "aspect-square"
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={`${gym.gymName} photo ${i + 1}`}
-                    className="h-full w-full object-cover transition duration-500 hover:scale-[1.03]"
-                  />
-                </div>
-              ))}
-            </div>
+            <GymGallery gymName={gym.gymName} images={gallery} />
           </div>
         </section>
       )}

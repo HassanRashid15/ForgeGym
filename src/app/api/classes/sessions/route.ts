@@ -4,7 +4,7 @@ import {
   requireAuth,
 } from "@/lib/supabase/server";
 import { jsonError } from "@/lib/api/errors";
-import { createNotification } from "@/lib/notifications";
+import { notify } from "@/lib/notify-actions";
 
 async function assertGymAdmin(service: NonNullable<ReturnType<typeof createSupabaseServiceClient>>, userId: string, gymOwnerId: string) {
   const { data: roles } = await service
@@ -37,11 +37,16 @@ export async function POST(request: Request) {
 
   const { data: cls } = await service
     .from("gym_classes" as never)
-    .select("id, gym_owner_id, duration_minutes")
+    .select("id, gym_owner_id, duration_minutes, name")
     .eq("id", classId)
     .maybeSingle();
 
-  const row = cls as { id: string; gym_owner_id: string; duration_minutes: number } | null;
+  const row = cls as {
+    id: string;
+    gym_owner_id: string;
+    duration_minutes: number;
+    name?: string;
+  } | null;
   if (!row) return jsonError("Class not found", 404);
 
   const ok = await assertGymAdmin(service, auth.user.id, row.gym_owner_id);
@@ -63,6 +68,13 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (error) return jsonError(error.message, 400);
+
+  void notify.classSessionScheduled(
+    auth.user.id,
+    row.name || "Class",
+    start.toLocaleString(),
+  );
+
   return NextResponse.json({ session: data }, { status: 201 });
 }
 
@@ -80,13 +92,29 @@ export async function PUT(request: Request) {
 
   const { data: session } = await service
     .from("class_sessions" as never)
-    .select("id, status, starts_at")
+    .select("id, status, starts_at, class_id")
     .eq("id", sessionId)
     .maybeSingle();
 
-  const s = session as { id: string; status: string; starts_at: string } | null;
+  const s = session as {
+    id: string;
+    status: string;
+    starts_at: string;
+    class_id?: string;
+  } | null;
   if (!s || s.status !== "scheduled") {
     return jsonError("Session not available", 400);
+  }
+
+  let className = "Class";
+  if (s.class_id) {
+    const { data: cls } = await service
+      .from("gym_classes" as never)
+      .select("name")
+      .eq("id", s.class_id)
+      .maybeSingle();
+    const name = (cls as { name?: string } | null)?.name;
+    if (name) className = name;
   }
 
   const { data, error } = await service
@@ -105,18 +133,17 @@ export async function PUT(request: Request) {
 
   if (error) return jsonError(error.message, 400);
 
-  void createNotification({
-    user_id: auth.user.id,
-    type: "booking",
-    title: "Class booked",
-    message: `You’re booked for ${new Date(s.starts_at).toLocaleString()}`,
-    metadata: {
-      related_id: sessionId,
-      related_type: "class_session",
-      action_url: "/dashboard/schedule",
-      priority: "medium",
-    },
-  }).catch(() => null);
+  const start = new Date(s.starts_at);
+  const date = start.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+  const time = start.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  void notify.classBooked(auth.user.id, className, date, time);
 
   return NextResponse.json({ booking: data });
 }

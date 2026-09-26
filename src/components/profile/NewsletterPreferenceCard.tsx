@@ -15,7 +15,11 @@ import {
 /**
  * Newsletter preference for members / gym admins (not shown for superadmin).
  */
-export function NewsletterPreferenceCard() {
+export function NewsletterPreferenceCard({
+  disabled = false,
+}: {
+  disabled?: boolean;
+}) {
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,16 +86,21 @@ export function NewsletterPreferenceCard() {
                 Email newsletter
               </Label>
               <p className="text-sm text-muted-foreground">
-                {subscribed
-                  ? "You’re subscribed — promotions and updates go to your inbox."
-                  : "You’re not subscribed. Turn on to get promotions and tips."}
+                {disabled
+                  ? "Enable edit on this page to change newsletter preference."
+                  : subscribed
+                    ? "You’re subscribed — promotions and updates go to your inbox."
+                    : "You’re not subscribed. Turn on to get promotions and tips."}
               </p>
             </div>
             <Switch
               id="newsletter-toggle"
               checked={subscribed}
-              disabled={saving}
-              onCheckedChange={(v) => void toggle(v)}
+              disabled={disabled || saving}
+              onCheckedChange={(v) => {
+                if (disabled) return;
+                void toggle(v);
+              }}
             />
           </div>
         )}

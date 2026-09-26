@@ -8,7 +8,18 @@ import {
   listWorkoutDaysWithExercises,
   upsertWorkoutDay,
 } from "@/lib/progress";
-import { lastNDateISOs, localDateISO, dateRangeISOs } from "@/lib/progress-catalog";
+import {
+  lastNDateISOs,
+  localDateISO,
+  dateRangeISOs,
+  isProgressDayLocked,
+  getFocusSaveCount,
+  isFocusSaveLocked,
+  MAX_FOCUS_SAVES,
+  parseProgressDayNotes,
+  serializeProgressDayNotes,
+} from "@/lib/progress-catalog";
+import { notify } from "@/lib/notify-actions";
 
 /** GET /api/progress — days (default last 6) + PRs + stats */
 export async function GET(request: Request) {
@@ -49,11 +60,14 @@ export async function GET(request: Request) {
     const byDate = new Map(workoutDays.map((d) => [d.day_date, d]));
     const days = dateWindow.map((date) => {
       const row = byDate.get(date);
+      const notes = row?.notes ?? null;
       return {
         date,
         id: row?.id ?? null,
         focus: row?.focus ?? "",
-        notes: row?.notes ?? null,
+        notes,
+        focus_saves: getFocusSaveCount(notes),
+        focus_locked: isFocusSaveLocked(notes),
         duration_minutes: row?.duration_minutes ?? null,
         calories: row?.calories ?? null,
         exercises: row?.exercises ?? [],
@@ -69,7 +83,15 @@ export async function GET(request: Request) {
       0,
     );
     const totalDuration = days.reduce(
-      (n, d) => n + (d.duration_minutes || 0),
+      (n, d) =>
+        n +
+        (d.duration_minutes ||
+          d.exercises.reduce((s, e) => {
+            const sets = e.sets || 0;
+            // ~45s work + 2m rest between sets (guided-session defaults)
+            const sec = sets * 45 + Math.max(0, sets - 1) * 120;
+            return s + Math.max(sets > 0 ? 1 : 0, Math.round(sec / 60));
+          }, 0)),
       0,
     );
     const totalCalories = days.reduce((n, d) => n + (d.calories || 0), 0);
@@ -110,22 +132,61 @@ export async function POST(request: Request) {
       if (!focus) {
         return jsonError("Focus is required (select or enter custom)", 400);
       }
+      if (isProgressDayLocked(day_date)) {
+        return jsonError(
+          "This day is locked — past workouts are view-only after 24 hours",
+          403,
+        );
+      }
+
+      const { data: existing } = await supabase
+        .from("workout_days")
+        .select("id, focus, notes, duration_minutes, calories")
+        .eq("user_id", user.id)
+        .eq("day_date", day_date)
+        .maybeSingle();
+
+      const prevSaves = getFocusSaveCount(existing?.notes);
+      const prevFocus = String(existing?.focus || "").trim();
+      const focusChanged =
+        !existing || prevFocus.toLowerCase() !== focus.toLowerCase();
+
+      if (prevSaves >= MAX_FOCUS_SAVES && focusChanged) {
+        return jsonError(
+          `Focus is locked after ${MAX_FOCUS_SAVES} changes for this day`,
+          403,
+        );
+      }
+
+      const meta = parseProgressDayNotes(existing?.notes);
+      if (prevSaves < MAX_FOCUS_SAVES) {
+        meta.focus_saves = prevSaves + 1;
+      }
 
       const day = await upsertWorkoutDay(supabase, user.id, {
         day_date,
-        focus,
-        notes: body.notes != null ? String(body.notes) : null,
+        focus: prevSaves >= MAX_FOCUS_SAVES ? prevFocus || focus : focus,
+        notes: serializeProgressDayNotes(meta),
         duration_minutes:
           body.duration_minutes != null && body.duration_minutes !== ""
             ? Number(body.duration_minutes)
-            : null,
+            : existing?.duration_minutes ?? null,
         calories:
           body.calories != null && body.calories !== ""
             ? Number(body.calories)
-            : null,
+            : existing?.calories ?? null,
       });
 
-      return NextResponse.json({ day });
+      const savedFocus = String(day.focus || focus);
+      void notify.progressFocusSaved(user.id, savedFocus, day_date);
+
+      return NextResponse.json({
+        day: {
+          ...day,
+          focus_saves: getFocusSaveCount(day.notes),
+          focus_locked: isFocusSaveLocked(day.notes),
+        },
+      });
     }
 
     if (action === "create_pr") {
@@ -134,14 +195,20 @@ export async function POST(request: Request) {
       if (!exercise_name || !value) {
         return jsonError("Exercise name and value are required", 400);
       }
+      const unit = body.unit != null ? String(body.unit) : "lbs";
       const record = await createPersonalRecord(supabase, user.id, {
         exercise_name,
         value,
-        unit: body.unit != null ? String(body.unit) : "lbs",
+        unit,
         improvement: body.improvement != null ? String(body.improvement) : null,
         achieved_at:
           body.achieved_at != null ? String(body.achieved_at) : undefined,
       });
+      void notify.progressPrCreated(
+        user.id,
+        exercise_name,
+        `${value}${unit ? ` ${unit}` : ""}`,
+      );
       return NextResponse.json({ record });
     }
 

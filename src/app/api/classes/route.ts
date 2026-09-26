@@ -5,6 +5,7 @@ import {
 } from "@/lib/supabase/server";
 import { jsonError } from "@/lib/api/errors";
 import { cacheInvalidate } from "@/lib/api-cache";
+import { notify } from "@/lib/notify-actions";
 
 async function gymOwnerFor(userId: string) {
   const service = createSupabaseServiceClient();
@@ -104,5 +105,6 @@ export async function POST(request: Request) {
 
   if (error) return jsonError(error.message, 400);
   cacheInvalidate(`classes:${ctx.gymOwnerId}`);
+  void notify.classCreated(auth.user.id, name);
   return NextResponse.json({ class: data }, { status: 201 });
 }

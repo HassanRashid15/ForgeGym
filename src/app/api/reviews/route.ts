@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase/server";
 import { jsonError } from "@/lib/api/errors";
 import type { Database } from "@/integrations/supabase/types";
+import { notify } from "@/lib/notify-actions";
 
 type ReviewerRole = "customer" | "admin" | "trainer";
 type ReviewType =
@@ -142,6 +143,8 @@ export async function POST(request: Request) {
     if (error) {
       return jsonError(error.message, 400);
     }
+
+    void notify.reviewSubmitted(user.id, stars);
 
     return NextResponse.json({
       success: true,

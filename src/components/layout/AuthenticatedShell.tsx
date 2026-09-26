@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeNotifications, NotificationsRealtimeProvider } from "@/hooks/useRealtimeNotifications";
+import { AdminPresenceProvider } from "@/hooks/useAdminPresence";
 import {
   Sidebar,
   SidebarContent,
@@ -33,7 +34,6 @@ import {
   LogOut,
   Home,
   Bell,
-  Search,
   ChevronDown,
   ChevronsUpDown,
   Loader2,
@@ -78,6 +78,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuthGate } from "@/hooks/useAuthGate";
+import { DashboardSearch, type SearchNavItem } from "@/components/layout/DashboardSearch";
 
 type NavItem = {
   title: string;
@@ -305,6 +306,28 @@ function ShellChrome({ children }: { children: ReactNode }) {
         ? trainerItems
         : [];
 
+  const searchItems = useMemo<SearchNavItem[]>(() => {
+    const withGroup = (group: string, list: NavItem[]): SearchNavItem[] =>
+      list.map((item) => ({ ...item, group }));
+
+    return [
+      ...withGroup("Home", trainItems),
+      ...(managementItems.length
+        ? withGroup(
+            isSuperAdmin ? "Platform" : isTrainer ? "Fees" : "Gym",
+            managementItems,
+          )
+        : []),
+      ...withGroup("Account", accountItems),
+      {
+        title: "Profile",
+        url: "/profile",
+        group: "Account",
+        icon: Users,
+      },
+    ];
+  }, [managementItems, isSuperAdmin, isTrainer]);
+
   const pageTitle =
     [
       ...trainItems,
@@ -462,7 +485,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
         <SidebarRail />
       </Sidebar>
 
-      <SidebarInset className="h-svh max-h-svh min-h-0 overflow-hidden">
+      <SidebarInset className="h-svh max-h-svh min-h-0 min-w-0 overflow-hidden">
         <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -484,29 +507,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           <p className="truncate text-sm font-medium sm:hidden">{pageTitle}</p>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(
-                "relative hidden h-8 w-56 justify-start gap-2 rounded-lg px-3 text-sm font-normal text-muted-foreground md:inline-flex",
-              )}
-            >
-              <Search className="size-3.5 shrink-0" />
-              <span className="flex-1 text-left">Search...</span>
-              <kbd className="pointer-events-none absolute right-1.5 top-1.5 hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-                <span className="text-xs">⌘</span>K
-              </kbd>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="relative size-8 md:hidden"
-              aria-label="Search"
-            >
-              <Search className="size-4" />
-            </Button>
+            <DashboardSearch items={searchItems} />
 
             <ThemeToggle />
 
@@ -684,7 +685,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-6 lg:p-8">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8">{children}</div>
       </SidebarInset>
     </>
   );
@@ -716,9 +717,11 @@ export function AuthenticatedShell({
   }
 
   return (
-    <SidebarProvider className="h-svh max-h-svh min-h-0 overflow-hidden">
+    <SidebarProvider className="h-svh max-h-svh min-h-0 min-w-0 overflow-hidden">
       <NotificationsRealtimeProvider>
-        <ShellChrome>{children}</ShellChrome>
+        <AdminPresenceProvider>
+          <ShellChrome>{children}</ShellChrome>
+        </AdminPresenceProvider>
       </NotificationsRealtimeProvider>
     </SidebarProvider>
   );

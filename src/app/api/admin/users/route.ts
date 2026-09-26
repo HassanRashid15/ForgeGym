@@ -1182,6 +1182,12 @@ export async function PATCH(request: Request) {
         nextFeeConcession,
       );
       void notify.memberTrainerAdjusted(targetId, trainerName, feeLabel);
+      void notify.adminMemberTrainerAdjusted(
+        [user.id],
+        (targetProfile.full_name as string | null) || "Member",
+        trainerName,
+        feeLabel,
+      );
       cacheInvalidate(`membership:me:${targetId}`);
     } else if (feeConcessionChanged) {
       const gym = await getGymByOwnerId(gymOwnerId);

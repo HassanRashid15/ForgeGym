@@ -103,6 +103,8 @@ export function MembersTable({
   title = "Staff & members",
   description,
   hidePending = false,
+  onlineUserIds,
+  showOnlineStatus = false,
 }: {
   loading: boolean;
   members: ManagedUser[];
@@ -126,6 +128,9 @@ export function MembersTable({
   title?: string;
   description?: string;
   hidePending?: boolean;
+  /** When set, show live Online/Offline next to each row (Realtime Presence). */
+  onlineUserIds?: ReadonlySet<string>;
+  showOnlineStatus?: boolean;
 }) {
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
   const [trainerFilter, setTrainerFilter] = useState<TrainerFilter>("all");
@@ -480,17 +485,45 @@ export function MembersTable({
                               </div>
                             )}
                             <div>
-                              {row.full_name || "—"}
-                              {isSelf && (
-                                <Badge variant="secondary" className="ml-2 text-[10px]">
-                                  You
-                                </Badge>
-                              )}
-                              {row.role === "user" && hasTrainer(row) && (
-                                <Badge variant="secondary" className="ml-2 text-[10px]">
-                                  With trainer
-                                </Badge>
-                              )}
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span>{row.full_name || "—"}</span>
+                                {showOnlineStatus && (
+                                  <span
+                                    className={
+                                      onlineUserIds?.has(row.user_id)
+                                        ? "inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600"
+                                        : "inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground"
+                                    }
+                                    title={
+                                      onlineUserIds?.has(row.user_id)
+                                        ? "Online now"
+                                        : "Offline"
+                                    }
+                                  >
+                                    <span
+                                      className={
+                                        onlineUserIds?.has(row.user_id)
+                                          ? "h-2 w-2 shrink-0 rounded-full bg-emerald-500"
+                                          : "h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
+                                      }
+                                      aria-hidden
+                                    />
+                                    {onlineUserIds?.has(row.user_id)
+                                      ? "Online"
+                                      : "Offline"}
+                                  </span>
+                                )}
+                                {isSelf && (
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    You
+                                  </Badge>
+                                )}
+                                {row.role === "user" && hasTrainer(row) && (
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    With trainer
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </TableCell>

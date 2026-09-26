@@ -179,4 +179,57 @@ export const notify = {
       adminIds,
       actionTemplates.adminAttendanceCheckedOut(name, role, duration),
     ),
+
+  progressExerciseDone: (
+    userId: string,
+    exerciseName: string,
+    sets: number,
+    reps: number,
+    weight?: string | null,
+    focus?: string | null,
+  ) =>
+    safeNotify(
+      userId,
+      actionTemplates.progressExerciseDone(
+        exerciseName,
+        sets,
+        reps,
+        weight,
+        focus,
+      ),
+    ),
+
+  progressFocusSaved: (userId: string, focus: string, dayDate: string) =>
+    safeNotify(userId, actionTemplates.progressFocusSaved(focus, dayDate)),
+
+  progressPrCreated: (userId: string, exercise: string, value: string) =>
+    safeNotify(userId, actionTemplates.progressPrCreated(exercise, value)),
+
+  progressExerciseRemoved: (userId: string, exerciseName: string) =>
+    safeNotify(userId, actionTemplates.progressExerciseRemoved(exerciseName)),
+
+  classBooked: (
+    userId: string,
+    className: string,
+    date: string,
+    time: string,
+  ) => safeNotify(userId, actionTemplates.classBooked(className, date, time)),
+
+  classCreated: (userId: string, className: string) =>
+    safeNotify(userId, actionTemplates.classCreated(className)),
+
+  classSessionScheduled: (userId: string, className: string, when: string) =>
+    safeNotify(userId, actionTemplates.classSessionScheduled(className, when)),
+
+  reviewSubmitted: (userId: string, rating: number) =>
+    safeNotify(userId, actionTemplates.reviewSubmitted(rating)),
+
+  platformFeeUpdated: (userId: string, feeLabel: string | null) =>
+    safeNotify(userId, actionTemplates.platformFeeUpdated(feeLabel)),
+
+  promotionPublished: (userId: string, title: string) =>
+    safeNotify(userId, actionTemplates.promotionPublished(title)),
+
+  newsletterSubscribed: (userId: string) =>
+    safeNotify(userId, actionTemplates.newsletterSubscribed()),
 };

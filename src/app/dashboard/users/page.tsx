@@ -38,6 +38,7 @@ import {
 import { ManagedUserDetails } from "@/components/admin/ManagedUserDetails";
 import { MembersTable } from "@/components/admin/MembersTable";
 import { OwnersSection, type FilterTab } from "@/components/admin/OwnersSection";
+import { useAdminPresence } from "@/hooks/useAdminPresence";
 import { queryKeys } from "@/lib/query-keys";
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
@@ -56,6 +57,7 @@ function editRoleFor(user: ManagedUser): StaffCreateRole {
 
 export default function UsersPage() {
   const { user, isLoading, isAdmin, isSuperAdmin } = useAuth();
+  const { onlineIds } = useAdminPresence();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -439,6 +441,8 @@ export default function UsersPage() {
                   : `${nonTrainerMembers.length} platform admin(s)`
               }
               hidePending
+              showOnlineStatus
+              onlineUserIds={onlineIds}
             />
           </TabsContent>
         </Tabs>
@@ -469,6 +473,8 @@ export default function UsersPage() {
               ? `${filteredMembers.length} of ${nonTrainerMembers.length}`
               : undefined
           }
+          showOnlineStatus
+          onlineUserIds={onlineIds}
         />
       )}
 

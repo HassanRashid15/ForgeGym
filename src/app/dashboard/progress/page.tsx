@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addProgressExercise,
@@ -17,14 +17,28 @@ import {
   FOCUS_PRESETS,
   exercisesForFocus,
   formatDayLabel,
+  isFocusSaveLocked,
+  isProgressDayLocked,
   lastNDateISOs,
   localDateISO,
+  MAX_FOCUS_SAVES,
+  remainingFocusSaves,
+  resolveCatalogFocus,
+  estimateExerciseMinutes,
+  formatDurationMinutes,
 } from "@/lib/progress-catalog";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminGymProgress } from "@/components/admin/AdminGymProgress";
 import { SuperAdminPlatformProgress } from "@/components/admin/SuperAdminPlatformProgress";
 import { TrainerProgressClients } from "@/components/trainer/TrainerProgressClients";
+import { ExercisePickerTabs } from "@/components/progress/ExercisePickerTabs";
+import {
+  ExerciseSetSession,
+  type ExerciseSessionPlan,
+} from "@/components/progress/ExerciseSetSession";
+import { ExerciseGuideVideoModal } from "@/components/progress/ExerciseGuideVideoModal";
+import { ExerciseMediaTabs } from "@/components/progress/ExerciseMediaTabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +53,7 @@ import {
   Filter,
   Flame,
   Loader2,
+  Lock,
   Plus,
   Target,
   Trash2,
@@ -106,7 +121,6 @@ function MemberProgressPage() {
   const [focusSelect, setFocusSelect] = useState("");
   const [focusCustom, setFocusCustom] = useState("");
   const [useCustomFocus, setUseCustomFocus] = useState(false);
-  const [dayCalories, setDayCalories] = useState("");
   const [dayDuration, setDayDuration] = useState("");
 
   const [exSelect, setExSelect] = useState("");
@@ -115,6 +129,13 @@ function MemberProgressPage() {
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("15");
   const [weight, setWeight] = useState("");
+  const [setDuration, setSetDuration] = useState("45");
+  const [sessionPlan, setSessionPlan] = useState<ExerciseSessionPlan | null>(null);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [guideVideoOpen, setGuideVideoOpen] = useState(false);
+  const [guideVideoName, setGuideVideoName] = useState<string | null>(null);
+  const [guideVideoMeta, setGuideVideoMeta] = useState<string | null>(null);
+  const sessionSavingRef = useRef(false);
   const [exerciseOptions, setExerciseOptions] = useState<CatalogExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [catalogSource, setCatalogSource] = useState<string>("local");
@@ -122,6 +143,11 @@ function MemberProgressPage() {
   const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [demoSearchUrl, setDemoSearchUrl] = useState<string | null>(null);
+  const [demoAnimationUrl, setDemoAnimationUrl] = useState<string | null>(null);
+  const [demoVideoUrl, setDemoVideoUrl] = useState<string | null>(null);
+  const [demoImageUrl, setDemoImageUrl] = useState<string | null>(null);
+  const [demoInstructions, setDemoInstructions] = useState<string[]>([]);
+  const [demoMediaSource, setDemoMediaSource] = useState<string | null>(null);
 
   const progressQuery = useQuery({
     queryKey: queryKeys.progress(dateFrom, dateTo),
@@ -159,15 +185,46 @@ function MemberProgressPage() {
     [days, selectedDate],
   );
 
+  /** Past days lock after 24h — customers can view history but not edit. */
+  const selectedDayLocked = isProgressDayLocked(selectedDate);
+
+  /** Focus can be set/changed twice, then locks for that day. */
+  const focusSaveLocked =
+    selectedDayLocked ||
+    Boolean(selectedDay?.focus_locked) ||
+    isFocusSaveLocked(selectedDay?.notes);
+
+  const focusChancesLeft = remainingFocusSaves(selectedDay?.notes);
+
   /** Prefer the focus currently chosen in the form (Select/Custom), then saved day. */
   const activeFocus = useMemo(() => {
+    if (selectedDayLocked || focusSaveLocked) {
+      return (selectedDay?.focus || "").trim();
+    }
     if (useCustomFocus) return focusCustom.trim();
     if (focusSelect.trim()) return focusSelect.trim();
     return (selectedDay?.focus || "").trim();
-  }, [useCustomFocus, focusCustom, focusSelect, selectedDay?.focus]);
+  }, [
+    selectedDayLocked,
+    focusSaveLocked,
+    useCustomFocus,
+    focusCustom,
+    focusSelect,
+    selectedDay?.focus,
+  ]);
+
+  /** Catalog category for related exercises (Legs, Chest, …). */
+  const catalogFocus = useMemo(
+    () => resolveCatalogFocus(activeFocus),
+    [activeFocus],
+  );
 
   useEffect(() => {
-    if (!activeFocus || activeFocus.toLowerCase() === "rest") {
+    if (
+      selectedDayLocked ||
+      !catalogFocus ||
+      catalogFocus.toLowerCase() === "rest"
+    ) {
       setExerciseOptions([]);
       setCatalogSource("local");
       setExSelect("");
@@ -177,21 +234,21 @@ function MemberProgressPage() {
 
     let cancelled = false;
     setLoadingExercises(true);
-    setExerciseOptions(exercisesForFocus(activeFocus).map(emptyCatalog));
+    setExerciseOptions(exercisesForFocus(catalogFocus).map(emptyCatalog));
     setExSelect("");
 
-    getExerciseCatalog(activeFocus)
+    getExerciseCatalog(catalogFocus)
       .then((data) => {
         if (cancelled) return;
         const list = data.exercises?.length
           ? data.exercises
-          : exercisesForFocus(activeFocus).map(emptyCatalog);
+          : exercisesForFocus(catalogFocus).map(emptyCatalog);
         setExerciseOptions(list);
         setCatalogSource(data.source || "local");
       })
       .catch(() => {
         if (cancelled) return;
-        setExerciseOptions(exercisesForFocus(activeFocus).map(emptyCatalog));
+        setExerciseOptions(exercisesForFocus(catalogFocus).map(emptyCatalog));
         setCatalogSource("local");
       })
       .finally(() => {
@@ -201,15 +258,20 @@ function MemberProgressPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeFocus]);
+  }, [catalogFocus, selectedDayLocked]);
 
-  /** Always pull a YouTube how-to video for the selected (or custom) exercise. */
+  /** Always pull form media (GIF animation + video) for the selected (or custom) exercise. */
   useEffect(() => {
     setYoutubeId(null);
     setYoutubeTitle(null);
     setDemoSearchUrl(null);
+    setDemoAnimationUrl(null);
+    setDemoVideoUrl(null);
+    setDemoImageUrl(null);
+    setDemoInstructions([]);
+    setDemoMediaSource(null);
 
-    if (!demoExerciseName) {
+    if (selectedDayLocked || !demoExerciseName) {
       setLoadingDemo(false);
       return;
     }
@@ -225,6 +287,11 @@ function MemberProgressPage() {
           setYoutubeId(data.youtubeVideoId);
           setYoutubeTitle(data.title);
           setDemoSearchUrl(data.youtubeSearchUrl);
+          setDemoAnimationUrl(data.animationUrl || null);
+          setDemoVideoUrl(data.videoUrl || null);
+          setDemoImageUrl(data.imageUrl || null);
+          setDemoInstructions(data.instructions || []);
+          setDemoMediaSource(data.mediaSource || null);
         })
         .catch(() => {
           if (cancelled) return;
@@ -244,28 +311,58 @@ function MemberProgressPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [demoExerciseName, useCustomEx]);
+  }, [demoExerciseName, useCustomEx, selectedDayLocked]);
 
   const chartDays = useMemo(() => {
     return days.map((d) => {
       const label = new Date(`${d.date}T12:00:00`).toLocaleDateString("en-US", {
         weekday: "short",
       });
+      const exerciseMinutes = d.exercises.reduce(
+        (n, e) => n + estimateExerciseMinutes(e.sets),
+        0,
+      );
       return {
         date: d.date,
         label,
         focus: d.focus,
         workouts: d.focus && d.focus.toLowerCase() !== "rest" ? 1 : 0,
         calories: d.calories || d.exercises.reduce((n, e) => n + e.sets * 15, 0),
-        duration: d.duration_minutes || d.exercises.reduce((n, e) => n + e.sets * 3, 0),
+        duration: d.duration_minutes || exerciseMinutes,
         exercises: d.exercises.length,
       };
     });
   }, [days]);
 
+  /** How many times each exercise was logged in the current date range. */
+  const exerciseTimesDone = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of days) {
+      for (const e of d.exercises) {
+        const key = e.exercise_name.trim().toLowerCase();
+        if (!key) continue;
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    }
+    return map;
+  }, [days]);
+
   const totalWorkouts = stats.trainedDays;
   const totalCalories = stats.totalCalories || chartDays.reduce((s, d) => s + d.calories, 0);
-  const totalDuration = stats.totalDuration || chartDays.reduce((s, d) => s + d.duration, 0);
+  /** Always from logged exercises so Total Time updates on add/remove. */
+  const totalDuration = useMemo(
+    () =>
+      days.reduce(
+        (n, d) =>
+          n +
+          d.exercises.reduce(
+            (s, e) => s + estimateExerciseMinutes(e.sets),
+            0,
+          ),
+        0,
+      ),
+    [days],
+  );
 
   const goals = useMemo(
     () => [
@@ -305,7 +402,6 @@ function MemberProgressPage() {
       setFocusSelect("");
       setFocusCustom("");
       setUseCustomFocus(false);
-      setDayCalories("");
       setDayDuration("");
       return;
     }
@@ -319,16 +415,25 @@ function MemberProgressPage() {
       setFocusSelect(selectedDay.focus || "");
       setFocusCustom("");
     }
-    setDayCalories(selectedDay.calories != null ? String(selectedDay.calories) : "");
     setDayDuration(
       selectedDay.duration_minutes != null ? String(selectedDay.duration_minutes) : "",
     );
     setExSelect("");
     setExCustom("");
     setUseCustomEx(false);
-  }, [selectedDay?.date, selectedDay?.focus, selectedDay?.calories, selectedDay?.duration_minutes]);
+  }, [selectedDay?.date, selectedDay?.focus, selectedDay?.duration_minutes]);
 
   const saveDayFocus = async () => {
+    if (isProgressDayLocked(selectedDate)) {
+      toast.error("This day is locked — past workouts are view-only after 24 hours");
+      return;
+    }
+    if (focusSaveLocked) {
+      toast.error(
+        `Focus is locked after ${MAX_FOCUS_SAVES} changes — you can still add exercises`,
+      );
+      return;
+    }
     const focus = (useCustomFocus ? focusCustom : focusSelect).trim();
     if (!focus) {
       toast.error("Select a focus (e.g. Legs) or type a custom one");
@@ -339,10 +444,16 @@ function MemberProgressPage() {
       await upsertProgressDay({
         day_date: selectedDate,
         focus,
-        calories: dayCalories ? Number(dayCalories) : null,
+        calories: selectedDay?.calories ?? null,
         duration_minutes: dayDuration ? Number(dayDuration) : null,
       });
-      toast.success(`${formatDayLabel(selectedDate)} set to ${focus}`);
+      const nextSaves = (selectedDay?.focus_saves ?? 0) + 1;
+      const left = Math.max(0, MAX_FOCUS_SAVES - nextSaves);
+      toast.success(
+        left > 0
+          ? `${formatDayLabel(selectedDate)} set to ${focus} · ${left} focus change left`
+          : `${formatDayLabel(selectedDate)} set to ${focus} · focus locked`,
+      );
       await invalidateProgress();
     } catch (err: any) {
       toast.error(err?.message || "Could not save day focus");
@@ -352,9 +463,19 @@ function MemberProgressPage() {
   };
 
   const addExercise = async () => {
-    const focus = activeFocus;
+    if (isProgressDayLocked(selectedDate)) {
+      toast.error("This day is locked — past workouts are view-only after 24 hours");
+      return;
+    }
+    const focus = (selectedDay?.focus || activeFocus).trim();
     if (!focus || focus.toLowerCase() === "rest") {
       toast.error("Select a day focus (e.g. Legs) first");
+      return;
+    }
+    if (!selectedDay?.id && focusSaveLocked) {
+      toast.error(
+        `Focus is locked after ${MAX_FOCUS_SAVES} changes — save focus first on an open day`,
+      );
       return;
     }
     const name = (useCustomEx ? exCustom : exSelect).trim();
@@ -362,20 +483,78 @@ function MemberProgressPage() {
       toast.error("Select or enter an exercise");
       return;
     }
+    const alreadyLogged = (selectedDay?.exercises || []).some(
+      (logged) => logged.exercise_name.toLowerCase() === name.toLowerCase(),
+    );
+    if (alreadyLogged) {
+      toast.error("That exercise is already logged for this day");
+      return;
+    }
     const s = Number(sets);
     const r = Number(reps);
+    const dur = Number(setDuration);
     if (!Number.isFinite(s) || s < 1 || !Number.isFinite(r) || r < 1) {
       toast.error("Enter valid sets and reps");
       return;
     }
+    if (!Number.isFinite(dur) || dur < 5 || dur > 600) {
+      toast.error("Duration: 5–600 seconds per set");
+      return;
+    }
+
+    setSessionPlan({
+      exerciseName: name,
+      plannedSets: s,
+      reps: r,
+      weight: weight.trim() || null,
+      durationSec: Math.round(dur),
+    });
+    setSessionOpen(true);
+  };
+
+  const openLoggedGuide = (ex: {
+    exercise_name: string;
+    sets: number;
+    reps: number;
+    weight: string | null;
+  }) => {
+    setGuideVideoName(ex.exercise_name);
+    setGuideVideoMeta(
+      `${ex.sets} sets × ${ex.reps} reps${ex.weight ? ` · ${ex.weight}` : ""}`,
+    );
+    setGuideVideoOpen(true);
+  };
+
+  const finishExerciseSession = async (completedSets: number) => {
+    if (!sessionPlan) return;
+    if (saving || sessionSavingRef.current) return;
+    sessionSavingRef.current = true;
+    const name = sessionPlan.exerciseName.trim();
+    const alreadyLogged = (selectedDay?.exercises || []).some(
+      (logged) => logged.exercise_name.toLowerCase() === name.toLowerCase(),
+    );
+    if (alreadyLogged) {
+      toast.error("That exercise is already logged for this day");
+      setSessionOpen(false);
+      setSessionPlan(null);
+      setExSelect("");
+      sessionSavingRef.current = false;
+      return;
+    }
+
+    const focus = (selectedDay?.focus || activeFocus).trim();
     setSaving(true);
     try {
       let dayId = selectedDay?.id;
       if (!dayId) {
+        if (isFocusSaveLocked(selectedDay?.notes)) {
+          toast.error(`Focus is locked after ${MAX_FOCUS_SAVES} changes`);
+          return;
+        }
         const { day } = await upsertProgressDay({
           day_date: selectedDate,
           focus,
-          calories: dayCalories ? Number(dayCalories) : null,
+          calories: selectedDay?.calories ?? null,
           duration_minutes: dayDuration ? Number(dayDuration) : null,
         });
         dayId = day.id;
@@ -384,23 +563,37 @@ function MemberProgressPage() {
       await addProgressExercise({
         workout_day_id: dayId,
         exercise_name: name,
-        sets: s,
-        reps: r,
-        weight: weight.trim() || null,
+        sets: completedSets,
+        reps: sessionPlan.reps,
+        weight: sessionPlan.weight,
       });
-      toast.success(`Added ${s}×${r} ${name}`);
+      toast.success(`Added ${completedSets}×${sessionPlan.reps} ${name}`);
       setExSelect("");
       setExCustom("");
       setWeight("");
+      setSessionOpen(false);
+      setSessionPlan(null);
       await invalidateProgress();
     } catch (err: any) {
-      toast.error(err?.message || "Could not add exercise");
+      const msg = err?.message || "Could not add exercise";
+      toast.error(msg);
+      if (/already logged/i.test(msg)) {
+        setSessionOpen(false);
+        setSessionPlan(null);
+        setExSelect("");
+        await invalidateProgress();
+      }
     } finally {
       setSaving(false);
+      sessionSavingRef.current = false;
     }
   };
 
   const removeExercise = async (id: string) => {
+    if (isProgressDayLocked(selectedDate)) {
+      toast.error("This day is locked — past workouts are view-only after 24 hours");
+      return;
+    }
     setSaving(true);
     try {
       await deleteProgressExercise(id);
@@ -539,12 +732,12 @@ function MemberProgressPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{totalDuration}m</div>
+              <div className="text-2xl font-bold">{formatDurationMinutes(totalDuration)}</div>
               <Clock className="h-5 w-5 text-primary opacity-20" />
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-green-500" />
-              {stats.totalSets} total sets
+              {stats.totalSets} total sets · updates with logs
             </p>
           </CardContent>
         </Card>
@@ -650,17 +843,23 @@ function MemberProgressPage() {
             <CardTitle className="flex items-center gap-2">
             <Dumbbell className="h-5 w-5" />
             Today&apos;s workout
-            {activeFocus ? (
+            {catalogFocus ? (
               <Badge variant="outline" className="ml-1">
-                {activeFocus}
+                {catalogFocus}
               </Badge>
             ) : null}
             </CardTitle>
           <CardDescription>
-            Pick a day, set focus (Legs, Chest…), then add exercises with sets &amp; reps
-            {loadingExercises
+            {selectedDayLocked
+              ? "This day is locked (past 24 hours) — view what you logged only"
+              : focusSaveLocked
+                ? `Focus locked after ${MAX_FOCUS_SAVES} changes — add related exercises below`
+                : `Pick a day, set focus (Legs, Chest…) — ${MAX_FOCUS_SAVES} focus changes max, then add exercises`}
+            {!selectedDayLocked && !focusSaveLocked && loadingExercises
               ? " · loading exercises…"
-              : catalogSource.includes("wger") && activeFocus
+              : !selectedDayLocked &&
+                  catalogSource.includes("wger") &&
+                  catalogFocus
                 ? " · via wger.de"
                 : ""}
           </CardDescription>
@@ -674,22 +873,33 @@ function MemberProgressPage() {
             ) : (
               days.map((day) => {
                 const active = day.date === selectedDate;
+                const locked = isProgressDayLocked(day.date);
                 return (
                   <button
                     key={day.date}
                     type="button"
                     onClick={() => setSelectedDate(day.date)}
                     className={`rounded-lg border p-3 text-left transition-all ${
-                      active ? "border-primary bg-primary/10" : "hover:border-primary/50"
+                      active
+                        ? "border-primary bg-primary/10"
+                        : locked
+                          ? "border-border/60 bg-muted/30 opacity-90 hover:border-muted-foreground/40"
+                          : "hover:border-primary/50"
                     }`}
                   >
-                    <p className="text-xs font-medium text-muted-foreground">
+                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                      {locked ? <Lock className="h-3 w-3 shrink-0" aria-hidden /> : null}
                       {formatDayLabel(day.date, today)}
                     </p>
                     <p className="mt-1 font-medium">{day.focus || "Not set"}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {day.exercises.length} exercise
-                      {day.exercises.length === 1 ? "" : "s"}
+                      {locked
+                        ? day.exercises.length > 0
+                          ? `${day.exercises.length} exercise${day.exercises.length === 1 ? "" : "s"} · locked`
+                          : "Locked"
+                        : day.focus_locked
+                          ? `${day.exercises.length} exercise${day.exercises.length === 1 ? "" : "s"} · focus locked`
+                          : `${day.exercises.length} exercise${day.exercises.length === 1 ? "" : "s"}`}
                     </p>
                   </button>
                 );
@@ -697,10 +907,64 @@ function MemberProgressPage() {
             )}
           </div>
 
+          {selectedDayLocked ? (
+            <div className="space-y-4 rounded-lg border border-dashed p-4">
+              <div className="flex items-start gap-2">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">
+                    {formatDayLabel(selectedDate, today)} — view only
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Past days lock after 24 hours. You can still see what you logged.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Focus</p>
+                  <p className="mt-0.5 font-medium">
+                    {selectedDay?.focus || "Not set"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Duration</p>
+                  <p className="mt-0.5 font-medium">
+                    {selectedDay?.duration_minutes != null
+                      ? `${selectedDay.duration_minutes} min`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-4 rounded-lg border p-4">
-            <p className="font-medium">
-              Focus for {formatDayLabel(selectedDate, today)}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">
+                Focus for {formatDayLabel(selectedDate, today)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {focusSaveLocked
+                  ? "Focus locked"
+                  : selectedDay?.focus
+                    ? `${focusChancesLeft} change${focusChancesLeft === 1 ? "" : "s"} left`
+                    : `${MAX_FOCUS_SAVES} chances to set focus`}
+              </p>
+            </div>
+
+            {focusSaveLocked ? (
+              <div className="flex items-start gap-2 rounded-md border border-dashed p-3">
+                <Lock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{selectedDay?.focus || "Not set"}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Focus can&apos;t be changed again. Related{" "}
+                    {catalogFocus || "workout"} exercises are below.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -739,41 +1003,30 @@ function MemberProgressPage() {
                 onChange={(e) => setFocusCustom(e.target.value)}
               />
             )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="dayDuration">Duration (min)</Label>
-                <Input
-                  id="dayDuration"
-                  type="number"
-                  min={0}
-                  value={dayDuration}
-                  onChange={(e) => setDayDuration(e.target.value)}
-                  placeholder="60"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dayCalories">Calories</Label>
-                <Input
-                  id="dayCalories"
-                  type="number"
-                  min={0}
-                  value={dayCalories}
-                  onChange={(e) => setDayCalories(e.target.value)}
-                  placeholder="400"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="dayDuration">Duration (min)</Label>
+              <Input
+                id="dayDuration"
+                type="number"
+                min={0}
+                value={dayDuration}
+                onChange={(e) => setDayDuration(e.target.value)}
+                placeholder="60"
+              />
             </div>
+              </>
+            )}
 
-            {!activeFocus || activeFocus.toLowerCase() === "rest" ? (
+            {!catalogFocus || catalogFocus.toLowerCase() === "rest" ? (
               <p className="text-sm text-muted-foreground">
-                {activeFocus?.toLowerCase() === "rest"
+                {catalogFocus?.toLowerCase() === "rest"
                   ? "Rest day — no exercises to log."
                   : "Select a focus to load matching exercises below."}
               </p>
             ) : (
               <div className="space-y-3 border-t pt-4">
                 <p className="text-sm font-medium">
-                  Exercises — {activeFocus}
+                  Exercises — {catalogFocus}
                   {!loadingExercises && exerciseOptions.length > 0 ? (
                     <span className="ml-2 font-normal text-muted-foreground">
                       ({exerciseOptions.length} loaded
@@ -803,29 +1056,18 @@ function MemberProgressPage() {
                   loadingExercises ? (
                     <p className="text-sm text-muted-foreground flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading {activeFocus} exercises…
+                      Loading {catalogFocus} exercises…
                     </p>
                   ) : (
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    <ExercisePickerTabs
+                      exercises={exerciseOptions}
                       value={exSelect}
-                      onChange={(e) => setExSelect(e.target.value)}
-                      disabled={exerciseOptions.length === 0}
-                    >
-                      <option value="">
-                        {exerciseOptions.length === 0
-                          ? `No ${activeFocus} exercises found`
-                          : `Select ${activeFocus} exercise`}
-                      </option>
-                        {exerciseOptions.map((ex) => (
-                        <option key={ex.name} value={ex.name}>
-                          {ex.name}
-                          {ex.primaryMuscles?.length || ex.videoUrl || ex.imageUrl
-                            ? " ●"
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
+                      focusLabel={catalogFocus}
+                      loggedNames={(selectedDay?.exercises || []).map(
+                        (e) => e.exercise_name,
+                      )}
+                      onSelect={setExSelect}
+                    />
                   )
                 ) : (
                   <Input
@@ -895,73 +1137,49 @@ function MemberProgressPage() {
                         <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
                           {selectedCatalogEx.howTo}
                         </p>
+                      ) : demoInstructions.length > 0 ? (
+                        <ol className="list-decimal space-y-1 pl-4 text-sm leading-relaxed text-foreground/90">
+                          {demoInstructions.map((step, i) => (
+                            <li key={i}>
+                              {step.replace(/^Step:\s*\d+\s*/i, "").trim()}
+                            </li>
+                          ))}
+                        </ol>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Watch the how-to video below for form guidance.
+                          Watch the animation or video below for form guidance.
                         </p>
                       )}
                     </div>
 
-                    {/* How to video */}
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        How to video
-                      </p>
-                      <div className="relative aspect-video overflow-hidden rounded-md bg-muted">
-                        {loadingDemo ? (
-                          <div className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Finding how-to video…
-                          </div>
-                        ) : youtubeId ? (
-                          <iframe
-                            key={youtubeId}
-                            title={youtubeTitle || `How to do ${demoExerciseName}`}
-                            src={`https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0`}
-                            className="h-full w-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        ) : !useCustomEx && selectedCatalogEx?.videoUrl ? (
-                          <video
-                            key={selectedCatalogEx.videoUrl}
-                            src={selectedCatalogEx.videoUrl}
-                            poster={selectedCatalogEx.imageUrl || undefined}
-                            controls
-                            muted
-                            playsInline
-                            loop
-                            autoPlay
-                            className="h-full w-full object-contain bg-black"
-                          />
-                        ) : !useCustomEx && selectedCatalogEx?.imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={selectedCatalogEx.imageUrl}
-                            alt={selectedCatalogEx.name}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
-                            <Dumbbell className="h-8 w-8 text-muted-foreground/40" />
-                            <span>No how-to video found</span>
-                            {demoSearchUrl ? (
-                              <a
-                                href={demoSearchUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-primary underline-offset-2 hover:underline"
-                              >
-                                Search on YouTube
-                              </a>
-                            ) : null}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <ExerciseMediaTabs
+                      loading={loadingDemo}
+                      exerciseName={demoExerciseName}
+                      animationUrl={demoAnimationUrl}
+                      videoUrl={
+                        demoVideoUrl ||
+                        (!useCustomEx ? selectedCatalogEx?.videoUrl : null) ||
+                        null
+                      }
+                      youtubeVideoId={youtubeId}
+                      youtubeTitle={youtubeTitle}
+                      youtubeSearchUrl={demoSearchUrl}
+                      posterUrl={
+                        demoImageUrl ||
+                        (!useCustomEx ? selectedCatalogEx?.imageUrl : null) ||
+                        null
+                      }
+                      attribution={
+                        demoMediaSource === "workoutdb"
+                          ? "Media: WorkoutDB"
+                          : demoMediaSource
+                            ? "Media: ExerciseDB"
+                            : null
+                      }
+                    />
                   </div>
                 ) : null}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="space-y-2">
                     <Label>Sets</Label>
                     <Input
@@ -983,21 +1201,41 @@ function MemberProgressPage() {
                   <div className="space-y-2">
                     <Label>Weight</Label>
                     <Input
-                      placeholder="optional"
+                      placeholder="e.g. 50 kg"
                       value={weight}
                       onChange={(e) => setWeight(e.target.value)}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Duration (sec)</Label>
+                    <Input
+                      type="number"
+                      min={5}
+                      max={600}
+                      placeholder="per set"
+                      value={setDuration}
+                      onChange={(e) => setSetDuration(e.target.value)}
+                    />
+                  </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Add exercise starts a timer per set, then a 2‑min breath rest between sets.
+                </p>
               </div>
             )}
 
             <div className="flex flex-wrap gap-2 pt-1">
-              <Button onClick={() => void saveDayFocus()} disabled={saving} variant="outline">
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save focus
-              </Button>
-              {activeFocus && activeFocus.toLowerCase() !== "rest" ? (
+              {!focusSaveLocked ? (
+                <Button
+                  onClick={() => void saveDayFocus()}
+                  disabled={saving}
+                  variant="outline"
+                >
+                  {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Save focus
+                </Button>
+              ) : null}
+              {catalogFocus && catalogFocus.toLowerCase() !== "rest" ? (
                 <Button
                   onClick={() => void addExercise()}
                   disabled={saving || loadingExercises}
@@ -1012,41 +1250,94 @@ function MemberProgressPage() {
               ) : null}
             </div>
           </div>
+          )}
 
           <div className="space-y-4">
             <p className="text-sm font-medium text-muted-foreground">
               Logged for {formatDayLabel(selectedDate, today)}
+              {selectedDayLocked ? " (locked)" : ""}
             </p>
             {(selectedDay?.exercises || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No exercises yet for this day.</p>
+              <p className="text-sm text-muted-foreground">
+                {selectedDayLocked
+                  ? "Nothing was logged for this day."
+                  : "No exercises yet for this day."}
+              </p>
             ) : (
-              selectedDay!.exercises.map((ex) => (
+              selectedDay!.exercises.map((ex) => {
+                const timesDone =
+                  exerciseTimesDone.get(ex.exercise_name.trim().toLowerCase()) ||
+                  1;
+                const mins = estimateExerciseMinutes(ex.sets);
+                return (
                 <div
                   key={ex.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openLoggedGuide(ex)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openLoggedGuide(ex);
+                    }
+                  }}
+                  className="flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/40"
                 >
                   <div>
                     <p className="font-medium">{ex.exercise_name}</p>
                     <p className="text-sm text-muted-foreground">
                       {ex.sets} sets × {ex.reps} reps
                       {ex.weight ? ` · ${ex.weight}` : ""}
+                      {" · "}
+                      ~{formatDurationMinutes(mins)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Done {timesDone}× in this range · tap for how-to video
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => void removeExercise(ex.id)}
-                    disabled={saving}
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                  {!selectedDayLocked ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void removeExercise(ex.id);
+                      }}
+                      disabled={saving}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  ) : null}
                 </div>
-              ))
+              );
+              })
             )}
             </div>
           </CardContent>
         </Card>
+
+      <ExerciseSetSession
+        open={sessionOpen}
+        plan={sessionPlan}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return;
+          setSessionOpen(false);
+          setSessionPlan(null);
+        }}
+        onFinish={(completedSets) => void finishExerciseSession(completedSets)}
+      />
+      <ExerciseGuideVideoModal
+        open={guideVideoOpen}
+        exerciseName={guideVideoName}
+        meta={guideVideoMeta}
+        onClose={() => {
+          setGuideVideoOpen(false);
+          setGuideVideoName(null);
+          setGuideVideoMeta(null);
+        }}
+      />
     </div>
   );
 }

@@ -283,7 +283,7 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
@@ -573,8 +573,8 @@ function AttendanceTable({
   mode: "active" | "completed";
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border">
-      <div className="overflow-x-auto">
+    <div className="w-full min-w-0 overflow-hidden rounded-xl border">
+      <div className="w-full min-w-0 overflow-x-auto">
         <table className="w-full min-w-[780px] text-left text-sm">
           <thead className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>

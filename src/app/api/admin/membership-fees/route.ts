@@ -5,6 +5,7 @@ import {
 } from "@/lib/supabase/server";
 import { cacheInvalidate } from "@/lib/api-cache";
 import { computeTrialInfo } from "@/lib/admin-trial";
+import { notify } from "@/lib/notify-actions";
 
 async function requireSuperAdmin(request: Request) {
   const auth = await requireAuth(request);
@@ -183,6 +184,9 @@ export async function PATCH(request: Request) {
 
   cacheInvalidate("admin:pending:");
   cacheInvalidate("settings:platform_facility_fee");
+
+  const feeLabel = fee ? `$${fee}` : null;
+  void notify.platformFeeUpdated(userId, feeLabel);
 
   return NextResponse.json({
     admin: {

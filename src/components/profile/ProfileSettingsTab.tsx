@@ -62,12 +62,13 @@ export function ProfileSettingsTab({
   isSaving,
 }: ProfileSettingsTabProps) {
   const patch = (partial: Partial<ProfileSettingsFormSlice>) => {
+    if (!isEditing) return;
     onProfileChange(partial);
   };
 
   return (
     <div className="space-y-6">
-      {!isSuperAdmin && <NewsletterPreferenceCard />}
+      {!isSuperAdmin && <NewsletterPreferenceCard disabled={!isEditing} />}
 
       {isAdmin && (
         <>
@@ -89,18 +90,20 @@ export function ProfileSettingsTab({
                 <div className="min-w-0">
                   <CardTitle className="text-xl">Gym details</CardTitle>
                   <CardDescription>
-                    Edit the same gym fields stored in your profile from registration
+                    {isEditing
+                      ? "Editing enabled — change fields, then Save to DB"
+                      : "View only — click Edit to make changes"}
                   </CardDescription>
                 </div>
               </div>
               {!isEditing ? (
                 <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                  Edit
+                  Enable edit
                 </Button>
               ) : (
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-                    Done
+                    Lock
                   </Button>
                   {onSave && (
                     <Button size="sm" onClick={onSave} disabled={isSaving}>
@@ -351,6 +354,7 @@ export function ProfileSettingsTab({
                 videoUrl={profileData.gymVideoUrl}
                 videoFileUrl={profileData.gymVideoFileUrl}
                 persistToDb
+                readOnly={!isEditing}
                 onUpdate={(media) =>
                   patch({
                     avatarUrl: media.logoUrl,
@@ -361,6 +365,11 @@ export function ProfileSettingsTab({
                   })
                 }
               />
+              {!isEditing ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Enable edit above to upload or change gym media.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         </>
@@ -390,11 +399,17 @@ export function ProfileSettingsTab({
               <p className="font-medium text-foreground">Password</p>
               <p className="text-sm text-muted-foreground">Keep your password strong and updated</p>
             </div>
-            <Link href="/login">
-              <Button variant="outline" size="sm">
+            {isEditing ? (
+              <Link href="/login">
+                <Button variant="outline" size="sm">
+                  Update password
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
                 Update password
               </Button>
-            </Link>
+            )}
           </div>
         </CardContent>
       </Card>

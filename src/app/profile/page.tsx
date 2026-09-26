@@ -504,6 +504,11 @@ export default function ProfilePage() {
   const handleAvatarPick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (!isEditing) {
+      toast.error("Click Edit Profile before changing your photo");
+      event.target.value = "";
+      return;
+    }
 
     if (!file.type.startsWith("image/")) {
       toast.error("Please choose an image file");
@@ -517,7 +522,6 @@ export default function ProfilePage() {
     const previewUrl = URL.createObjectURL(file);
     setPendingAvatarFile(file);
     setAvatarPreview(previewUrl);
-    if (!isEditing) setIsEditing(true);
     toast.info("Preview ready — click Save Changes to upload");
   };
 
@@ -670,10 +674,13 @@ export default function ProfilePage() {
               <Button
                 type="button"
                 size="icon"
-                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md"
-                disabled={isSaving || isUploadingAvatar}
-                onClick={() => avatarInputRef.current?.click()}
-                title="Upload profile photo"
+                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md disabled:opacity-40"
+                disabled={!isEditing || isSaving || isUploadingAvatar}
+                onClick={() => {
+                  if (!isEditing) return;
+                  avatarInputRef.current?.click();
+                }}
+                title={isEditing ? "Upload profile photo" : "Click Edit Profile to change photo"}
               >
                 {isUploadingAvatar ? (
                   <Loader2 className="h-4 w-4 text-white animate-spin" />
@@ -1300,6 +1307,7 @@ export default function ProfilePage() {
                     videoUrl={profileData.gymVideoUrl}
                     videoFileUrl={profileData.gymVideoFileUrl}
                     persistToDb
+                    readOnly={!isEditing}
                     onUpdate={(media) =>
                       setProfileData((prev) => ({
                         ...prev,

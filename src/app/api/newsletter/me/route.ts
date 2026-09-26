@@ -5,6 +5,7 @@ import {
   setNewsletterPreference,
 } from "@/lib/newsletter";
 import { jsonError } from "@/lib/api/errors";
+import { notify } from "@/lib/notify-actions";
 
 /** GET /api/newsletter/me — current user's newsletter preference */
 export async function GET(request: Request) {
@@ -42,6 +43,10 @@ export async function PATCH(request: Request) {
 
   if (!result.success) {
     return jsonError(result.error || "Failed to update preference", 400);
+  }
+
+  if (subscribe) {
+    void notify.newsletterSubscribed(auth.user.id);
   }
 
   return NextResponse.json({

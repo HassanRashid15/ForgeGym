@@ -262,15 +262,15 @@ export const actionTemplates = {
 
   profileSaved: (): NotificationTemplate => ({
     type: "confirmation",
-    title: "Profile saved",
+    title: "Done: Profile saved",
     message: "Your profile changes were saved successfully.",
     metadata: { icon: "check_circle", priority: "low", action_url: "/profile" },
   }),
 
   attendanceCheckedIn: (slot: string, when: string): NotificationTemplate => ({
     type: "confirmation",
-    title: "Checked in",
-    message: `You checked in for the ${slot} slot at ${when}.`,
+    title: "Done: Checked in",
+    message: `You finished check-in for the ${slot} slot at ${when}.`,
     metadata: {
       icon: "login",
       priority: "medium",
@@ -280,8 +280,8 @@ export const actionTemplates = {
 
   attendanceCheckedOut: (duration: string, when: string): NotificationTemplate => ({
     type: "confirmation",
-    title: "Checked out",
-    message: `You checked out at ${when}. Time spent: ${duration}.`,
+    title: "Done: Checked out",
+    message: `You finished check-out at ${when}. Time spent: ${duration}.`,
     metadata: {
       icon: "logout",
       priority: "medium",
@@ -295,8 +295,8 @@ export const actionTemplates = {
     slot: string,
   ): NotificationTemplate => ({
     type: "info",
-    title: "Gym check-in",
-    message: `${name} (${role}) checked in · ${slot} slot.`,
+    title: `Done: ${name} checked in`,
+    message: `${name} (${role}) finished check-in · ${slot} slot.`,
     metadata: {
       icon: "login",
       priority: "medium",
@@ -310,8 +310,8 @@ export const actionTemplates = {
     duration: string,
   ): NotificationTemplate => ({
     type: "info",
-    title: "Gym check-out",
-    message: `${name} (${role}) checked out · spent ${duration}.`,
+    title: `Done: ${name} checked out`,
+    message: `${name} (${role}) finished check-out · spent ${duration}.`,
     metadata: {
       icon: "logout",
       priority: "medium",
@@ -398,21 +398,21 @@ export const actionTemplates = {
 
   avatarUpdated: (): NotificationTemplate => ({
     type: "confirmation",
-    title: "Avatar updated",
+    title: "Done: Avatar updated",
     message: "Your profile photo was updated.",
     metadata: { icon: "photo_camera", priority: "low", action_url: "/profile" },
   }),
 
   gymMediaUploaded: (kind: string): NotificationTemplate => ({
     type: "confirmation",
-    title: "Gym media uploaded",
+    title: "Done: Gym media uploaded",
     message: `Your gym ${kind.replace(/-/g, " ")} was uploaded and is ready to show on your public page.`,
     metadata: { icon: "cloud_upload", priority: "medium", action_url: "/profile" },
   }),
 
   gymMediaDeleted: (): NotificationTemplate => ({
     type: "info",
-    title: "Gym media removed",
+    title: "Done: Gym media removed",
     message: "A gym media file was deleted from storage.",
     metadata: { icon: "delete", priority: "low", action_url: "/profile" },
   }),
@@ -444,6 +444,151 @@ export const actionTemplates = {
     title: "Signed in",
     message: `You signed in successfully at ${when}.`,
     metadata: { icon: "login", priority: "low", action_url: "/dashboard" },
+  }),
+
+  progressExerciseDone: (
+    exerciseName: string,
+    sets: number,
+    reps: number,
+    weight?: string | null,
+    focus?: string | null,
+  ): NotificationTemplate => {
+    const detail = [
+      `${sets}×${reps}`,
+      weight?.trim() || null,
+      focus?.trim() ? `${focus.trim()} day` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return {
+      type: "achievement",
+      title: `Done: ${exerciseName}`,
+      message: `You finished ${exerciseName}${detail ? ` (${detail})` : ""}. Nice work — keep logging in Progress.`,
+      metadata: {
+        icon: "fitness_center",
+        priority: "medium",
+        action_url: "/dashboard/progress",
+      },
+    };
+  },
+
+  progressFocusSaved: (focus: string, dayDate: string): NotificationTemplate => ({
+    type: "confirmation",
+    title: `Done: ${focus} focus saved`,
+    message: `Day focus set to ${focus} for ${dayDate}.`,
+    metadata: {
+      icon: "flag",
+      priority: "medium",
+      action_url: "/dashboard/progress",
+    },
+  }),
+
+  progressPrCreated: (exercise: string, value: string): NotificationTemplate => ({
+    type: "achievement",
+    title: `Done: New PR — ${exercise}`,
+    message: `Personal record logged: ${exercise} · ${value}.`,
+    metadata: {
+      icon: "military_tech",
+      priority: "high",
+      action_url: "/dashboard/progress",
+    },
+  }),
+
+  progressExerciseRemoved: (exerciseName: string): NotificationTemplate => ({
+    type: "info",
+    title: `Done: Removed ${exerciseName}`,
+    message: `${exerciseName} was removed from your workout log.`,
+    metadata: {
+      icon: "delete",
+      priority: "low",
+      action_url: "/dashboard/progress",
+    },
+  }),
+
+  classBooked: (
+    className: string,
+    date: string,
+    time: string,
+  ): NotificationTemplate => ({
+    type: "booking",
+    title: `Done: Booked ${className}`,
+    message: `You're booked for ${className} on ${date} at ${time}. Arrive 10 minutes early.`,
+    metadata: {
+      icon: "event_available",
+      priority: "high",
+      action_url: "/dashboard/schedule",
+    },
+  }),
+
+  classCreated: (className: string): NotificationTemplate => ({
+    type: "confirmation",
+    title: `Done: Class created — ${className}`,
+    message: `${className} is ready. Schedule sessions so members can book.`,
+    metadata: {
+      icon: "add_circle",
+      priority: "medium",
+      action_url: "/dashboard/classes",
+    },
+  }),
+
+  classSessionScheduled: (
+    className: string,
+    when: string,
+  ): NotificationTemplate => ({
+    type: "confirmation",
+    title: `Done: Session scheduled — ${className}`,
+    message: `${className} is scheduled for ${when}.`,
+    metadata: {
+      icon: "schedule",
+      priority: "medium",
+      action_url: "/dashboard/classes",
+    },
+  }),
+
+  reviewSubmitted: (rating: number): NotificationTemplate => ({
+    type: "feedback",
+    title: "Done: Review submitted",
+    message: `Thanks for your ${rating}-star feedback. It will appear after approval.`,
+    metadata: {
+      icon: "star_rate",
+      priority: "low",
+      action_url: "/dashboard",
+    },
+  }),
+
+  platformFeeUpdated: (feeLabel: string | null): NotificationTemplate => ({
+    type: "payment",
+    title: "Done: Platform fee updated",
+    message: feeLabel
+      ? `Your platform monthly fee is now ${feeLabel}.`
+      : "Your platform monthly fee was cleared.",
+    metadata: {
+      icon: "payments",
+      priority: "high",
+      action_url: "/dashboard/membership",
+    },
+  }),
+
+  promotionPublished: (title: string): NotificationTemplate => ({
+    type: "confirmation",
+    title: `Done: Promotion published — ${title}`,
+    message: `"${title}" is live on the platform.`,
+    metadata: {
+      icon: "local_offer",
+      priority: "medium",
+      action_url: "/dashboard",
+    },
+  }),
+
+  newsletterSubscribed: (): NotificationTemplate => ({
+    type: "confirmation",
+    title: "Done: Newsletter subscribed",
+    message: "You're subscribed to Forge Gym updates and promotions.",
+    metadata: {
+      icon: "mail",
+      priority: "low",
+      action_url: "/dashboard",
+    },
   }),
 };
 

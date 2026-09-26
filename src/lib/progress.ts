@@ -121,6 +121,26 @@ export async function addWorkoutExercise(
     weight?: string | null;
   },
 ): Promise<WorkoutExercise> {
+  const name = input.exercise_name.trim();
+  if (!name) throw new Error("Exercise name is required");
+
+  const { data: dupRows, error: dupErr } = await client
+    .from("workout_exercises")
+    .select("id, exercise_name")
+    .eq("workout_day_id", input.workout_day_id)
+    .eq("user_id", userId);
+
+  if (dupErr) throw new Error(dupErr.message);
+  const already = (dupRows || []).some(
+    (row) =>
+      String(row.exercise_name || "")
+        .trim()
+        .toLowerCase() === name.toLowerCase(),
+  );
+  if (already) {
+    throw new Error("That exercise is already logged for this day");
+  }
+
   const { data: existing } = await client
     .from("workout_exercises")
     .select("sort_order")
@@ -136,7 +156,7 @@ export async function addWorkoutExercise(
     .insert({
       user_id: userId,
       workout_day_id: input.workout_day_id,
-      exercise_name: input.exercise_name.trim(),
+      exercise_name: name,
       sets: input.sets,
       reps: input.reps,
       weight: input.weight?.trim() || null,

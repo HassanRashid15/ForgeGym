@@ -6,6 +6,8 @@ export type ProgressDayView = {
   id: string | null;
   focus: string;
   notes: string | null;
+  focus_saves?: number;
+  focus_locked?: boolean;
   duration_minutes: number | null;
   calories: number | null;
   exercises: WorkoutExercise[];
@@ -90,6 +92,12 @@ export type CatalogExercise = {
 
 export type ExerciseDemoResult = {
   query: string;
+  name?: string | null;
+  animationUrl?: string | null;
+  videoUrl?: string | null;
+  imageUrl?: string | null;
+  instructions?: string[];
+  mediaSource?: "workoutdb" | "exercisedb" | "exercisedb_v2" | null;
   youtubeVideoId: string | null;
   youtubeSearchUrl: string;
   title: string | null;

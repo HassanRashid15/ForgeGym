@@ -7,6 +7,7 @@ import { jsonError } from "@/lib/api/errors";
 import { listActiveSubscriberEmails } from "@/lib/newsletter";
 import { sendPromotionEmails } from "@/lib/promotion-email";
 import { cacheInvalidate } from "@/lib/api-cache";
+import { notify } from "@/lib/notify-actions";
 
 async function requireSuperAdmin(request: Request) {
   const auth = await requireAuth(request);
@@ -138,6 +139,10 @@ export async function POST(request: Request) {
   }
 
   cacheInvalidate("public:promotions");
+
+  if (isPublished) {
+    void notify.promotionPublished(auth.user.id, title);
+  }
 
   return NextResponse.json({
     promotion: data,

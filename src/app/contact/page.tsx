@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
-import { getContactInfo, submitContactMessage } from "@/api/contact";
+import { getContactInfo, submitContactMessage, type ContactRecipientOption } from "@/api/contact";
 import {
   getDefaultSiteContact,
   phoneHref,
@@ -29,6 +29,13 @@ type InfoCard = {
 export default function ContactPage() {
   const { toast } = useToast();
   const [contact, setContact] = useState<SiteContactInfo>(getDefaultSiteContact);
+  const [recipients, setRecipients] = useState<ContactRecipientOption[]>([
+    {
+      id: "superadmin",
+      type: "superadmin",
+      label: "Forge Platform (Super Admin)",
+    },
+  ]);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
@@ -36,6 +43,7 @@ export default function ContactPage() {
     phone: "",
     subject: "",
     message: "",
+    recipientId: "superadmin",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,6 +54,13 @@ export default function ContactPage() {
         const data = await getContactInfo();
         if (!cancelled && data?.contact) {
           setContact(data.contact);
+        }
+        if (!cancelled && data?.recipients?.length) {
+          setRecipients(data.recipients);
+          setFormData((prev) => ({
+            ...prev,
+            recipientId: data.recipients![0]?.id || "superadmin",
+          }));
         }
       } catch {
         // Keep defaults from env
@@ -96,6 +111,7 @@ export default function ContactPage() {
         phone: formData.phone.trim() || undefined,
         subject: formData.subject.trim(),
         message: formData.message.trim(),
+        recipientId: formData.recipientId || "superadmin",
       });
       toast({
         title: "Message Sent!",
@@ -108,6 +124,7 @@ export default function ContactPage() {
         phone: "",
         subject: "",
         message: "",
+        recipientId: recipients[0]?.id || "superadmin",
       });
     } catch (err) {
       toast({
@@ -253,6 +270,49 @@ export default function ContactPage() {
                       className="border-border bg-secondary"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="contact-recipient"
+                    className="mb-2 block text-sm font-medium"
+                  >
+                    Message to
+                  </label>
+                  <select
+                    id="contact-recipient"
+                    value={formData.recipientId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, recipientId: e.target.value })
+                    }
+                    required
+                    className="flex h-10 w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <optgroup label="Platform">
+                      {recipients
+                        .filter((r) => r.type === "superadmin")
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.label}
+                          </option>
+                        ))}
+                    </optgroup>
+                    {recipients.some((r) => r.type === "gym_admin") ? (
+                      <optgroup label="Partner gyms">
+                        {recipients
+                          .filter((r) => r.type === "gym_admin")
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.label}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Choose Super Admin for platform help, or a gym for membership
+                    and local gym questions.
+                  </p>
                 </div>
 
                 <div>

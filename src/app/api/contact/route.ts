@@ -6,6 +6,7 @@ import {
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { getDefaultSiteContact } from "@/lib/site-contact";
+import { listApprovedGyms } from "@/lib/gyms";
 import { trackEvent } from "@/lib/monitoring";
 
 function parseSettingLines(value: string | null | undefined, fallback: string[]) {
@@ -16,13 +17,39 @@ function parseSettingLines(value: string | null | undefined, fallback: string[])
     .filter(Boolean);
 }
 
-/** GET /api/contact — public contact details (env + optional platform_settings) */
+export type ContactRecipientOption = {
+  id: string;
+  type: "superadmin" | "gym_admin";
+  label: string;
+  gymName?: string;
+  ownerName?: string;
+};
+
+/** GET /api/contact — public contact details + messageable recipients */
 export async function GET() {
   const defaults = getDefaultSiteContact();
   const service = createSupabaseServiceClient();
 
+  const gyms = await listApprovedGyms();
+  const recipients: ContactRecipientOption[] = [
+    {
+      id: "superadmin",
+      type: "superadmin",
+      label: "Forge Platform (Super Admin)",
+    },
+    ...gyms.map((g) => ({
+      id: g.ownerId,
+      type: "gym_admin" as const,
+      label: g.ownerName
+        ? `${g.gymName} — ${g.ownerName}`
+        : g.gymName,
+      gymName: g.gymName,
+      ownerName: g.ownerName || undefined,
+    })),
+  ];
+
   if (!service) {
-    return NextResponse.json({ contact: defaults });
+    return NextResponse.json({ contact: defaults, recipients });
   }
 
   try {
@@ -61,9 +88,10 @@ export async function GET() {
         supportEmail: emails[0] || defaults.supportEmail,
         primaryPhone: phones[0] || defaults.primaryPhone,
       },
+      recipients,
     });
   } catch {
-    return NextResponse.json({ contact: defaults });
+    return NextResponse.json({ contact: defaults, recipients });
   }
 }
 
@@ -91,6 +119,8 @@ export async function POST(request: Request) {
   const phone = typeof body.phone === "string" ? body.phone.trim() : "";
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
+  const recipientId =
+    typeof body.recipientId === "string" ? body.recipientId.trim() : "superadmin";
 
   if (!name || name.length < 2) {
     return jsonError("Name is required", 400);
@@ -113,35 +143,77 @@ export async function POST(request: Request) {
     return jsonError("Server misconfigured", 500);
   }
 
+  let recipientType: "superadmin" | "gym_admin" = "superadmin";
+  let recipientUserId: string | null = null;
+  let recipientLabel = "Forge Platform (Super Admin)";
+
+  if (recipientId && recipientId !== "superadmin") {
+    const gyms = await listApprovedGyms();
+    const gym = gyms.find((g) => g.ownerId === recipientId);
+    if (!gym) {
+      return jsonError("Invalid message recipient", 400);
+    }
+    recipientType = "gym_admin";
+    recipientUserId = gym.ownerId;
+    recipientLabel = gym.ownerName
+      ? `${gym.gymName} — ${gym.ownerName}`
+      : gym.gymName;
+  }
+
   let userId: string | null = null;
   const auth = await requireAuth(request);
   if (!("error" in auth)) {
     userId = auth.user.id;
   }
 
-  const { data, error } = await service
+  const baseRow = {
+    name: name.slice(0, 120),
+    email: email.slice(0, 200),
+    phone: phone ? phone.slice(0, 40) : null,
+    subject: subject.slice(0, 200),
+    message: message.slice(0, 2000),
+    user_id: userId,
+    status: "new",
+  };
+
+  let insertResult = await service
     .from("contact_messages" as never)
     .insert({
-      name: name.slice(0, 120),
-      email: email.slice(0, 200),
-      phone: phone ? phone.slice(0, 40) : null,
-      subject: subject.slice(0, 200),
-      message: message.slice(0, 2000),
-      user_id: userId,
-      status: "new",
+      ...baseRow,
+      recipient_type: recipientType,
+      recipient_user_id: recipientUserId,
+      recipient_label: recipientLabel,
     } as never)
     .select("id")
     .single();
 
-  if (error) {
-    return jsonError(error.message, 400);
+  // Columns may not exist yet — fall back to legacy insert
+  if (
+    insertResult.error &&
+    (insertResult.error.message?.includes("recipient_type") ||
+      insertResult.error.message?.includes("recipient_user_id") ||
+      insertResult.error.message?.includes("recipient_label"))
+  ) {
+    insertResult = await service
+      .from("contact_messages" as never)
+      .insert(baseRow as never)
+      .select("id")
+      .single();
   }
 
-  trackEvent("contact.submitted", { requestId });
+  if (insertResult.error) {
+    return jsonError(insertResult.error.message, 400);
+  }
+
+  trackEvent("contact.submitted", {
+    requestId,
+    recipientType,
+    recipientUserId,
+  });
 
   return NextResponse.json({
     success: true,
-    id: (data as { id: string } | null)?.id,
-    message: "Message received. We'll get back to you within 24 hours.",
+    id: (insertResult.data as { id: string } | null)?.id,
+    message: `Message sent to ${recipientLabel}. We'll get back to you within 24 hours.`,
   });
 }

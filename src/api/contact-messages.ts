@@ -10,6 +10,9 @@ export type ContactMessage = {
   status: "new" | "read" | "replied" | "archived";
   user_id: string | null;
   created_at: string;
+  recipient_type?: "superadmin" | "gym_admin" | null;
+  recipient_user_id?: string | null;
+  recipient_label?: string | null;
 };
 
 export type ContactMessagesResponse = {

@@ -47,7 +47,7 @@ async function requireAdminViewer(request: Request) {
   return { service, user: auth.user, isSuper };
 }
 
-/** GET /api/admin/contact-messages — inbox from /contact form */
+/** GET /api/admin/contact-messages — inbox from /contact form (scoped by recipient) */
 export async function GET(request: Request) {
   const auth = await requireAdminViewer(request);
   if ("error" in auth) return auth.error;
@@ -65,20 +65,70 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false })
     .limit(limit);
 
+  // Superadmin: messages addressed to platform. Gym admin: only their gym inbox.
+  if (auth.isSuper) {
+    query = query.eq("recipient_type", "superadmin");
+  } else {
+    query = query
+      .eq("recipient_type", "gym_admin")
+      .eq("recipient_user_id", auth.user.id);
+  }
+
   if (status === "new" || status === "read" || status === "replied" || status === "archived") {
     query = query.eq("status", status);
   } else if (status !== "all") {
-    // Default: actionable inbox
     query = query.in("status", ["new", "read"]);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  // Legacy rows without recipient columns — superadmin sees all; gym admins see none until SQL applied
+  if (
+    error &&
+    (error.message?.includes("recipient_type") ||
+      error.message?.includes("recipient_user_id"))
+  ) {
+    let legacy = auth.service
+      .from("contact_messages" as never)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (status === "new" || status === "read" || status === "replied" || status === "archived") {
+      legacy = legacy.eq("status", status);
+    } else if (status !== "all") {
+      legacy = legacy.in("status", ["new", "read"]);
+    }
+
+    const legacyResult = await legacy;
+    data = auth.isSuper ? legacyResult.data : [];
+    error = legacyResult.error;
+  }
+
   if (error) return jsonError(error.message, 400);
 
-  const { count: newCount } = await auth.service
+  let newCountQuery = auth.service
     .from("contact_messages" as never)
     .select("id", { count: "exact", head: true })
     .eq("status", "new");
+
+  if (auth.isSuper) {
+    newCountQuery = newCountQuery.eq("recipient_type", "superadmin");
+  } else {
+    newCountQuery = newCountQuery
+      .eq("recipient_type", "gym_admin")
+      .eq("recipient_user_id", auth.user.id);
+  }
+
+  let { count: newCount } = await newCountQuery;
+
+  if (newCount == null && auth.isSuper) {
+    const fallback = await auth.service
+      .from("contact_messages" as never)
+      .select("id", { count: "exact", head: true })
+      .eq("status", "new");
+    newCount = fallback.count ?? 0;
+  }
 
   return NextResponse.json({
     messages: data || [],
@@ -102,13 +152,42 @@ export async function PATCH(request: Request) {
     return jsonError("status must be new|read|replied|archived", 400);
   }
 
-  const { data, error } = await auth.service
+  let updateQuery = auth.service
     .from("contact_messages" as never)
     .update({ status } as never)
-    .eq("id", id)
-    .select()
-    .single();
+    .eq("id", id);
 
-  if (error) return jsonError(error.message, 400);
+  if (!auth.isSuper) {
+    updateQuery = updateQuery
+      .eq("recipient_type", "gym_admin")
+      .eq("recipient_user_id", auth.user.id);
+  } else {
+    updateQuery = updateQuery.eq("recipient_type", "superadmin");
+  }
+
+  const { data, error } = await updateQuery.select().maybeSingle();
+
+  if (error) {
+    // Legacy table without recipient columns
+    if (
+      error.message?.includes("recipient_type") ||
+      error.message?.includes("recipient_user_id")
+    ) {
+      if (!auth.isSuper) {
+        return jsonError("Forbidden", 403);
+      }
+      const legacy = await auth.service
+        .from("contact_messages" as never)
+        .update({ status } as never)
+        .eq("id", id)
+        .select()
+        .single();
+      if (legacy.error) return jsonError(legacy.error.message, 400);
+      return NextResponse.json({ success: true, message: legacy.data });
+    }
+    return jsonError(error.message, 400);
+  }
+
+  if (!data) return jsonError("Message not found", 404);
   return NextResponse.json({ success: true, message: data });
 }

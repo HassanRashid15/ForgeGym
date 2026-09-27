@@ -1,8 +1,17 @@
 import { apiRequest } from "@/api/client";
 import type { SiteContactInfo } from "@/lib/site-contact";
 
+export type ContactRecipientOption = {
+  id: string;
+  type: "superadmin" | "gym_admin";
+  label: string;
+  gymName?: string;
+  ownerName?: string;
+};
+
 export type ContactInfoResponse = {
   contact: SiteContactInfo;
+  recipients?: ContactRecipientOption[];
 };
 
 export type SubmitContactPayload = {
@@ -11,6 +20,8 @@ export type SubmitContactPayload = {
   phone?: string;
   subject: string;
   message: string;
+  /** "superadmin" or a gym owner user id */
+  recipientId: string;
 };
 
 export type SubmitContactResponse = {

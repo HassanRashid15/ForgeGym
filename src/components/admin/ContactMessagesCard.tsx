@@ -109,6 +109,11 @@ export function ContactMessagesCard() {
                       {msg.subject}
                     </Badge>
                   </div>
+                  {msg.recipient_label ? (
+                    <p className="mt-0.5 truncate text-[11px] text-sky-600/90 dark:text-sky-400/90">
+                      To: {msg.recipient_label}
+                    </p>
+                  ) : null}
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {msg.email}
                     {msg.phone ? ` · ${msg.phone}` : ""}
@@ -158,6 +163,12 @@ export function ContactMessagesCard() {
                   <span className="text-muted-foreground">From:</span>{" "}
                   <span className="font-medium">{selected.name}</span>
                 </p>
+                {selected.recipient_label ? (
+                  <p>
+                    <span className="text-muted-foreground">To:</span>{" "}
+                    <span className="font-medium">{selected.recipient_label}</span>
+                  </p>
+                ) : null}
                 <p>
                   <span className="text-muted-foreground">Email:</span>{" "}
                   <a

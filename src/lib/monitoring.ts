@@ -4,6 +4,7 @@ export type MonitorEvent =
   | "auth.login"
   | "auth.login_failed"
   | "auth.register"
+  | "auth.email_updated"
   | "auth.rate_limited"
   | "api.error"
   | "profile.update"

@@ -54,6 +54,9 @@ export type ProfileRecord = {
   pending_trainer_id?: string | null;
   trainer_request_pending?: boolean | null;
   fee_concession?: string | null;
+  feature_classes_enabled?: boolean | null;
+  feature_schedule_enabled?: boolean | null;
+  feature_membership_enabled?: boolean | null;
 };
 
 export type ProfileUpdatePayload = Partial<{
@@ -94,6 +97,9 @@ export type ProfileUpdatePayload = Partial<{
   gym_latitude: number | null;
   gym_longitude: number | null;
   preferred_trainer_id: string | null;
+  feature_classes_enabled: boolean | null;
+  feature_schedule_enabled: boolean | null;
+  feature_membership_enabled: boolean | null;
 }>;
 
 /** GET profiles.get → /api/profiles */

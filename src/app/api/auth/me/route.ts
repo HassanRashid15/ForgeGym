@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     db.from("user_roles").select("role").eq("user_id", user.id),
     (db.from("profiles") as any)
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, trial_offered, trial_starts_at, trial_ends_at",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, trial_offered, trial_starts_at, trial_ends_at, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -52,6 +52,9 @@ export async function GET(request: Request) {
     trial_offered?: boolean | null;
     trial_starts_at?: string | null;
     trial_ends_at?: string | null;
+    feature_classes_enabled?: boolean | null;
+    feature_schedule_enabled?: boolean | null;
+    feature_membership_enabled?: boolean | null;
   } | null;
 
   const metaRequested = String(
@@ -87,6 +90,9 @@ export async function GET(request: Request) {
   let gymCity = profileRow?.gym_city || null;
   let gymType = profileRow?.gym_type || null;
   let gymMainImageUrl: string | null = null;
+  let featureClassesEnabled = profileRow?.feature_classes_enabled === true;
+  let featureScheduleEnabled = profileRow?.feature_schedule_enabled === true;
+  let featureMembershipEnabled = profileRow?.feature_membership_enabled === true;
 
   if (gymOwnerId && service) {
     const [{ data: gymRow }, { data: ownerProfile }] = await Promise.all([
@@ -97,16 +103,35 @@ export async function GET(request: Request) {
         .maybeSingle(),
       service
         .from("profiles")
-        .select("gym_name, gym_city, gym_type, gym_main_image_url")
+        .select(
+          "gym_name, gym_city, gym_type, gym_main_image_url, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
+        )
         .eq("user_id", gymOwnerId)
         .maybeSingle(),
     ]);
 
-    gymName = gymRow?.name || ownerProfile?.gym_name || gymName;
-    gymCity = gymRow?.city || ownerProfile?.gym_city || gymCity;
-    gymType = gymRow?.gym_type || ownerProfile?.gym_type || gymType;
+    const owner = ownerProfile as {
+      gym_name?: string | null;
+      gym_city?: string | null;
+      gym_type?: string | null;
+      gym_main_image_url?: string | null;
+      feature_classes_enabled?: boolean | null;
+      feature_schedule_enabled?: boolean | null;
+      feature_membership_enabled?: boolean | null;
+    } | null;
+
+    gymName = gymRow?.name || owner?.gym_name || gymName;
+    gymCity = gymRow?.city || owner?.gym_city || gymCity;
+    gymType = gymRow?.gym_type || owner?.gym_type || gymType;
     gymMainImageUrl =
-      gymRow?.main_image_url || ownerProfile?.gym_main_image_url || null;
+      gymRow?.main_image_url || owner?.gym_main_image_url || null;
+
+    // Members/trainers inherit the gym owner's feature flags
+    if (owner) {
+      featureClassesEnabled = owner.feature_classes_enabled === true;
+      featureScheduleEnabled = owner.feature_schedule_enabled === true;
+      featureMembershipEnabled = owner.feature_membership_enabled === true;
+    }
   }
 
   const trial = computeTrialInfo({
@@ -137,6 +162,9 @@ export async function GET(request: Request) {
     gymMainImageUrl,
     membershipStatus: profileRow?.membership_status || null,
     membershipType: profileRow?.membership_type || null,
+    featureClassesEnabled,
+    featureScheduleEnabled,
+    featureMembershipEnabled,
     trial,
   });
 }

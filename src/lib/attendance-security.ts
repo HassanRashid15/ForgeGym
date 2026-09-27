@@ -11,9 +11,6 @@ export const ATTENDANCE_GEO_RADIUS_M = Number(
   process.env.ATTENDANCE_GEO_RADIUS_M || 50,
 );
 
-export const ATTENDANCE_CLOSED_MESSAGE =
-  "Gym attendance is closed from 00:00–04:59 (intended). Open again at 05:00.";
-
 /** Require Male or Female before check-in (slot rules are gender-based). */
 export function requireBinaryGender(
   gender: string | null | undefined,
@@ -28,7 +25,37 @@ export function requireBinaryGender(
 }
 
 export function isAttendanceOpen(now = new Date()): boolean {
-  return slotFromHour(hourInTimezone(now)) != null;
+  const hour = hourInTimezone(now);
+  const slot = slotFromHour(hour);
+  
+  // Check if it's Sunday (day 0 in JavaScript)
+  const dayOfWeek = now.getDay();
+  const isSunday = dayOfWeek === 0;
+  
+  // If Sunday, check if within allowed Sunday hours (e.g., 8:00-20:00)
+  if (isSunday) {
+    // Sunday hours: 8:00-20:00 (8 AM to 8 PM)
+    return hour >= 8 && hour <= 20;
+  }
+  
+  // Regular days: check if within any slot
+  return slot != null;
+}
+
+export function getAttendanceClosedMessage(now = new Date()): string {
+  const dayOfWeek = now.getDay();
+  const isSunday = dayOfWeek === 0;
+  const hour = hourInTimezone(now);
+  
+  if (isSunday) {
+    if (hour < 8) {
+      return "Gym is closed on Sunday until 8:00 AM";
+    } else if (hour > 20) {
+      return "Gym is closed on Sunday after 8:00 PM";
+    }
+  }
+  
+  return "Gym attendance is closed from 00:00–04:59 (intended). Open again at 05:00.";
 }
 
 /** Haversine distance in meters. */

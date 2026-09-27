@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { markEmailVerified, logoutAccount } from "@/api/auth";
+import { markEmailVerified, logoutAccount, updateEmail } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ function VerificationContent() {
   const [email, setEmail] = useState(queryEmail);
   const [isEditingEmail, setIsEditingEmail] = useState(!queryEmail);
   const [tempEmail, setTempEmail] = useState(queryEmail);
+  const [emailChangePassword, setEmailChangePassword] = useState("");
 
   const [isChecking, setIsChecking] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
@@ -232,15 +233,51 @@ function VerificationContent() {
     }
   };
 
-  const handleSaveEmail = (e: React.FormEvent) => {
+  const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tempEmail.trim() || !/\S+@\S+\.\S+/.test(tempEmail)) {
       toast.error("Please enter a valid email address");
       return;
     }
-    setEmail(tempEmail.trim());
-    setIsEditingEmail(false);
-    toast.success("Listening for verification on: " + tempEmail.trim());
+
+    const newEmail = tempEmail.trim().toLowerCase();
+    const currentEmail = email.trim().toLowerCase();
+
+    if (newEmail === currentEmail) {
+      setEmail(newEmail);
+      setIsEditingEmail(false);
+      setEmailChangePassword("");
+      toast.success("Listening for verification on: " + newEmail);
+      return;
+    }
+
+    if (!currentEmail) {
+      // First-time set of listening email only (no account rewrite yet)
+      setEmail(newEmail);
+      setIsEditingEmail(false);
+      setEmailChangePassword("");
+      toast.success("Listening for verification on: " + newEmail);
+      return;
+    }
+
+    if (!emailChangePassword.trim()) {
+      toast.error("Enter your account password to change email");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      await updateEmail(currentEmail, newEmail, emailChangePassword);
+      setEmail(newEmail);
+      setIsEditingEmail(false);
+      setEmailChangePassword("");
+      toast.success("Email updated! Verification link sent to: " + newEmail);
+      setResendCooldown(60);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update email. Please try again.");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -343,7 +380,7 @@ function VerificationContent() {
                     </button>
                   </div>
                 ) : (
-                  <form onSubmit={handleSaveEmail} className="flex gap-2 pt-1">
+                  <form onSubmit={handleSaveEmail} className="space-y-2 pt-1">
                     <Input
                       type="email"
                       placeholder="Enter your email"
@@ -351,13 +388,45 @@ function VerificationContent() {
                       onChange={(e) => setTempEmail(e.target.value)}
                       className="h-10 text-sm bg-zinc-900 border-zinc-700 text-white rounded-lg focus-visible:ring-red-500"
                     />
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-10 bg-red-600 hover:bg-red-500 text-white px-4 rounded-lg font-semibold"
-                    >
-                      Set
-                    </Button>
+                    {email ? (
+                      <Input
+                        type="password"
+                        placeholder="Account password (required to change email)"
+                        value={emailChangePassword}
+                        onChange={(e) => setEmailChangePassword(e.target.value)}
+                        autoComplete="current-password"
+                        className="h-10 text-sm bg-zinc-900 border-zinc-700 text-white rounded-lg focus-visible:ring-red-500"
+                      />
+                    ) : null}
+                    <div className="flex gap-2">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={isResending}
+                        className="h-10 flex-1 bg-red-600 hover:bg-red-500 text-white px-4 rounded-lg font-semibold"
+                      >
+                        {isResending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Set"
+                        )}
+                      </Button>
+                      {email ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingEmail(false);
+                            setTempEmail(email);
+                            setEmailChangePassword("");
+                          }}
+                          className="h-10 border-zinc-700 text-zinc-300"
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
+                    </div>
                   </form>
                 )}
               </div>

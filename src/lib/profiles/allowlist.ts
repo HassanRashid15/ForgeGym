@@ -40,6 +40,9 @@ export const PROFILE_SELF_UPDATE_ALLOWLIST = [
   "gym_latitude",
   "gym_longitude",
   "preferred_trainer_id",
+  "feature_classes_enabled",
+  "feature_schedule_enabled",
+  "feature_membership_enabled",
 ] as const satisfies ReadonlyArray<keyof ProfileUpdatePayload>;
 
 export type ProfileSelfUpdateKey = (typeof PROFILE_SELF_UPDATE_ALLOWLIST)[number];

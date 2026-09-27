@@ -35,6 +35,11 @@
       "path": "/api/auth/mark-verified",
       "description": "Mark the current user's email as verified after confirm link"
     },
+    "updateEmail": {
+      "method": "POST",
+      "path": "/api/auth/update-email",
+      "description": "Change account email (requires session or email+password)"
+    },
     "me": {
       "method": "GET",
       "path": "/api/auth/me",
@@ -305,7 +310,7 @@
     "clientProgress": {
       "method": "GET",
       "path": "/api/trainer/clients/:userId/progress",
-      "description": "Fetch an assigned member's workout progress and exercises"
+      "description": "Fetch an assigned member's workout progress and exercises (supports startDate, endDate, or days params)"
     }
   },
   "attendance": {

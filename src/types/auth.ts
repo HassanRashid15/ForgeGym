@@ -16,6 +16,12 @@ export interface User {
   gymMainImageUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
+  /** Gym owner opted into Classes sidebar link */
+  featureClassesEnabled?: boolean;
+  /** Gym owner opted into Schedule sidebar link */
+  featureScheduleEnabled?: boolean;
+  /** Gym owner opted into Membership sidebar link */
+  featureMembershipEnabled?: boolean;
   /** Gym-owner free trial (set after superadmin approval) */
   trial?: {
     offered: boolean;
@@ -93,7 +99,9 @@ export interface AuthContextType {
   checkAccountExists: (email: string) => Promise<boolean | null>;
   checkEmailVerified: (email: string) => Promise<boolean>;
   resendVerificationEmail: (email: string) => Promise<void>;
+  updateEmail: (currentEmail: string, newEmail: string, password?: string) => Promise<void>;
   logout: () => void | Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;

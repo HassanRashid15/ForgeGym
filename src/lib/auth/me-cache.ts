@@ -14,6 +14,9 @@ export type MePayload = {
   gymMainImageUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
+  featureClassesEnabled?: boolean;
+  featureScheduleEnabled?: boolean;
+  featureMembershipEnabled?: boolean;
   trial?: {
     offered: boolean;
     status: "pending_approval" | "active" | "expired" | "none";

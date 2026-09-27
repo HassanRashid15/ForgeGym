@@ -10,6 +10,7 @@ import {
   checkAccountExists as apiCheckAccountExists,
   checkEmailVerified as apiCheckEmailVerified,
   resendVerificationEmail as apiResendVerificationEmail,
+  updateEmail as apiUpdateEmail,
   fetchCurrentUser,
 } from "@/api/auth";
 import { updateMyProfile } from "@/api/profiles";
@@ -187,6 +188,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         gymMainImageUrl: me.gymMainImageUrl || null,
         membershipStatus: me.membershipStatus || null,
         membershipType: me.membershipType || null,
+        featureClassesEnabled: me.featureClassesEnabled === true,
+        featureScheduleEnabled: me.featureScheduleEnabled === true,
+        featureMembershipEnabled: me.featureMembershipEnabled === true,
         trial: me.trial || null,
       };
       const prev = userRef.current;
@@ -205,6 +209,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.gymMainImageUrl === nextUser.gymMainImageUrl &&
         prev.membershipStatus === nextUser.membershipStatus &&
         prev.membershipType === nextUser.membershipType &&
+        prev.featureClassesEnabled === nextUser.featureClassesEnabled &&
+        prev.featureScheduleEnabled === nextUser.featureScheduleEnabled &&
+        prev.featureMembershipEnabled === nextUser.featureMembershipEnabled &&
         prev.trial?.status === nextUser.trial?.status &&
         prev.trial?.daysLeft === nextUser.trial?.daysLeft;
       if (!unchanged) setUser(nextUser);
@@ -428,6 +435,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await apiResendVerificationEmail(cleanEmail);
   };
 
+  const updateEmail = async (
+    currentEmail: string,
+    newEmail: string,
+    password?: string,
+  ): Promise<void> => {
+    const cleanCurrent = currentEmail.trim().toLowerCase();
+    const cleanNew = newEmail.trim().toLowerCase();
+    if (!cleanNew) throw new Error("New email is required");
+    if (!/\S+@\S+\.\S+/.test(cleanNew)) throw new Error("Invalid email format");
+    await apiUpdateEmail(cleanCurrent, cleanNew, password);
+  };
+
   const logout = async () => {
     if (logoutBusy) return;
     const name = userRef.current?.name || user?.name || null;
@@ -467,6 +486,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshUser = async () => {
+    meCacheRef.current = null;
+    meInflightRef.current = null;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.user) {
+      await syncUserProfile(session.user, { force: true });
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -476,7 +506,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAccountExists,
     checkEmailVerified,
     resendVerificationEmail,
+    updateEmail,
     logout,
+    refreshUser,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     isSuperAdmin: user?.isSuperAdmin === true,
@@ -495,7 +527,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           checkAccountExists,
           checkEmailVerified,
           resendVerificationEmail,
+          updateEmail,
           logout,
+          refreshUser: async () => {},
           isAuthenticated: false,
           isAdmin: false,
           isSuperAdmin: false,

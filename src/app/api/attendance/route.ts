@@ -13,10 +13,10 @@ import {
   type AttendanceSlot,
 } from "@/lib/attendance";
 import {
-  ATTENDANCE_CLOSED_MESSAGE,
   ATTENDANCE_GEO_RADIUS_M,
   canViewGymAttendance,
   filterByRole,
+  getAttendanceClosedMessage,
   isAttendanceOpen,
   requireBinaryGender,
   verifyPresence,
@@ -306,7 +306,7 @@ export async function GET(request: Request) {
         ),
         canViewGym: actor.canViewGym,
         gymOpen: isAttendanceOpen(),
-        closedMessage: isAttendanceOpen() ? null : ATTENDANCE_CLOSED_MESSAGE,
+        closedMessage: isAttendanceOpen() ? null : getAttendanceClosedMessage(),
         genderRequired: !genderGate.ok,
         genderError: genderGate.ok === false ? genderGate.error : null,
         geoRequired: Boolean(gym?.latitude != null && gym?.longitude != null),
@@ -419,7 +419,7 @@ export async function POST(request: Request) {
   }
 
   if (!isAttendanceOpen()) {
-    return jsonError(ATTENDANCE_CLOSED_MESSAGE, 400);
+    return jsonError(getAttendanceClosedMessage(), 400);
   }
 
   const genderGate = requireBinaryGender(targetGender);
@@ -430,7 +430,7 @@ export async function POST(request: Request) {
   const now = new Date();
   const slot = (body?.slot as AttendanceSlot | undefined) || currentSlot(now);
   if (!slot) {
-    return jsonError(ATTENDANCE_CLOSED_MESSAGE, 400);
+    return jsonError(getAttendanceClosedMessage(now), 400);
   }
 
   if (!isSlotAllowedForGender(slot, targetGender)) {
@@ -484,6 +484,69 @@ export async function POST(request: Request) {
     .order("checked_in_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  // Check if user has already checked in today (for members - one check-in per day)
+  if (targetRole === "customer" || targetRole === "user" || targetRole === "staff" || targetRole === "moderator") {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    const { data: todaySession } = await service
+      .from("attendance_checkins")
+      .select("id, checked_in_at, checked_out_at")
+      .eq("user_id", targetUserId)
+      .eq("gym_owner_id", targetGymOwnerId)
+      .gte("checked_in_at", todayStart.toISOString())
+      .lte("checked_in_at", todayEnd.toISOString())
+      .maybeSingle();
+    
+    if (todaySession && !todaySession.checked_out_at) {
+      return jsonError("You already have an active check-in session. Please check out first.", 400);
+    }
+    
+    if (todaySession && todaySession.checked_out_at) {
+      return jsonError("You have already checked in today. Members can only check in once per day.", 400);
+    }
+  }
+
+  // For trainers, check if their current time is within their working hours
+  if (targetRole === "trainer") {
+    const { data: trainerProfile } = await service
+      .from("profiles")
+      .select("working_hours, working_days")
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    
+    const currentHour = now.getHours();
+    const currentDay = now.getDay();
+    
+    if (trainerProfile?.working_hours) {
+      const workingHours = trainerProfile.working_hours as string;
+      
+      // Parse working hours (format like "9:00-17:00" or "09:00-17:00")
+      const timeMatch = workingHours.match(/(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})/i);
+      if (timeMatch) {
+        const startHour = parseInt(timeMatch[1], 10);
+        const endHour = parseInt(timeMatch[3], 10);
+        
+        if (currentHour < startHour || currentHour >= endHour) {
+          return jsonError(`Trainers can only check in during working hours (${workingHours}). Current time: ${currentHour}:00`, 400);
+        }
+      }
+    }
+    
+    if (trainerProfile?.working_days) {
+      const workingDays = trainerProfile.working_days as string;
+      const currentDayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][currentDay];
+      
+      // Check if current day is in working days
+      const dayMatch = workingDays.toLowerCase().includes(currentDayName.toLowerCase());
+      if (!dayMatch) {
+        return jsonError(`Trainers can only check in on their working days (${workingDays}). Today: ${currentDayName}`, 400);
+      }
+    }
+  }
 
   if (openSession) {
     return NextResponse.json({

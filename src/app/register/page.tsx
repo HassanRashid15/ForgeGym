@@ -1558,6 +1558,11 @@ function RegisterContent() {
                   {step2Errors.dateOfBirth && (
                     <p className="text-xs text-red-400">{step2Errors.dateOfBirth}</p>
                   )}
+                  {age && (
+                    <p className="text-xs text-emerald-400 font-medium">
+                      Age: {age} years old
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="gender" className="text-zinc-300 font-medium text-sm">
@@ -2105,11 +2110,9 @@ function RegisterContent() {
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-orange-500 mb-4 shadow-lg shadow-red-500/30">
-                  <Flame className="w-8 h-8 text-white" />
-                </div>
+                <img src="/preloader_logo.png" alt="Logo" className="h-10 w-40 object-contain mx-auto mb-5" />
                 <h2 className="text-2xl font-extrabold text-white mb-2">
-                  Welcome, {firstName}! 🎉
+                  Welcome, {firstName}!
                 </h2>
                 <p className="text-sm text-zinc-400">
                   {accountType === "admin"
@@ -2183,7 +2186,7 @@ function RegisterContent() {
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-center space-y-2">
+              {/* <div className="p-4 rounded-xl border border-red-500/40 bg-red-500/10 text-center space-y-2">
                 <p className="text-xs font-bold text-red-400 uppercase tracking-wider">
                   Email Verification Required
                 </p>
@@ -2194,7 +2197,7 @@ function RegisterContent() {
                   Check spam, and set up <strong className="text-white">Custom SMTP</strong> in
                   Supabase → Authentication → Emails if nothing arrives.
                 </p>
-              </div>
+              </div> */}
 
               {accountType === "admin" && (
                 <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-center space-y-2">

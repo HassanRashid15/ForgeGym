@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useState, useEffect, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getTrainerClientProgress,
@@ -13,12 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getNameInitials } from "@/lib/utils";
 import {
   Dumbbell,
@@ -28,6 +29,7 @@ import {
   Search,
   Target,
   Users,
+  Calendar,
 } from "lucide-react";
 
 /**
@@ -37,6 +39,9 @@ import {
 export function TrainerProgressClients() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(0);
 
   const clientsQuery = useQuery({
     queryKey: ["trainer-clients"],
@@ -59,10 +64,26 @@ export function TrainerProgressClients() {
   }, [clients, search]);
 
   const progressQuery = useQuery({
-    queryKey: ["trainer-client-progress", selectedId],
-    queryFn: () => getTrainerClientProgress(selectedId!, { days: 14 }),
+    queryKey: ["trainer-client-progress", selectedId, startDate, endDate],
+    queryFn: () => {
+      const params: { days?: number; startDate?: string; endDate?: string } = {};
+      
+      if (startDate && endDate) {
+        params.startDate = startDate;
+        params.endDate = endDate;
+      } else {
+        params.days = 14;
+      }
+      
+      return getTrainerClientProgress(selectedId!, params);
+    },
     enabled: Boolean(selectedId),
   });
+
+  // Reset selected day when client changes
+  useEffect(() => {
+    setSelectedDayIndex(0);
+  }, [selectedId]);
 
   const selected = clients.find((c) => c.userId === selectedId) || null;
   const detail = progressQuery.data;
@@ -110,14 +131,52 @@ export function TrainerProgressClients() {
         </Badge>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search members…"
-          className="pl-9"
-        />
+      <div className="flex flex-wrap gap-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search members…"
+            className="pl-9"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="pl-9 w-auto"
+            />
+          </div>
+          <span className="text-muted-foreground">to</span>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="pl-9 w-auto"
+            />
+          </div>
+          {(startDate || endDate) && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="text-xs"
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -178,21 +237,27 @@ export function TrainerProgressClients() {
         </div>
       )}
 
-      <Sheet
+      <Dialog
         open={Boolean(selectedId)}
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>
+        <DialogContent 
+          className="w-full overflow-y-auto sm:max-w-lg max-h-[90vh]"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>
               {detail?.member.fullName || selected?.fullName || "Member"}
-            </SheetTitle>
-            <SheetDescription>
-              Profile and workout exercises from the last 14 days
-            </SheetDescription>
-          </SheetHeader>
+            </DialogTitle>
+            <DialogDescription>
+              {startDate && endDate
+                ? `Profile and workout exercises from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`
+                : "Profile and workout exercises from the last 14 days"}
+            </DialogDescription>
+          </DialogHeader>
 
           {progressQuery.isPending ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
@@ -286,9 +351,15 @@ export function TrainerProgressClients() {
                   Exercises they do
                 </h3>
                 {detail.topExercises.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No exercises logged in this period yet.
-                  </p>
+                  <div className="rounded-lg border border-dashed border-border/50 bg-muted/20 p-4 text-center">
+                    <Dumbbell className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">
+                      No exercises logged in this period yet
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
+                      Exercises will appear here once the member starts logging workouts
+                    </p>
+                  </div>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {detail.topExercises.map((ex) => (
@@ -308,64 +379,142 @@ export function TrainerProgressClients() {
 
               <section className="space-y-3">
                 <h3 className="text-sm font-semibold text-foreground">
-                  Recent workouts
+                  Workout Details by Day
                 </h3>
                 {trainedDays.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No workout days with exercises in the last 14 days.
-                  </p>
+                  <div className="rounded-lg border border-dashed border-border/50 bg-muted/20 p-6 text-center">
+                    <Target className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">
+                      No workout days with exercises in the selected period
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
+                      Workout details will appear here once the member logs exercises
+                    </p>
+                  </div>
                 ) : (
-                  trainedDays
-                    .slice()
-                    .reverse()
-                    .map((day) => (
-                      <Card key={day.date} className="border-border/70 shadow-none">
-                        <CardHeader className="pb-2 pt-4">
-                          <CardTitle className="text-sm">
-                            {formatDayLabel(day.date)}
-                            {day.focus ? (
-                              <span className="ml-2 font-normal text-muted-foreground">
-                                · {day.focus}
-                              </span>
-                            ) : null}
-                          </CardTitle>
-                          <CardDescription className="text-xs">
-                            {[
-                              day.duration_minutes
-                                ? `${day.duration_minutes} min`
-                                : null,
-                              day.calories ? `${day.calories} kcal` : null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ") || "Session logged"}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="pb-4">
-                          {day.exercises.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              Focus set, no exercises yet.
-                            </p>
-                          ) : (
-                            <ul className="space-y-1.5">
-                              {day.exercises.map((ex) => (
-                                <li
-                                  key={ex.id}
-                                  className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5 text-sm"
-                                >
-                                  <span className="min-w-0 truncate font-medium">
-                                    {ex.exercise_name}
+                  <Tabs value={String(selectedDayIndex)} onValueChange={(v) => setSelectedDayIndex(parseInt(v))}>
+                    <TabsList className="w-full justify-start">
+                      <TabsTrigger value="0">Overview</TabsTrigger>
+                      {trainedDays.slice().reverse().map((day, index) => (
+                        <TabsTrigger key={day.date} value={String(index + 1)}>
+                          {formatDayLabel(day.date)}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                    
+                    <TabsContent value="0" className="mt-4">
+                      <div className="space-y-3">
+                        {trainedDays.slice().reverse().map((day) => (
+                          <Card key={day.date} className="border-border/70 shadow-none">
+                            <CardHeader className="pb-2 pt-4">
+                              <CardTitle className="text-sm">
+                                {formatDayLabel(day.date)}
+                                {day.focus ? (
+                                  <span className="ml-2 font-normal text-muted-foreground">
+                                    · {day.focus}
                                   </span>
-                                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                                    {ex.sets}×{ex.reps}
-                                    {ex.weight ? ` · ${ex.weight}` : ""}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))
+                                ) : null}
+                              </CardTitle>
+                              <CardDescription className="text-xs">
+                                {[
+                                  day.duration_minutes
+                                    ? `${day.duration_minutes} min`
+                                    : null,
+                                  day.calories ? `${day.calories} kcal` : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ") || "Session logged"}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pb-4">
+                              {day.exercises.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center gap-2 py-3 text-center">
+                                  <Dumbbell className="h-5 w-5 text-muted-foreground/50" />
+                                  <p className="text-xs text-muted-foreground">
+                                    Focus set, no exercises yet
+                                  </p>
+                                </div>
+                              ) : (
+                                <ul className="space-y-1.5">
+                                  {day.exercises.map((ex) => (
+                                    <li
+                                      key={ex.id}
+                                      className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5 text-sm"
+                                    >
+                                      <span className="min-w-0 truncate font-medium">
+                                        {ex.exercise_name}
+                                      </span>
+                                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                        {ex.sets}×{ex.reps}
+                                        {ex.weight ? ` · ${ex.weight}` : ""}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    
+                    {trainedDays.slice().reverse().map((day, index) => (
+                      <TabsContent key={day.date} value={String(index + 1)} className="mt-4">
+                        <Card className="border-border/70 shadow-none">
+                          <CardHeader className="pb-2 pt-4">
+                            <CardTitle className="text-sm">
+                              {formatDayLabel(day.date)}
+                              {day.focus ? (
+                                <span className="ml-2 font-normal text-muted-foreground">
+                                  · {day.focus}
+                                </span>
+                              ) : null}
+                            </CardTitle>
+                            <CardDescription className="text-xs">
+                              {[
+                                day.duration_minutes
+                                  ? `${day.duration_minutes} min`
+                                  : null,
+                                day.calories ? `${day.calories} kcal` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ") || "Session logged"}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="pb-4">
+                            {day.exercises.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
+                                <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
+                                <p className="text-sm text-muted-foreground">
+                                  No exercises logged for this day
+                                </p>
+                                <p className="text-xs text-muted-foreground/70">
+                                  Exercises will appear here once the member adds them
+                                </p>
+                              </div>
+                            ) : (
+                              <ul className="space-y-1.5">
+                                {day.exercises.map((ex) => (
+                                  <li
+                                    key={ex.id}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-1.5 text-sm"
+                                  >
+                                    <span className="min-w-0 truncate font-medium">
+                                      {ex.exercise_name}
+                                    </span>
+                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                      {ex.sets}×{ex.reps}
+                                      {ex.weight ? ` · ${ex.weight}` : ""}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
                 )}
               </section>
 
@@ -388,19 +537,10 @@ export function TrainerProgressClients() {
                   </ul>
                 </section>
               ) : null}
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() => setSelectedId(null)}
-              >
-                Close
-              </Button>
             </div>
           ) : null}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

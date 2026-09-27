@@ -71,14 +71,14 @@ export async function listTrainerClients() {
 /** trainer.clientProgress → GET /api/trainer/clients/:userId/progress */
 export async function getTrainerClientProgress(
   userId: string,
-  options?: { days?: number; from?: string; to?: string },
+  options?: { days?: number; startDate?: string; endDate?: string },
 ) {
   return apiRequest<TrainerClientProgress>("trainer", "clientProgress", {
     pathParams: { userId },
     query: {
       days: options?.days,
-      from: options?.from,
-      to: options?.to,
+      startDate: options?.startDate,
+      endDate: options?.endDate,
     },
   });
 }

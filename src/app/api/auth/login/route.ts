@@ -81,21 +81,31 @@ export async function POST(request: Request) {
   else if (roleNames.includes("user")) role = "user";
   else role = roleNames[0];
 
-  // Same self-heal as /api/auth/me — gym owners must not fall through as customers
+  // Same ownership rules as /api/auth/me — never promote on gym_name alone.
+  // Members often carry a display gym_name while gym_owner_id points at the owner.
   if (!role || role === "user") {
     const metaRequested = String(
       (data.user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
     ).toLowerCase();
     const { data: ownerProfile } = await supabase
       .from("profiles")
-      .select("gym_name")
+      .select("gym_name, gym_owner_id")
       .eq("user_id", userId)
       .maybeSingle();
-    const looksLikeGymOwner =
-      Boolean((ownerProfile as { gym_name?: string | null } | null)?.gym_name?.trim()) ||
-      metaRequested === "admin" ||
-      metaRequested === "super_admin";
-    if (looksLikeGymOwner) {
+
+    const typedOwner = ownerProfile as {
+      gym_name?: string | null;
+      gym_owner_id?: string | null;
+    } | null;
+
+    const ownsOwnGymProfile =
+      Boolean(typedOwner?.gym_name?.trim()) &&
+      (!typedOwner?.gym_owner_id || typedOwner.gym_owner_id === userId);
+
+    const looksLikeGymOwnerSignup =
+      metaRequested === "admin" && ownsOwnGymProfile;
+
+    if (looksLikeGymOwnerSignup) {
       role = "admin";
       if (service) {
         await service.from("user_roles").upsert(

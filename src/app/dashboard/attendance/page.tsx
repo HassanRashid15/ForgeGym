@@ -36,6 +36,7 @@ import {
   checkOutAttendance,
   listAttendance,
 } from "@/api/attendance";
+import { getAttendanceClosedMessage } from "@/lib/attendance-security";
 import { ApiError } from "@/api/client";
 
 type AttendanceRow = {
@@ -221,6 +222,9 @@ export default function AttendancePage() {
     ? formatElapsed(myOpen.checked_in_at, nowMs)
     : null;
   const totalPages = meta?.pagination?.totalPages || 1;
+  
+  // Check if today is Sunday
+  const isSunday = new Date().getDay() === 0;
 
   async function checkIn() {
     if (meta?.genderRequired) {
@@ -327,7 +331,8 @@ export default function AttendancePage() {
               disabled={
                 busy ||
                 meta?.canCheckInNow === false ||
-                meta?.genderRequired === true
+                meta?.genderRequired === true ||
+                isSunday
               }
               className="gap-2"
             >
@@ -338,6 +343,7 @@ export default function AttendancePage() {
               )}
               Check in
               {currentSlot ? ` · ${formatSlotLabel(currentSlot)}` : ""}
+              {isSunday ? " (Closed on Sunday)" : ""}
             </Button>
           )}
         </div>
@@ -346,6 +352,10 @@ export default function AttendancePage() {
       {meta?.closedMessage ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           {meta.closedMessage}
+        </p>
+      ) : !meta?.gymOpen ? (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          {getAttendanceClosedMessage()}
         </p>
       ) : null}
 
@@ -427,8 +437,8 @@ export default function AttendancePage() {
 
       <p className="text-xs text-muted-foreground">
         Female: morning, afternoon, evening. Male: morning and evening only.
-        Closed 00:00–04:59 (intended). Times use Asia/Karachi unless
-        ATTENDANCE_TZ is set.
+        Closed 00:00–04:59 (intended). Sunday hours: 8:00-20:00 only.
+        Times use Asia/Karachi unless ATTENDANCE_TZ is set.
       </p>
 
       {canViewGym ? (

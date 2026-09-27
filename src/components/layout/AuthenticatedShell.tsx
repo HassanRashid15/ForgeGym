@@ -85,13 +85,15 @@ type NavItem = {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   comingSoon?: boolean;
+  /** When set, link only shows if the gym enabled that feature */
+  featureKey?: "classes" | "schedule" | "membership";
 };
 
-const trainItems: NavItem[] = [
+const trainItemsBase: NavItem[] = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Classes", url: "/dashboard/classes", icon: Dumbbell, comingSoon: true },
-  { title: "Schedule", url: "/dashboard/schedule", icon: Calendar, comingSoon: true },
-  { title: "Membership", url: "/dashboard/membership", icon: CreditCard, comingSoon: true },
+  { title: "Classes", url: "/dashboard/classes", icon: Dumbbell, featureKey: "classes" },
+  { title: "Schedule", url: "/dashboard/schedule", icon: Calendar, featureKey: "schedule" },
+  { title: "Membership", url: "/dashboard/membership", icon: CreditCard, featureKey: "membership" },
   { title: "Progress", url: "/dashboard/progress", icon: BarChart3 },
   { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
   { title: "Feedback", url: "/dashboard/feedback", icon: Star },
@@ -279,6 +281,19 @@ function ShellChrome({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const featureClassesEnabled = user?.featureClassesEnabled === true;
+  const featureScheduleEnabled = user?.featureScheduleEnabled === true;
+  const featureMembershipEnabled = user?.featureMembershipEnabled === true;
+
+  const trainItems = useMemo(() => {
+    return trainItemsBase.filter((item) => {
+      if (item.featureKey === "classes") return featureClassesEnabled;
+      if (item.featureKey === "schedule") return featureScheduleEnabled;
+      if (item.featureKey === "membership") return featureMembershipEnabled;
+      return true;
+    });
+  }, [featureClassesEnabled, featureScheduleEnabled, featureMembershipEnabled]);
+
   const gymBrand =
     user?.gymName?.trim() ||
     (isSuperAdmin ? "Forge Gym" : isAdmin ? "Your Gym" : "Forge Gym");
@@ -326,7 +341,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
         icon: Users,
       },
     ];
-  }, [managementItems, isSuperAdmin, isTrainer]);
+  }, [managementItems, isSuperAdmin, isTrainer, trainItems]);
 
   const pageTitle =
     [

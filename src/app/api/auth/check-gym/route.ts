@@ -47,28 +47,16 @@ export async function POST(request: Request) {
 
   if (gymName) {
     const nameKey = normalize(gymName);
-    const cityKey = gymCity ? normalize(gymCity) : "";
     const hit = rows.find((p) => {
       const existingName = normalize(p.gym_name || "");
-      if (!existingName || existingName !== nameKey) return false;
-      if (!cityKey) return true;
-      const existingCity = normalize(p.gym_city || "");
-      // Match full city or shared city token (e.g. "Lahore" vs "Lahore, Punjab")
-      return (
-        !existingCity ||
-        existingCity === cityKey ||
-        existingCity.includes(cityKey.split(",")[0]) ||
-        cityKey.includes(existingCity.split(",")[0])
-      );
+      return existingName === nameKey;
     });
 
     if (hit) {
       return NextResponse.json({
         duplicate: true,
-        reason: "gym_name_city",
-        message: `A gym named "${gymName}" is already registered${
-          hit.gym_city ? ` in ${hit.gym_city}` : ""
-        }. Use a different name or contact support if this is your gym.`,
+        reason: "gym_name",
+        message: `A gym named "${gymName}" is already registered. Please use a unique gym name.`,
       });
     }
   }

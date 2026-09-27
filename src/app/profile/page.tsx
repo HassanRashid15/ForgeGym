@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
 import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
@@ -62,7 +63,7 @@ function formatDateLabel(value: string | null | undefined) {
 }
 
 export default function ProfilePage() {
-  const { user, isAdmin, isSuperAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin, refreshUser } = useAuth();
   const searchParams = useSearchParams();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -118,6 +119,9 @@ export default function ProfilePage() {
     gymLatitude: "" as string,
     gymLongitude: "" as string,
     gymLocationLabel: "",
+    featureClassesEnabled: false,
+    featureScheduleEnabled: false,
+    featureMembershipEnabled: false,
     adminApproved: false,
     isSuperAdmin: false,
     approvalRequestedAt: "",
@@ -257,6 +261,9 @@ export default function ProfilePage() {
             dbProfile?.gym_latitude != null && dbProfile?.gym_longitude != null
               ? `${Number(dbProfile.gym_latitude).toFixed(5)}, ${Number(dbProfile.gym_longitude).toFixed(5)}`
               : "",
+          featureClassesEnabled: dbProfile?.feature_classes_enabled === true,
+          featureScheduleEnabled: dbProfile?.feature_schedule_enabled === true,
+          featureMembershipEnabled: dbProfile?.feature_membership_enabled === true,
           adminApproved: dbProfile?.admin_approved === true,
           isSuperAdmin: dbProfile?.is_super_admin === true || isSuperAdmin === true,
           approvalRequestedAt: dbProfile?.approval_requested_at || "",
@@ -428,6 +435,9 @@ export default function ProfilePage() {
               gym_longitude: profileData.gymLongitude
                 ? parseFloat(profileData.gymLongitude)
                 : null,
+              feature_classes_enabled: profileData.featureClassesEnabled,
+              feature_schedule_enabled: profileData.featureScheduleEnabled,
+              feature_membership_enabled: profileData.featureMembershipEnabled,
             }
           : {
               date_of_birth: profileData.dateOfBirth || null,
@@ -483,6 +493,7 @@ export default function ProfilePage() {
       setAvatarPreview(nextAvatarUrl);
       setPendingAvatarFile(null);
       setIsEditing(false);
+      void refreshUser();
       toast.success("Profile saved successfully!");
     } catch (err: any) {
       console.error("Error saving profile:", err);
@@ -1201,6 +1212,76 @@ export default function ProfilePage() {
                         placeholder="Not specified"
                         className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                       />
+                    </div>
+
+                    <Separator className="bg-zinc-800" />
+
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-base">Dashboard features</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Control which optional links appear in your sidebar
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <Dumbbell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <Label htmlFor="feature-classes" className="text-sm font-medium">
+                              Classes
+                            </Label>
+                            <p className="text-xs text-muted-foreground">Show Classes in the sidebar</p>
+                          </div>
+                        </div>
+                        <Switch
+                          id="feature-classes"
+                          checked={profileData.featureClassesEnabled}
+                          onCheckedChange={(checked) =>
+                            setProfileData({ ...profileData, featureClassesEnabled: checked })
+                          }
+                          disabled={!isEditing}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <Calendar className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <Label htmlFor="feature-schedule" className="text-sm font-medium">
+                              Schedules
+                            </Label>
+                            <p className="text-xs text-muted-foreground">Show Schedule in the sidebar</p>
+                          </div>
+                        </div>
+                        <Switch
+                          id="feature-schedule"
+                          checked={profileData.featureScheduleEnabled}
+                          onCheckedChange={(checked) =>
+                            setProfileData({ ...profileData, featureScheduleEnabled: checked })
+                          }
+                          disabled={!isEditing}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <Wallet className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <Label htmlFor="feature-membership" className="text-sm font-medium">
+                              Memberships
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Show Membership when you&apos;re ready for plans & billing
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          id="feature-membership"
+                          checked={profileData.featureMembershipEnabled}
+                          onCheckedChange={(checked) =>
+                            setProfileData({ ...profileData, featureMembershipEnabled: checked })
+                          }
+                          disabled={!isEditing}
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
 import { AdminTrialBanner } from "@/components/admin/AdminTrialBanner";
 import { AdminPlatformFeeCard } from "@/components/admin/AdminPlatformFeeCard";
+import { AdminWelcomeModal } from "@/components/admin/AdminWelcomeModal";
 import {
   ArrowRight,
   Building2,
@@ -37,10 +38,19 @@ import { getPendingMembers, type PendingMember } from "@/api/pending-members";
 import { queryKeys } from "@/lib/query-keys";
 import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
 
+interface AdminDashboardHomeProps {
+  initialWelcomeData?: {
+    checked: boolean;
+    showModal: boolean;
+    gymName?: string;
+    userName?: string;
+  };
+}
+
 /**
  * Admin home at /dashboard — live stats from Users + Monthly Fee (DB + realtime).
  */
-export function AdminDashboardHome() {
+export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomeProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const firstName = (user?.name || "Owner").trim().split(/\s+/)[0];
@@ -52,6 +62,11 @@ export function AdminDashboardHome() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(initialWelcomeData?.showModal || false);
+  // Only skip client check when SSR successfully evaluated an authenticated user
+  const [welcomeModalChecked, setWelcomeModalChecked] = useState(
+    initialWelcomeData?.checked === true,
+  );
 
   const pendingMembersQuery = useQuery({
     queryKey: ["pendingMembers"],
@@ -66,6 +81,29 @@ export function AdminDashboardHome() {
       setPendingMembers(pendingMembersQuery.data.pendingMembers);
     }
   }, [pendingMembersQuery.data]);
+
+  // Check if welcome modal should be shown for first-time approved admins
+  useEffect(() => {
+    if (welcomeModalChecked || !user?.id) return;
+
+    const checkWelcomeModal = async () => {
+      try {
+        const response = await fetch(`/api/admin/check-welcome-modal`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.showModal === true) {
+            setShowWelcomeModal(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check welcome modal status:", error);
+      } finally {
+        setWelcomeModalChecked(true);
+      }
+    };
+
+    checkWelcomeModal();
+  }, [user?.id, welcomeModalChecked]);
 
   const handleApproveMember = async (userId: string) => {
     setApprovingId(userId);
@@ -103,6 +141,12 @@ export function AdminDashboardHome() {
 
   return (
     <div className="relative min-h-full">
+      <AdminWelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
+        gymName={initialWelcomeData?.gymName || stats.gymName || user?.gymName}
+        userName={initialWelcomeData?.userName || user?.name}
+      />
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{

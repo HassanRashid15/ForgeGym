@@ -154,6 +154,26 @@ export async function markEmailVerified() {
   });
 }
 
+/** auth.updateEmail → /api/auth/update-email */
+export async function updateEmail(
+  currentEmail: string,
+  newEmail: string,
+  password?: string,
+) {
+  return apiRequest<{
+    success: boolean;
+    email: string;
+    userId: string;
+    note?: string;
+  }>("auth", "updateEmail", {
+    body: {
+      currentEmail,
+      email: newEmail,
+      ...(password ? { password } : {}),
+    },
+  });
+}
+
 /** auth.me → GET /api/auth/me */
 export async function fetchCurrentUser() {
   return apiRequest<{
@@ -172,6 +192,9 @@ export async function fetchCurrentUser() {
     gymMainImageUrl?: string | null;
     membershipStatus?: string | null;
     membershipType?: string | null;
+    featureClassesEnabled?: boolean;
+    featureScheduleEnabled?: boolean;
+    featureMembershipEnabled?: boolean;
     trial?: {
       offered: boolean;
       status: "pending_approval" | "active" | "expired" | "none";

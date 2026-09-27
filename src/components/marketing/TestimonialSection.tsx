@@ -1,13 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Carousel,
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
-import Autoplay from "embla-carousel-autoplay";
 
 const images = [
   {
@@ -37,7 +36,15 @@ const images = [
 ];
 
 export function TestimonialSection() {
-  const plugin = useRef(Autoplay({ delay: 3000, stopOnInteraction: false }));
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <section className="bg-gradient-to-b from-card/30 to-background py-16 md:py-24">
@@ -53,14 +60,12 @@ export function TestimonialSection() {
 
         <div className="relative">
           <Carousel
-            plugins={[plugin.current]}
             opts={{
               align: "start",
               loop: true,
+              startIndex: currentIndex,
             }}
             className="w-full"
-            onMouseEnter={plugin.current.stop}
-            onMouseLeave={plugin.current.reset}
           >
             <CarouselContent>
               {images.map((image) => (

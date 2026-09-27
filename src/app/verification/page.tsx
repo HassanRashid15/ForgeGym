@@ -293,7 +293,7 @@ function VerificationContent() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-black/70" />
         <div className="absolute z-10 flex flex-col h-full justify-between p-10 xl:p-14">
           <div>
-            <img src="/forge.png" alt="Forge Gym Logo" className="w-40 h-10 object-contain" />
+            <img src="/preloader_logo.png" alt="Forge Gym Logo" className="w-40 h-10 object-contain" />
           </div>
 
           <div className="max-w-md">

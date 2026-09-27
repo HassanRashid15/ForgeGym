@@ -8,6 +8,7 @@ import NewsletterSection from "@/components/marketing/NewsletterSection";
 import { HomePromotionsSection } from "@/components/marketing/HomePromotionsSection";
 import { HomePromotionModal } from "@/components/marketing/HomePromotionModal";
 import { ReviewSection } from "@/components/marketing/ReviewSection";
+import { TestimonialSection } from "@/components/marketing/TestimonialSection";
 import {
   ArrowRight,
   Zap,
@@ -236,6 +237,9 @@ export default function HomePageClient({
           </ScrollAnimate>
         </div>
       </section>
+
+      {/* Testimonials section */}
+      <TestimonialSection />
 
       {/* Featured gyms — core product */}
       {gyms.length > 0 && (

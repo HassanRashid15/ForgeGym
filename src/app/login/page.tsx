@@ -212,7 +212,7 @@ function LoginContent() {
 
         <div className="absolute z-10 flex-col h-full p-10 xl:p-14">
           <div className="mb-8">
-            <img src="/forge.png" alt="Forge Gym Logo" className="w-40 h-10 object-contain" />
+            <img src="/preloader_logo.png" alt="Forge Gym Logo" className="w-40 h-10 object-contain" />
           </div>
           <div className="max-w-full flex flex-col h-full justify-center">
             <div>

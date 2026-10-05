@@ -269,7 +269,7 @@ export function RegisterAccountStep({
         )}
         {accountType === "admin" && (
           <p className="text-[11px] text-amber-400/90 leading-relaxed">
-            Admin accounts use the same signup + email verification. A super admin must
+            Admin accounts use the same signup + email verification. A platform owner must
             approve you before you can sign in.
           </p>
         )}

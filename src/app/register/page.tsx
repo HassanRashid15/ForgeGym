@@ -467,7 +467,10 @@ function RegisterContent() {
   const [preferredTime, setPreferredTime] = useState("");
   const [gymFacilities, setGymFacilities] = useState<string[]>([]);
   const [gymOperatingDays, setGymOperatingDays] = useState("");
+  const [gymOperatingDaysSpecific, setGymOperatingDaysSpecific] = useState<string[]>([]);
   const [gymPeakHours, setGymPeakHours] = useState("");
+  const [gymOpeningTime, setGymOpeningTime] = useState("");
+  const [gymClosingTime, setGymClosingTime] = useState("");
   const [gymMemberCapacity, setGymMemberCapacity] = useState("");
   const [gymServices, setGymServices] = useState<string[]>([]);
   const [step3Errors, setStep3Errors] = useState<{
@@ -480,6 +483,8 @@ function RegisterContent() {
     gymFacilities?: string;
     gymOperatingDays?: string;
     gymPeakHours?: string;
+    gymOpeningTime?: string;
+    gymClosingTime?: string;
     gymMemberCapacity?: string;
     gymServices?: string;
   }>({});
@@ -865,7 +870,10 @@ function RegisterContent() {
               gym_trainer_fee: gymTrainerFee.trim() || undefined,
               gym_facilities: gymFacilities.length > 0 ? gymFacilities : undefined,
               gym_operating_days: gymOperatingDays ? parseInt(gymOperatingDays) : undefined,
+              gym_operating_days_specific: gymOperatingDaysSpecific.length > 0 ? gymOperatingDaysSpecific : undefined,
               gym_peak_hours: gymPeakHours || undefined,
+              gym_opening_time: gymOpeningTime.trim() || undefined,
+              gym_closing_time: gymClosingTime.trim() || undefined,
               gym_member_capacity: gymMemberCapacity || undefined,
               gym_services: gymServices.length > 0 ? gymServices : undefined,
               gym_video_url: gymVideoUrl.trim() || undefined,
@@ -923,7 +931,7 @@ function RegisterContent() {
       setWelcomeName(firstName.trim() || fullName || "Athlete");
       toast.success(
         isAdminAccount
-          ? "Admin account created! Verify email, then wait for super admin approval — your 1-month free trial starts when they approve."
+          ? "Admin account created! Verify email, then wait for platform owner approval — your 1-month free trial starts when they approve."
           : "Account created! Verify your email, then wait for gym admin approval.",
       );
       if (isAdminAccount) {
@@ -1902,6 +1910,61 @@ function RegisterContent() {
                     )}
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
+                        Opening Time
+                      </Label>
+                      <Input
+                        type="text"
+                        value={gymOpeningTime}
+                        onChange={(e) => setGymOpeningTime(e.target.value)}
+                        placeholder="6:00 AM"
+                        className="bg-zinc-900 border-zinc-700 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
+                        Closing Time
+                      </Label>
+                      <Input
+                        type="text"
+                        value={gymClosingTime}
+                        onChange={(e) => setGymClosingTime(e.target.value)}
+                        placeholder="10:00 PM"
+                        className="bg-zinc-900 border-zinc-700 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
+                      Operating Days
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const currentDays = gymOperatingDaysSpecific || [];
+                            const newDays = currentDays.includes(day)
+                              ? currentDays.filter((d) => d !== day)
+                              : [...currentDays, day];
+                            setGymOperatingDaysSpecific(newDays);
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            (gymOperatingDaysSpecific || []).includes(day)
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
                       Member Capacity
@@ -2160,8 +2223,10 @@ function RegisterContent() {
                 <div className="space-y-2">
                   {(isAdminAccount
                     ? [
-                        { label: "Operating Days", value: `${gymOperatingDays} days/week` },
+                        { label: "Operating Days", value: gymOperatingDaysSpecific.length > 0 ? gymOperatingDaysSpecific.join(", ") : `${gymOperatingDays} days/week` },
                         { label: "Peak Hours", value: gymPeakHours },
+                        { label: "Opening Time", value: gymOpeningTime || "—" },
+                        { label: "Closing Time", value: gymClosingTime || "—" },
                         { label: "Trainer Fee", value: gymTrainerFee.trim() || "—" },
                         {
                           label: "Facilities",
@@ -2203,10 +2268,10 @@ function RegisterContent() {
                 <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-center space-y-2">
                   <p className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-center gap-1.5">
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    Super Admin Approval + Free Trial
+                    Platform Owner Approval + Free Trial
                   </p>
                   <p className="text-xs text-zinc-300">
-                    After verifying your email, wait for super admin approval. When they approve,
+                    After verifying your email, wait for platform owner approval. When they approve,
                     your <span className="font-semibold text-white">1-month free trial</span> starts
                     automatically — countdown shows on your dashboard and theirs.
                   </p>

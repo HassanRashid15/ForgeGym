@@ -39,12 +39,48 @@ import {
   type Promotion,
 } from "@/api/promotions";
 
-function promoLifecycle(p: Promotion): "Draft" | "Scheduled" | "Live" | "Ended" {
+function promoLifecycle(
+  p: Promotion,
+  nowMs: number = Date.now(),
+): "Draft" | "Scheduled" | "Live" | "Ended" {
   if (!p.is_published) return "Draft";
-  const now = Date.now();
-  if (p.starts_at && new Date(p.starts_at).getTime() > now) return "Scheduled";
-  if (p.ends_at && new Date(p.ends_at).getTime() < now) return "Ended";
+  if (p.starts_at && new Date(p.starts_at).getTime() > nowMs) return "Scheduled";
+  if (p.ends_at && new Date(p.ends_at).getTime() < nowMs) return "Ended";
   return "Live";
+}
+
+/** Compact remaining/elapsed duration, e.g. 1d 2h · 5m 12s · 8s */
+function formatCountdown(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(Math.abs(ms) / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  if (mins > 0) return `${mins}m ${String(secs).padStart(2, "0")}s`;
+  return `${secs}s`;
+}
+
+/** Live schedule line: countdown to start, then to end, then ended. */
+function promoScheduleLabel(p: Promotion, nowMs: number): string | null {
+  const startMs = p.starts_at ? new Date(p.starts_at).getTime() : null;
+  const endMs = p.ends_at ? new Date(p.ends_at).getTime() : null;
+  if (startMs == null && endMs == null) return null;
+
+  if (startMs != null && startMs > nowMs) {
+    return `Starts in ${formatCountdown(startMs - nowMs)} · ${format(new Date(startMs), "MMM d HH:mm")}`;
+  }
+  if (endMs != null && endMs > nowMs) {
+    return `Ends in ${formatCountdown(endMs - nowMs)} · ${format(new Date(endMs), "MMM d HH:mm")}`;
+  }
+  if (endMs != null && endMs <= nowMs) {
+    return `Ended ${formatCountdown(nowMs - endMs)} ago · ${format(new Date(endMs), "MMM d HH:mm")}`;
+  }
+  if (startMs != null) {
+    return `Started ${format(new Date(startMs), "MMM d HH:mm")}`;
+  }
+  return null;
 }
 
 const emptyForm = {
@@ -81,6 +117,8 @@ export default function PromotionsPage() {
     { recipient_email: string; status: string; sent_at: string; error_message: string | null }[]
   >([]);
   const [logLoading, setLogLoading] = useState(false);
+  /** Tick so Scheduled → Live → Ended updates without refreshing */
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const fetchPromotions = useCallback(async () => {
     setLoading(true);
@@ -99,6 +137,15 @@ export default function PromotionsPage() {
   useEffect(() => {
     void fetchPromotions();
   }, [fetchPromotions]);
+
+  useEffect(() => {
+    const needsClock = promotions.some(
+      (p) => p.is_published && (p.starts_at || p.ends_at),
+    );
+    if (!needsClock) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [promotions]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -494,7 +541,10 @@ export default function PromotionsPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {promotions.map((p) => (
+              {promotions.map((p) => {
+                const lifecycle = promoLifecycle(p, nowMs);
+                const schedule = promoScheduleLabel(p, nowMs);
+                return (
                 <div
                   key={p.id}
                   className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between"
@@ -504,14 +554,26 @@ export default function PromotionsPage() {
                       <p className="font-medium">{p.title}</p>
                       <Badge
                         variant={
-                          promoLifecycle(p) === "Live"
+                          lifecycle === "Live"
                             ? "default"
-                            : promoLifecycle(p) === "Ended"
+                            : lifecycle === "Ended"
                               ? "secondary"
                               : "outline"
                         }
+                        className={
+                          lifecycle === "Live"
+                            ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                            : undefined
+                        }
                       >
-                        {promoLifecycle(p)}
+                        {lifecycle === "Live" ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                            Live
+                          </span>
+                        ) : (
+                          lifecycle
+                        )}
                       </Badge>
                       {p.show_on_home && <Badge variant="outline">Home</Badge>}
                     </div>
@@ -521,13 +583,20 @@ export default function PromotionsPage() {
                       {p.email_sent_at
                         ? ` · Emailed ${p.email_recipient_count ?? 0} on ${format(new Date(p.email_sent_at), "MMM d")}`
                         : ""}
-                      {p.starts_at
-                        ? ` · Starts ${format(new Date(p.starts_at), "MMM d HH:mm")}`
-                        : ""}
-                      {p.ends_at
-                        ? ` · Ends ${format(new Date(p.ends_at), "MMM d HH:mm")}`
-                        : ""}
                     </p>
+                    {schedule ? (
+                      <p
+                        className={
+                          lifecycle === "Live"
+                            ? "text-xs font-medium tabular-nums text-emerald-500"
+                            : lifecycle === "Scheduled"
+                              ? "text-xs font-medium tabular-nums text-amber-500"
+                              : "text-xs tabular-nums text-muted-foreground"
+                        }
+                      >
+                        {schedule}
+                      </p>
+                    ) : null}
                     {logPromoId === p.id && (
                       <div className="mt-2 max-h-40 overflow-auto rounded border bg-muted/30 p-2 text-xs">
                         {logLoading ? (
@@ -595,7 +664,8 @@ export default function PromotionsPage() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

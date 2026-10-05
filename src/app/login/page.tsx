@@ -168,10 +168,10 @@ function LoginContent() {
         }, 1000);
       } else if (
         lower.includes("admin approval pending") ||
-        lower.includes("pending super admin")
+        lower.includes("pending platform owner")
       ) {
         setPendingAdminApproval(true);
-        toast.error("Waiting for super admin approval. You cannot sign in yet.");
+        toast.error("Waiting for platform owner approval. You cannot sign in yet.");
       } else if (
         lower.includes("membership approval pending") ||
         lower.includes("pending gym admin")
@@ -293,9 +293,9 @@ function LoginContent() {
             <div className="mb-6 p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 flex items-start gap-3">
               <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
               <div className="text-xs space-y-1">
-                <p className="font-bold text-amber-300">Awaiting Super Admin Approval</p>
+                <p className="font-bold text-amber-300">Awaiting Platform Owner Approval</p>
                 <p className="text-zinc-300 leading-relaxed">
-                  Your email is verified, but a super admin must approve your admin account
+                  Your email is verified, but a platform owner must approve your admin account
                   before you can sign in. Please stay on this page and try again later.
                 </p>
               </div>

@@ -3,8 +3,11 @@ import { createSupabaseCookieClient } from "@/lib/supabase/server";
 import DashboardClientLayout from "./DashboardClientLayout";
 import { buildPageMetadata } from "@/lib/seo";
 
+/** Auth cookie session — must render per-request, not as a static page. */
+export const dynamic = "force-dynamic";
+
 export const metadata = buildPageMetadata({
-  title: "Member Dashboard",
+  title: "Dashboard",
   description: "Manage membership, attendance, progress, and gym operations on Forge Gym.",
   path: "/dashboard",
   noIndex: true,

@@ -9,7 +9,7 @@ import { ensureMyProfile, getMyProfile, updateMyProfile, uploadMyAvatar } from "
 import type { ProfileRecord } from "@/api/profiles";
 import { getGym, getGymTrainers } from "@/api/gyms";
 import { getMyMembership } from "@/api/membership";
-import { getNameInitials } from "@/lib/utils";
+import { getNameInitials, formatRoleName, calculatePeakHours } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
+import { geocodeAddressClient } from "@/lib/geo/geocode-client";
+import { startTopProgress, doneTopProgress } from "@/lib/top-progress";
 import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
 import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
@@ -37,6 +39,7 @@ import {
   Edit, 
   Save, 
   Camera,
+  X,
   Shield,
   Target,
   Dumbbell,
@@ -107,7 +110,10 @@ export default function ProfilePage() {
     gymYearsOperating: "",
     gymFacilities: [] as string[],
     gymOperatingDays: "",
+    gymOperatingDaysSpecific: [] as string[],
     gymPeakHours: "",
+    gymOpeningTime: "",
+    gymClosingTime: "",
     gymMemberCapacity: "",
     gymServices: [] as string[],
     gymMainImageUrl: "",
@@ -236,7 +242,12 @@ export default function ProfilePage() {
           gymOperatingDays: dbProfile?.gym_operating_days != null
             ? String(dbProfile.gym_operating_days)
             : (meta.gym_operating_days != null ? String(meta.gym_operating_days) : ""),
+          gymOperatingDaysSpecific: Array.isArray(dbProfile?.gym_operating_days_specific)
+            ? dbProfile.gym_operating_days_specific
+            : (Array.isArray(meta.gym_operating_days_specific) ? meta.gym_operating_days_specific : []),
           gymPeakHours: dbProfile?.gym_peak_hours || meta.gym_peak_hours || "",
+          gymOpeningTime: dbProfile?.gym_opening_time || meta.gym_opening_time || "",
+          gymClosingTime: dbProfile?.gym_closing_time || meta.gym_closing_time || "",
           gymMemberCapacity: dbProfile?.gym_member_capacity || meta.gym_member_capacity || "",
           gymServices: Array.isArray(dbProfile?.gym_services)
             ? dbProfile.gym_services
@@ -389,6 +400,7 @@ export default function ProfilePage() {
     }
 
     setIsSaving(true);
+    startTopProgress();
     try {
       let nextAvatarUrl = profileData.avatarUrl || null;
 
@@ -400,6 +412,33 @@ export default function ProfilePage() {
           nextAvatarUrl = uploaded.avatar_url;
         } finally {
           setIsUploadingAvatar(false);
+        }
+      }
+
+      // Geocode typed address → store pin so gym "Find us" map works
+      let nextLat = profileData.gymLatitude
+        ? parseFloat(profileData.gymLatitude)
+        : NaN;
+      let nextLon = profileData.gymLongitude
+        ? parseFloat(profileData.gymLongitude)
+        : NaN;
+      const addressForPin = profileData.address.trim();
+      if (
+        isAdmin &&
+        addressForPin.length >= 4 &&
+        (!Number.isFinite(nextLat) || !Number.isFinite(nextLon))
+      ) {
+        const place = await geocodeAddressClient(addressForPin);
+        if (place) {
+          nextLat = place.lat;
+          nextLon = place.lon;
+          setProfileData((prev) => ({
+            ...prev,
+            gymLatitude: String(place.lat),
+            gymLongitude: String(place.lon),
+            gymLocationLabel: addressForPin,
+            ...(place.city?.trim() ? { gymCity: place.city.trim() } : {}),
+          }));
         }
       }
 
@@ -420,7 +459,12 @@ export default function ProfilePage() {
               gym_operating_days: profileData.gymOperatingDays
                 ? parseInt(profileData.gymOperatingDays, 10)
                 : null,
+              gym_operating_days_specific: profileData.gymOperatingDaysSpecific.length > 0
+                ? profileData.gymOperatingDaysSpecific
+                : null,
               gym_peak_hours: profileData.gymPeakHours.trim() || null,
+              gym_opening_time: profileData.gymOpeningTime.trim() || null,
+              gym_closing_time: profileData.gymClosingTime.trim() || null,
               gym_member_capacity: profileData.gymMemberCapacity.trim() || null,
               gym_services: profileData.gymServices,
               gym_main_image_url: profileData.gymMainImageUrl || null,
@@ -429,12 +473,8 @@ export default function ProfilePage() {
               gym_video_file_url: profileData.gymVideoFileUrl || null,
               gym_monthly_fee: profileData.gymMonthlyFee.trim() || null,
               gym_trainer_fee: profileData.gymTrainerFee.trim() || null,
-              gym_latitude: profileData.gymLatitude
-                ? parseFloat(profileData.gymLatitude)
-                : null,
-              gym_longitude: profileData.gymLongitude
-                ? parseFloat(profileData.gymLongitude)
-                : null,
+              gym_latitude: Number.isFinite(nextLat) ? nextLat : null,
+              gym_longitude: Number.isFinite(nextLon) ? nextLon : null,
               feature_classes_enabled: profileData.featureClassesEnabled,
               feature_schedule_enabled: profileData.featureScheduleEnabled,
               feature_membership_enabled: profileData.featureMembershipEnabled,
@@ -500,6 +540,7 @@ export default function ProfilePage() {
       toast.error(err?.message || "Failed to save profile");
     } finally {
       setIsSaving(false);
+      doneTopProgress();
     }
   };
 
@@ -534,6 +575,21 @@ export default function ProfilePage() {
     setPendingAvatarFile(file);
     setAvatarPreview(previewUrl);
     toast.info("Preview ready — click Save Changes to upload");
+  };
+
+  const handleAvatarRemove = () => {
+    if (!isEditing) {
+      toast.error("Click Edit Profile before removing your photo");
+      return;
+    }
+    if (avatarPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setPendingAvatarFile(null);
+    setAvatarPreview(null);
+    setProfileData((prev) => ({ ...prev, avatarUrl: "" }));
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
+    toast.info("Photo removed — click Save Changes to apply");
   };
 
   // Helper calculations
@@ -682,33 +738,47 @@ export default function ProfilePage() {
                 className="hidden"
                 onChange={handleAvatarPick}
               />
-              <Button
-                type="button"
-                size="icon"
-                className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md disabled:opacity-40"
-                disabled={!isEditing || isSaving || isUploadingAvatar}
-                onClick={() => {
-                  if (!isEditing) return;
-                  avatarInputRef.current?.click();
-                }}
-                title={isEditing ? "Upload profile photo" : "Click Edit Profile to change photo"}
-              >
-                {isUploadingAvatar ? (
-                  <Loader2 className="h-4 w-4 text-white animate-spin" />
-                ) : (
-                  <Camera className="h-4 w-4 text-white" />
+              <div className="absolute bottom-0 right-0 flex flex-col gap-1.5">
+                {(avatarPreview || profileData.avatarUrl) && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-8 w-8 rounded-full bg-destructive hover:bg-destructive/90 shadow-md disabled:opacity-40"
+                    disabled={!isEditing || isSaving || isUploadingAvatar}
+                    onClick={handleAvatarRemove}
+                    title={isEditing ? "Remove profile photo" : "Click Edit Profile to remove photo"}
+                  >
+                    <X className="h-4 w-4 text-white" strokeWidth={2.5} />
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md disabled:opacity-40"
+                  disabled={!isEditing || isSaving || isUploadingAvatar}
+                  onClick={() => {
+                    if (!isEditing) return;
+                    avatarInputRef.current?.click();
+                  }}
+                  title={isEditing ? "Upload profile photo" : "Click Edit Profile to change photo"}
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-4 w-4 text-white animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4 text-white" />
+                  )}
+                </Button>
+              </div>
             </div>
             <div className="text-center md:text-left flex-1">
               <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {profileData.fullName || user?.name || (isAdmin ? "Gym Owner" : "Fitness Member")}
+                {profileData.fullName || user?.name || (isAdmin ? formatRoleName(user?.role, isSuperAdmin) : "Fitness Member")}
               </h1>
               <p className="text-muted-foreground">{profileData.email || user?.email}</p>
               <div className="flex flex-wrap items-center gap-2 mt-3 justify-center md:justify-start">
                 {isAdmin ? (
                   <>
-                    <Badge className="bg-red-600 text-white">Gym Owner</Badge>
+                    <Badge className="bg-red-600 text-white">{formatRoleName(user?.role, isSuperAdmin)}</Badge>
                     <Badge
                       className={
                         profileData.adminApproved
@@ -720,7 +790,7 @@ export default function ProfilePage() {
                     </Badge>
                     {profileData.isSuperAdmin && (
                       <Badge variant="outline" className="border-red-500/40 text-red-400">
-                        Super Admin
+                        Platform Owner
                       </Badge>
                     )}
                     {profileData.gymName && (
@@ -782,7 +852,7 @@ export default function ProfilePage() {
             <TabsTrigger value="profile">Profile</TabsTrigger>
             {isAdmin ? (
               <>
-                <TabsTrigger value="gym">Gym Details</TabsTrigger>
+                <TabsTrigger value="gym">{isSuperAdmin ? "Platform Settings" : "Platform Settings"}</TabsTrigger>
                 <TabsTrigger value="account">Account Status</TabsTrigger>
               </>
             ) : (
@@ -798,58 +868,58 @@ export default function ProfilePage() {
 
           {/* ════════════ Tab 1: Profile ════════════ */}
           <TabsContent value="profile" className="space-y-6">
-            <div className={`grid gap-6 ${isAdmin ? "md:grid-cols-1 max-w-2xl" : "md:grid-cols-2"}`}>
-              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xl">
-                    <User className="h-5 w-5 text-primary" />
-                    Personal Information
-                  </CardTitle>
-                  <CardDescription>Your registered details from database</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={profileData.fullName}
-                      onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
-                      disabled={!isEditing}
-                      className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <User className="h-5 w-5 text-primary" />
+                  Personal Information
+                </CardTitle>
+                <CardDescription>Your registered details from database</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                      <Label htmlFor="fullName">Full Name</Label>
                       <Input
-                        id="email"
-                        type="email"
-                        value={profileData.email}
-                        disabled={true}
-                        className="pl-10 bg-zinc-950/50 opacity-80 cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="phone"
-                        value={profileData.phone}
-                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                        id="fullName"
+                        value={profileData.fullName}
+                        onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })}
                         disabled={!isEditing}
-                        placeholder={isEditing ? "+1 234 567 8900" : "Not specified"}
-                        className={isEditing ? "bg-zinc-900 border-zinc-700 pl-10" : "bg-zinc-950/50 pl-10"}
+                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                       />
                     </div>
-                  </div>
+
+                    <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                      <Label htmlFor="email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          value={profileData.email}
+                          disabled={true}
+                          className="pl-10 bg-zinc-950/50 opacity-80 cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2 lg:col-span-1">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="phone"
+                          value={profileData.phone}
+                          onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder={isEditing ? "+1 234 567 8900" : "Not specified"}
+                          className={isEditing ? "bg-zinc-900 border-zinc-700 pl-10" : "bg-zinc-950/50 pl-10"}
+                        />
+                      </div>
+                    </div>
 
                   {!isAdmin && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <>
                       <div className="space-y-2">
                         <Label htmlFor="dateOfBirth">Date of Birth</Label>
                         <div className="relative">
@@ -875,10 +945,10 @@ export default function ProfilePage() {
                           className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
-                    </div>
+                    </>
                   )}
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2 lg:col-span-3">
                     <Label htmlFor="address">Address</Label>
                     {isEditing ? (
                       <AddressAutocomplete
@@ -886,22 +956,39 @@ export default function ProfilePage() {
                         value={profileData.address}
                         placeholder="Search, detect location, or type your address"
                         inputClassName="bg-zinc-900 border-zinc-700"
-                    onChange={({ address, lat, lon, city }) =>
-                      setProfileData({
-                        ...profileData,
-                        address,
-                        ...(lat != null && lon != null
-                          ? {
-                              gymLatitude: String(lat),
-                              gymLongitude: String(lon),
-                              gymLocationLabel: address,
-                              ...(city?.trim()
-                                ? { gymCity: city.trim() }
+                        showMap
+                        lat={
+                          profileData.gymLatitude
+                            ? Number(profileData.gymLatitude)
+                            : null
+                        }
+                        lon={
+                          profileData.gymLongitude
+                            ? Number(profileData.gymLongitude)
+                            : null
+                        }
+                        onChange={({ address, lat, lon, city }) =>
+                          setProfileData((prev) => ({
+                            ...prev,
+                            address,
+                            ...(address.trim() === ""
+                              ? {
+                                  gymLatitude: "",
+                                  gymLongitude: "",
+                                  gymLocationLabel: "",
+                                }
+                              : lat != null && lon != null
+                                ? {
+                                    gymLatitude: String(lat),
+                                    gymLongitude: String(lon),
+                                    gymLocationLabel: address,
+                                    ...(city?.trim()
+                                      ? { gymCity: city.trim() }
+                                      : {}),
+                                  }
                                 : {}),
-                            }
-                          : {}),
-                      })
-                    }
+                          }))
+                        }
                       />
                     ) : (
                       <div className="relative">
@@ -916,22 +1003,20 @@ export default function ProfilePage() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2 col-span-2 sm:col-span-1">
-                      <Label htmlFor="emergencyContact">Emergency Contact (Optional)</Label>
-                      <Input
-                        id="emergencyContact"
-                        value={profileData.emergencyContact}
-                        onChange={(e) => setProfileData({ ...profileData, emergencyContact: e.target.value })}
-                        disabled={!isEditing}
-                        placeholder="Name & Contact number"
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
+                  <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                    <Label htmlFor="emergencyContact">Emergency Contact (Optional)</Label>
+                    <Input
+                      id="emergencyContact"
+                      value={profileData.emergencyContact}
+                      onChange={(e) => setProfileData({ ...profileData, emergencyContact: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Name & Contact number"
+                      className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                    />
                   </div>
 
                   {isAdmin && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2 lg:col-span-3">
                       <Label htmlFor="bio">About</Label>
                       <Textarea
                         id="bio"
@@ -944,22 +1029,22 @@ export default function ProfilePage() {
                       />
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Bio & Body Metrics Card — members only */}
-              {!isAdmin && (
-              <div className="space-y-6">
-                <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <Flame className="h-5 w-5 text-primary" />
-                      Physical Baseline
-                    </CardTitle>
-                    <CardDescription>Body metrics & composition</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
+            {/* Bio & Body Metrics Card — members only */}
+            {!isAdmin && (
+              <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Flame className="h-5 w-5 text-primary" />
+                    Physical Baseline
+                  </CardTitle>
+                  <CardDescription>Body metrics & composition</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                       <div className="space-y-2">
                         <Label htmlFor="weightKg">Weight (kg)</Label>
                         <Input
@@ -986,53 +1071,147 @@ export default function ProfilePage() {
                           className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
-                    </div>
 
-                    {bmiValue && (
-                      <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground font-medium">
-                            {profileData.bmi ? "BMI" : "Calculated BMI"}
-                          </p>
-                          <p className="text-xl font-bold text-primary">{bmiValue}</p>
-                          {profileData.bmi ? (
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Saved in your profile
+                      {bmiValue && (
+                        <div className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 flex items-center justify-between md:col-span-2 lg:col-span-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground font-medium">
+                              {profileData.bmi ? "BMI" : "Calculated BMI"}
                             </p>
-                          ) : (
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Save profile to store BMI in the database
-                            </p>
-                          )}
+                            <p className="text-xl font-bold text-primary">{bmiValue}</p>
+                            {profileData.bmi ? (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Saved in your profile
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Save profile to store BMI in the database
+                              </p>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-xs text-zinc-300">
+                            {bmiCategoryLabel(parseFloat(bmiValue))}
+                          </Badge>
                         </div>
-                        <Badge variant="outline" className="text-xs text-zinc-300">
-                          {bmiCategoryLabel(parseFloat(bmiValue))}
-                        </Badge>
-                      </div>
-                    )}
+                      )}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="bio">About & Bio</Label>
-                      <Textarea
-                        id="bio"
-                        value={profileData.bio}
-                        onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
-                        disabled={!isEditing}
-                        rows={3}
-                        placeholder="Tell us about your fitness targets..."
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
+                      <div className="space-y-2 md:col-span-2 lg:col-span-3">
+                        <Label htmlFor="bio">About & Bio</Label>
+                        <Textarea
+                          id="bio"
+                          value={profileData.bio}
+                          onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                          disabled={!isEditing}
+                          rows={3}
+                          placeholder="Tell us about your fitness targets..."
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
-              )}
-            </div>
+            )}
           </TabsContent>
 
-          {/* ════════════ Admin: Gym Details ════════════ */}
+          {/* ════════════ Admin: Platform Settings ════════════ */}
           {isAdmin && (
             <TabsContent value="gym" className="space-y-6">
+              {isSuperAdmin ? (
+                // Platform Owner sees platform settings
+                <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <Shield className="h-5 w-5 text-primary" />
+                      Platform Owner Settings
+                    </CardTitle>
+                    <CardDescription>
+                      As a Platform Owner, you have platform-wide access. Gym-specific settings are managed through the gym owners.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-xl bg-gradient-to-r from-red-950/30 via-zinc-900 to-zinc-900 border border-red-500/20 gap-4">
+                      <div>
+                        <span className="text-xs font-semibold text-primary uppercase tracking-wider">Role</span>
+                        <h3 className="text-2xl font-bold capitalize mt-1 text-foreground">
+                          Platform Owner
+                        </h3>
+                        <p className="text-muted-foreground text-sm mt-1">
+                          Platform-wide administrative access
+                        </p>
+                      </div>
+                      <Badge className="px-4 py-1.5 self-start sm:self-center bg-red-600 text-white">
+                        Platform Access
+                      </Badge>
+                    </div>
+
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                        <span className="text-xs text-muted-foreground font-medium">Access Level</span>
+                        <p className="text-lg font-bold mt-1 text-foreground">
+                          Platform
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                        <span className="text-xs text-muted-foreground font-medium">User Management</span>
+                        <p className="text-lg font-bold mt-1 text-foreground">
+                          Full Access
+                        </p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                        <span className="text-xs text-muted-foreground font-medium">Gym Management</span>
+                        <p className="text-lg font-bold mt-1 text-foreground">
+                          Full Access
+                        </p>
+                      </div>
+                    </div>
+
+                    <Separator className="bg-zinc-800" />
+
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-base">Platform Capabilities</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Available platform-wide features
+                        </p>
+                      </div>
+                      <div className="grid gap-3">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label className="text-sm font-medium">Gym Approval</Label>
+                              <p className="text-xs text-muted-foreground">Approve or reject gym registration requests</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">Enabled</Badge>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <User className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label className="text-sm font-medium">User Management</Label>
+                              <p className="text-xs text-muted-foreground">Manage all users across all gyms</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">Enabled</Badge>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Building2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label className="text-sm font-medium">Platform Settings</Label>
+                              <p className="text-xs text-muted-foreground">Configure platform-wide settings and fees</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-400">Enabled</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                // Regular admins see platform settings
+                <div className="grid gap-6 md:grid-cols-2">
               <div className="grid gap-6 md:grid-cols-2">
                 <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                   <CardHeader>
@@ -1049,9 +1228,9 @@ export default function ProfilePage() {
                           <Building2 className="h-5 w-5" />
                         )}
                       </div>
-                      <span>Gym Profile</span>
+                      <span>Platform Profile</span>
                     </CardTitle>
-                    <CardDescription>Saved from admin registration</CardDescription>
+                    <CardDescription>Saved from platform owner registration</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -1140,19 +1319,30 @@ export default function ProfilePage() {
                       </p>
                       {isEditing ? (
                         <AddressAutocomplete
-                          value={profileData.gymLocationLabel}
+                          value={profileData.gymLocationLabel || profileData.address}
+                          lat={
+                            profileData.gymLatitude
+                              ? Number(profileData.gymLatitude)
+                              : null
+                          }
+                          lon={
+                            profileData.gymLongitude
+                              ? Number(profileData.gymLongitude)
+                              : null
+                          }
                           onChange={(next) => {
-                            setProfileData({
-                              ...profileData,
+                            setProfileData((prev) => ({
+                              ...prev,
                               gymLocationLabel: next.address,
+                              address: next.address || prev.address,
                               gymLatitude:
                                 next.lat != null ? String(next.lat) : "",
                               gymLongitude:
                                 next.lon != null ? String(next.lon) : "",
                               gymCity: next.city?.trim()
                                 ? next.city
-                                : profileData.gymCity,
-                            });
+                                : prev.gymCity,
+                            }));
                           }}
                           placeholder="Search gym address or use locate"
                           showMap
@@ -1203,15 +1393,117 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="gymPeakHours">Peak Hours</Label>
+                      <Label htmlFor="gymPeakHours">Peak Hours (Auto-calculated)</Label>
                       <Input
                         id="gymPeakHours"
                         value={profileData.gymPeakHours}
                         onChange={(e) => setProfileData({ ...profileData, gymPeakHours: e.target.value })}
                         disabled={!isEditing}
-                        placeholder="Not specified"
+                        placeholder="Automatically calculated based on operating days and hours"
                         className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                       />
+                      {isEditing && (
+                        <p className="text-xs text-zinc-500">
+                          Automatically calculated based on operating days and opening/closing times
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
+                        Operating Days
+                      </Label>
+                      {isEditing ? (
+                        <div className="flex flex-wrap gap-2">
+                          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                            <button
+                              key={day}
+                              type="button"
+                              onClick={() => {
+                                const currentDays = profileData.gymOperatingDaysSpecific || [];
+                                const newDays = currentDays.includes(day)
+                                  ? currentDays.filter((d) => d !== day)
+                                  : [...currentDays, day];
+                                
+                                // Auto-calculate peak hours based on selected days and opening/closing times
+                                const calculatedPeakHours = calculatePeakHours(
+                                  newDays,
+                                  profileData.gymOpeningTime,
+                                  profileData.gymClosingTime
+                                );
+                                
+                                setProfileData({ 
+                                  ...profileData, 
+                                  gymOperatingDaysSpecific: newDays,
+                                  gymPeakHours: calculatedPeakHours
+                                });
+                              }}
+                              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                (profileData.gymOperatingDaysSpecific || []).includes(day)
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-zinc-400">
+                          {profileData.gymOperatingDaysSpecific?.length
+                            ? profileData.gymOperatingDaysSpecific.join(", ")
+                            : "Not specified"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymOpeningTime">Opening Time</Label>
+                        <Input
+                          id="gymOpeningTime"
+                          value={profileData.gymOpeningTime}
+                          onChange={(e) => {
+                            const newOpeningTime = e.target.value;
+                            // Recalculate peak hours when opening time changes
+                            const calculatedPeakHours = calculatePeakHours(
+                              profileData.gymOperatingDaysSpecific,
+                              newOpeningTime,
+                              profileData.gymClosingTime
+                            );
+                            setProfileData({ 
+                              ...profileData, 
+                              gymOpeningTime: newOpeningTime,
+                              gymPeakHours: calculatedPeakHours
+                            });
+                          }}
+                          disabled={!isEditing}
+                          placeholder="6:00 AM"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gymClosingTime">Closing Time</Label>
+                        <Input
+                          id="gymClosingTime"
+                          value={profileData.gymClosingTime}
+                          onChange={(e) => {
+                            const newClosingTime = e.target.value;
+                            // Recalculate peak hours when closing time changes
+                            const calculatedPeakHours = calculatePeakHours(
+                              profileData.gymOperatingDaysSpecific,
+                              profileData.gymOpeningTime,
+                              newClosingTime
+                            );
+                            setProfileData({ 
+                              ...profileData, 
+                              gymClosingTime: newClosingTime,
+                              gymPeakHours: calculatedPeakHours
+                            });
+                          }}
+                          disabled={!isEditing}
+                          placeholder="10:00 PM"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
                     </div>
 
                     <Separator className="bg-zinc-800" />
@@ -1402,17 +1694,19 @@ export default function ProfilePage() {
                   />
                 </CardContent>
               </Card>
+              </div>
+              )}
             </TabsContent>
           )}
 
-          {/* ════════════ Admin: Account Status ════════════ */}
+          {/* ════════════ Admin: Platform Account Status ════════════ */}
           {isAdmin && (
             <TabsContent value="account" className="space-y-6">
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-xl">
                     <Shield className="h-5 w-5 text-primary" />
-                    Admin Account Status
+                    Platform Account Status
                   </CardTitle>
                   <CardDescription>Approval and role data from the database</CardDescription>
                 </CardHeader>
@@ -1421,7 +1715,7 @@ export default function ProfilePage() {
                     <div>
                       <span className="text-xs font-semibold text-primary uppercase tracking-wider">Role</span>
                       <h3 className="text-2xl font-bold capitalize mt-1 text-foreground">
-                        {profileData.isSuperAdmin ? "Super Admin" : "Gym Owner (Admin)"}
+                        {formatRoleName(user?.role, profileData.isSuperAdmin)}
                       </h3>
                       <p className="text-muted-foreground text-sm mt-1">
                         {displayValue(profileData.gymName, "No gym name on file")}
@@ -1445,7 +1739,7 @@ export default function ProfilePage() {
                       </p>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                      <span className="text-xs text-muted-foreground font-medium">Super Admin</span>
+                      <span className="text-xs text-muted-foreground font-medium">Platform Owner</span>
                       <p className="text-lg font-bold mt-1 text-foreground">
                         {profileData.isSuperAdmin ? "Yes" : "No"}
                       </p>
@@ -1749,10 +2043,10 @@ export default function ProfilePage() {
             <ProfileSettingsTab
               isAdmin={isAdmin}
               isSuperAdmin={isSuperAdmin || profileData.isSuperAdmin}
-              isEditing={isEditing}
-              setIsEditing={setIsEditing}
+              isEditing={isSuperAdmin ? false : isEditing}
+              setIsEditing={isSuperAdmin ? () => {} : setIsEditing}
               isSaving={isSaving}
-              onSave={() => void handleSave()}
+              onSave={isSuperAdmin ? undefined : () => void handleSave()}
               profileData={{
                 email: profileData.email,
                 phone: profileData.phone,
@@ -1762,7 +2056,10 @@ export default function ProfilePage() {
                 gymCity: profileData.gymCity,
                 gymYearsOperating: profileData.gymYearsOperating,
                 gymOperatingDays: profileData.gymOperatingDays,
+                gymOperatingDaysSpecific: profileData.gymOperatingDaysSpecific,
                 gymPeakHours: profileData.gymPeakHours,
+                gymOpeningTime: profileData.gymOpeningTime,
+                gymClosingTime: profileData.gymClosingTime,
                 gymMemberCapacity: profileData.gymMemberCapacity,
                 gymMonthlyFee: profileData.gymMonthlyFee,
                 gymTrainerFee: profileData.gymTrainerFee,

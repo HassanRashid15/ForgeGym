@@ -29,18 +29,6 @@ async function requireApprovedAdmin(request: Request) {
   const service = createSupabaseServiceClient();
   const db = service || supabase;
 
-  const { data: roleRows } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  const isAdmin = (roleRows || []).some((r) => r.role === "admin");
-  if (!isAdmin) {
-    return {
-      error: NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 }),
-    };
-  }
-
   const { data: profile } = await db
     .from("profiles")
     .select("admin_approved, is_super_admin, email, gym_name, gym_owner_id, gym_city")
@@ -52,6 +40,19 @@ async function requireApprovedAdmin(request: Request) {
     (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
     email === "superadmin@forge.test";
 
+  const { data: roleRows } = await db
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id);
+
+  const isAdmin = (roleRows || []).some((r) => r.role === "admin");
+  if (!isAdmin && !isSuperAdmin) {
+    return {
+      error: NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 }),
+    };
+  }
+
+  // Super admins bypass approval requirement
   if (!isSuperAdmin && !profile?.admin_approved) {
     return {
       error: NextResponse.json(
@@ -383,7 +384,7 @@ export async function GET(request: Request) {
           u.role === "admin"),
     );
   } else {
-    // Platform super admin: admins + super admins only
+    // Platform owner: admins + platform owners only
     users = users.filter((u) => u.is_super_admin || u.role === "admin");
   }
 
@@ -445,10 +446,10 @@ export async function POST(request: Request) {
     role = requested as AppStaffRole | "super_admin";
   }
 
-  // Platform super admin: only super_admin + admin
+  // Platform owner: only super_admin + admin
   if (isSuperAdmin && !["super_admin", "admin"].includes(role)) {
     return NextResponse.json(
-      { error: "Super admins can only add Super Admin or Admin" },
+      { error: "Platform Owners can only add Platform Owner or Admin" },
       { status: 403 },
     );
   }
@@ -463,7 +464,7 @@ export async function POST(request: Request) {
 
   if (role === "super_admin" && !isSuperAdmin) {
     return NextResponse.json(
-      { error: "Only a super admin can create another super admin" },
+      { error: "Only a platform owner can create another platform owner" },
       { status: 403 },
     );
   }
@@ -710,7 +711,8 @@ export async function PATCH(request: Request) {
   }
 
   const targetId = String(body.userId);
-  if (targetId === user.id && body.role && body.role !== "admin") {
+  // Super admins can modify their own role, regular admins cannot demote themselves
+  if (targetId === user.id && body.role && body.role !== "admin" && !isSuperAdmin) {
     return NextResponse.json(
       { error: "You cannot demote your own admin role" },
       { status: 400 },
@@ -727,9 +729,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  if (targetProfile.is_super_admin && targetId !== user.id) {
+  if (targetProfile.is_super_admin && targetId !== user.id && !isSuperAdmin) {
     return NextResponse.json(
-      { error: "Cannot modify another super admin" },
+      { error: "Cannot modify another platform owner" },
       { status: 403 },
     );
   }
@@ -737,6 +739,7 @@ export async function PATCH(request: Request) {
   const targetGymOwnerId =
     (targetProfile as { gym_owner_id?: string | null }).gym_owner_id || null;
 
+  // Super admins can edit users from any gym
   if (!isSuperAdmin && targetId !== user.id) {
     const inThisGym = targetGymOwnerId === gymOwnerId;
     // Do not allow claiming unscoped members from other signups
@@ -968,10 +971,11 @@ export async function PATCH(request: Request) {
       const isTrainer = (trainerRoles || []).some((r) => r.role === "trainer");
       const trainerGym =
         (trainerProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id || null;
+      // Super admins can assign trainers from any gym
       if (
         !trainerProfile ||
         !isTrainer ||
-        trainerGym !== gymOwnerId
+        (!isSuperAdmin && trainerGym !== gymOwnerId)
       ) {
         return NextResponse.json(
           { error: "Selected trainer is not available at this gym" },
@@ -1138,7 +1142,7 @@ export async function PATCH(request: Request) {
   if (body.role !== undefined) {
     const nextRole = String(body.role) as AppStaffRole;
     const allowedRoles = isSuperAdmin
-      ? (["admin", "trainer", "staff", "user", "moderator"] as const)
+      ? (["admin", "trainer", "staff", "user", "moderator", "super_admin"] as const)
       : (["admin", "trainer", "staff", "user"] as const);
 
     if (!(allowedRoles as readonly string[]).includes(nextRole)) {
@@ -1244,7 +1248,8 @@ export async function DELETE(request: Request) {
   if (!targetId) {
     return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
-  if (targetId === user.id) {
+  // Super admins can delete their own account if needed
+  if (targetId === user.id && !isSuperAdmin) {
     return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
   }
 
@@ -1254,18 +1259,18 @@ export async function DELETE(request: Request) {
     .eq("user_id", targetId)
     .maybeSingle();
 
-  if (targetProfile?.is_super_admin) {
-    return NextResponse.json({ error: "Cannot delete a super admin" }, { status: 403 });
+  if (targetProfile?.is_super_admin && !isSuperAdmin) {
+    return NextResponse.json({ error: "Cannot delete a platform owner" }, { status: 403 });
   }
 
-  if (
-    !isSuperAdmin &&
-    (targetProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id !== gymOwnerId
-  ) {
-    return NextResponse.json(
-      { error: "You can only delete users from your gym" },
-      { status: 403 },
-    );
+  // Super admins can delete users from any gym
+  if (!isSuperAdmin) {
+    if ((targetProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id !== gymOwnerId) {
+      return NextResponse.json(
+        { error: "You can only delete users from your gym" },
+        { status: 403 },
+      );
+    }
   }
 
   const targetLabel =

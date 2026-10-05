@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import endpoints from "@/api/endpoints.json";
+import { doneTopProgress, startTopProgress } from "@/lib/top-progress";
 
 export type ApiEndpoint = {
   method: string;
@@ -157,6 +158,16 @@ export async function apiRequest<T>(
   const timeoutMs = options.timeoutMs ?? 20000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const method = (endpoint.method || "GET").toUpperCase();
+  const isMutating = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const onDashboardSaveUi =
+    typeof window !== "undefined" &&
+    isMutating &&
+    (window.location.pathname.startsWith("/dashboard") ||
+      window.location.pathname.startsWith("/profile"));
+
+  if (onDashboardSaveUi) startTopProgress();
+
   try {
     const response = await fetch(url, {
       method: endpoint.method,
@@ -189,6 +200,7 @@ export async function apiRequest<T>(
     throw err;
   } finally {
     clearTimeout(timer);
+    if (onDashboardSaveUi) doneTopProgress();
   }
 }
 

@@ -29,7 +29,7 @@ async function requireSuperAdmin(request: Request) {
   if (!isSuperAdmin) {
     return {
       error: NextResponse.json(
-        { error: "Forbidden — super admin only" },
+        { error: "Forbidden — platform owner only" },
         { status: 403 },
       ),
     };
@@ -149,7 +149,7 @@ export async function PATCH(request: Request) {
 
   if ((target as { is_super_admin?: boolean }).is_super_admin === true) {
     return NextResponse.json(
-      { error: "Cannot set membership fee on super admin" },
+      { error: "Cannot set membership fee on platform owner" },
       { status: 400 },
     );
   }

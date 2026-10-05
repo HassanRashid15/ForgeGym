@@ -33,7 +33,7 @@ export default function ContactPage() {
     {
       id: "superadmin",
       type: "superadmin",
-      label: "Forge Platform (Super Admin)",
+      label: "Forge Platform (Platform Owner)",
     },
   ]);
   const [isLoading, setIsLoading] = useState(true);
@@ -310,7 +310,7 @@ export default function ContactPage() {
                     ) : null}
                   </select>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    Choose Super Admin for platform help, or a gym for membership
+                    Choose Platform Owner for platform help, or a gym for membership
                     and local gym questions.
                   </p>
                 </div>

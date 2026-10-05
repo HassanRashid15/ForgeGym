@@ -39,7 +39,10 @@ export type ProfileRecord = {
   gym_years_operating?: string | null;
   gym_facilities?: string[] | null;
   gym_operating_days?: number | null;
+  gym_operating_days_specific?: string[] | null;
   gym_peak_hours?: string | null;
+  gym_opening_time?: string | null;
+  gym_closing_time?: string | null;
   gym_member_capacity?: string | null;
   gym_services?: string[] | null;
   gym_main_image_url?: string | null;
@@ -85,7 +88,10 @@ export type ProfileUpdatePayload = Partial<{
   gym_years_operating: string | null;
   gym_facilities: string[];
   gym_operating_days: number | null;
+  gym_operating_days_specific: string[] | null;
   gym_peak_hours: string | null;
+  gym_opening_time: string | null;
+  gym_closing_time: string | null;
   gym_member_capacity: string | null;
   gym_services: string[];
   gym_main_image_url: string | null;
@@ -147,4 +153,11 @@ export async function uploadGymMedia(
       timeoutMs: 120_000,
     },
   );
+}
+
+/** DELETE profiles.deleteGymMedia → /api/gym-media */
+export async function deleteGymMedia(filename: string) {
+  return apiRequest<{ success?: boolean }>("profiles", "deleteGymMedia", {
+    body: { filename },
+  });
 }

@@ -10,6 +10,8 @@ import { SplashProvider } from "@/components/marketing/SplashProvider";
 import { PublicTrafficBeacon } from "@/components/marketing/PublicTrafficBeacon";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
+import { TopProgressBar } from "@/components/layout/TopProgressBar";
+import { Suspense } from "react";
 import {
   DEFAULT_DESCRIPTION,
   SITE_NAME,
@@ -248,6 +250,9 @@ export default function RootLayout({
                 <SplashProvider>
                   <RegisterServiceWorker />
                   <PublicTrafficBeacon />
+                  <Suspense fallback={null}>
+                    <TopProgressBar />
+                  </Suspense>
                   <Toaster />
                   <Sonner />
                   {children}

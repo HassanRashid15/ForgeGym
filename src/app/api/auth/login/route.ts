@@ -121,7 +121,7 @@ export async function POST(request: Request) {
 
   if (role === "admin" && !isApproved) {
     await cookieClient.auth.signOut();
-    return jsonError("Your admin account is pending super admin approval", 403, {
+    return jsonError("Your admin account is pending platform owner approval", 403, {
       code: "admin_approval_pending",
       requestId,
     });

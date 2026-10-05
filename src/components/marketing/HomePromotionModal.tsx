@@ -5,31 +5,23 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { useSplash } from "@/components/marketing/SplashProvider";
-import { listPublicPromotions } from "@/api/promotions";
+import type { HomePromotion } from "@/lib/home-promotions";
 
-type HomePromotion = {
-  id: string;
-  title: string;
-  body: string;
-  cta_label: string | null;
-  cta_href: string | null;
-  image_url: string | null;
-};
-
-function pickFeatured(promotions: HomePromotion[]): HomePromotion | null {
-  if (!promotions.length) return null;
-  return promotions.find((p) => Boolean(p.image_url)) || promotions[0];
-}
+export type { HomePromotion };
 
 /**
  * Daraz-style home popup for the latest published “show on home” promotion.
- * Shows on every home visit until the promo ends (API filters by ends_at).
- * X only closes for this page view — next visit opens it again while live.
+ * Prefers SSR `initialPromo` so it can open as soon as the splash finishes
+ * (no client API wait). X only closes for this page view.
  */
-export function HomePromotionModal() {
+export function HomePromotionModal({
+  initialPromo = null,
+}: {
+  initialPromo?: HomePromotion | null;
+}) {
   const { splashReady } = useSplash();
   const titleId = useId();
-  const [promo, setPromo] = useState<HomePromotion | null>(null);
+  const [promo] = useState<HomePromotion | null>(initialPromo);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -38,31 +30,11 @@ export function HomePromotionModal() {
   }, []);
 
   useEffect(() => {
-    if (!splashReady) return;
-
-    let cancelled = false;
-    let openTimer: number | undefined;
-    (async () => {
-      try {
-        const data = await listPublicPromotions();
-        const featured = pickFeatured(data.promotions || []);
-        if (cancelled || !featured) return;
-
-        setPromo(featured);
-        // Small beat after splash so the popup doesn’t collide with home reveal
-        openTimer = window.setTimeout(() => {
-          if (!cancelled) setOpen(true);
-        }, 400);
-      } catch {
-        /* ignore */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (openTimer) window.clearTimeout(openTimer);
-    };
-  }, [splashReady]);
+    if (!splashReady || !promo) return;
+    // Tiny beat after splash so the popup doesn’t collide with home reveal
+    const openTimer = window.setTimeout(() => setOpen(true), 120);
+    return () => window.clearTimeout(openTimer);
+  }, [splashReady, promo]);
 
   useEffect(() => {
     if (!open) return;

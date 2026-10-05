@@ -588,7 +588,7 @@ export function MembersTable({
                                   : "default"
                               }
                             >
-                              {row.is_super_admin ? "super admin" : row.role}
+                              {row.is_super_admin ? "platform owner" : row.role}
                             </Badge>
                           </TableCell>
                         )}

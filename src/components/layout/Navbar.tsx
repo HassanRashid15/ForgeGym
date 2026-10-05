@@ -17,12 +17,13 @@ import {
 import { Menu, X, LogOut, User, Settings, LayoutDashboard, Loader2 } from "lucide-react";
 import ThemeToggle from "@/components/marketing/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
-import { getNameInitials } from "@/lib/utils";
+import { formatRoleName, getNameInitials } from "@/lib/utils";
 
 const navLinks = [
   { name: "Home", path: "/" },
   { name: "Gyms", path: "/gyms" },
   { name: "Trainers", path: "/trainers" },
+  { name: "Exercises", path: "/exercises" },
   { name: "About", path: "/about" },
   { name: "Contact", path: "/contact" },
 ];
@@ -31,11 +32,11 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
-  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { user, logout, isAuthenticated, isLoading, isSuperAdmin } = useAuth();
   const { theme } = useTheme();
 
   // Pages that should use light theme styling
-  const lightThemePages = ['/gyms', '/trainers', '/contact', '/about'];
+  const lightThemePages = ['/gyms', '/trainers', '/exercises', '/contact', '/about'];
   const isLightThemePage = lightThemePages.some(page => pathname === page || pathname.startsWith(`${page}/`)) && theme === 'light';
 
   useEffect(() => {
@@ -161,8 +162,8 @@ const Navbar = () => {
                           <p className="text-xs leading-none text-muted-foreground">
                             {user?.email}
                           </p>
-                          <p className="text-xs leading-none capitalize text-muted-foreground">
-                            {user?.role}
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {formatRoleName(user?.role, isSuperAdmin)}
                           </p>
                         </div>
                       </DropdownMenuLabel>

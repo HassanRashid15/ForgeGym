@@ -21,7 +21,10 @@ export type ProfileSettingsFormSlice = {
   gymCity: string;
   gymYearsOperating: string;
   gymOperatingDays: string;
+  gymOperatingDaysSpecific: string[];
   gymPeakHours: string;
+  gymOpeningTime: string;
+  gymClosingTime: string;
   gymMemberCapacity: string;
   gymMonthlyFee: string;
   gymTrainerFee: string;
@@ -62,7 +65,7 @@ export function ProfileSettingsTab({
   isSaving,
 }: ProfileSettingsTabProps) {
   const patch = (partial: Partial<ProfileSettingsFormSlice>) => {
-    if (!isEditing) return;
+    if (!isEditing || isSuperAdmin) return;
     onProfileChange(partial);
   };
 
@@ -70,7 +73,31 @@ export function ProfileSettingsTab({
     <div className="space-y-6">
       {!isSuperAdmin && <NewsletterPreferenceCard disabled={!isEditing} />}
 
-      {isAdmin && (
+      {isSuperAdmin && (
+        <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Shield className="h-5 w-5 text-primary" />
+              Platform Owner Settings
+            </CardTitle>
+            <CardDescription>
+              As a Platform Owner, you manage platform-wide settings. Gym-specific details are managed by individual gym owners through their own Settings pages.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center p-6 rounded-lg border border-zinc-800 bg-zinc-900/60">
+              <div className="text-center">
+                <Building2 className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  As a Platform Owner, use the <span className="font-medium text-foreground">Platform Settings</span> tab above for platform-wide configuration
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && !isSuperAdmin && (
         <>
           <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -219,6 +246,74 @@ export function ProfileSettingsTab({
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Operating Days</Label>
+                  {isEditing ? (
+                    <div className="flex flex-wrap gap-2">
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            const currentDays = profileData.gymOperatingDaysSpecific || [];
+                            const newDays = currentDays.includes(day)
+                              ? currentDays.filter((d) => d !== day)
+                              : [...currentDays, day];
+                            patch({ gymOperatingDaysSpecific: newDays });
+
+                            // Auto-calculate peak hours based on selected days
+                            if (newDays.length === 7) {
+                              patch({ gymPeakHours: "All Day" });
+                            } else if (newDays.length === 5 && newDays.includes("Mon") && newDays.includes("Fri") && !newDays.includes("Sat") && !newDays.includes("Sun")) {
+                              patch({ gymPeakHours: "Weekdays" });
+                            } else if (newDays.length === 2 && newDays.includes("Sat") && newDays.includes("Sun") && !newDays.includes("Mon") && !newDays.includes("Tue") && !newDays.includes("Wed") && !newDays.includes("Thu") && !newDays.includes("Fri")) {
+                              patch({ gymPeakHours: "Weekends" });
+                            } else if (newDays.length === 0) {
+                              patch({ gymPeakHours: "" });
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                            (profileData.gymOperatingDaysSpecific || []).includes(day)
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {profileData.gymOperatingDaysSpecific?.length
+                        ? profileData.gymOperatingDaysSpecific.join(", ")
+                        : "Not specified"}
+                    </p>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="settingsOpeningTime">Opening time</Label>
+                    <Input
+                      id="settingsOpeningTime"
+                      value={profileData.gymOpeningTime || ""}
+                      onChange={(e) => patch({ gymOpeningTime: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="6:00 AM"
+                      className={fieldCls(isEditing)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="settingsClosingTime">Closing time</Label>
+                    <Input
+                      id="settingsClosingTime"
+                      value={profileData.gymClosingTime || ""}
+                      onChange={(e) => patch({ gymClosingTime: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="10:00 PM"
+                      className={fieldCls(isEditing)}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="settingsPhone">Contact phone</Label>
                   <Input
                     id="settingsPhone"
@@ -232,24 +327,42 @@ export function ProfileSettingsTab({
 
               <div className="space-y-2">
                 <Label>Address</Label>
-                {isEditing ? (
+                {isEditing && !isSuperAdmin ? (
                   <AddressAutocomplete
                     id="settingsAddress"
                     value={profileData.address}
                     placeholder="Search or type gym address"
                     inputClassName="bg-zinc-900 border-zinc-700"
                     showMap
+                    lat={
+                      profileData.gymLatitude
+                        ? Number(profileData.gymLatitude)
+                        : null
+                    }
+                    lon={
+                      profileData.gymLongitude
+                        ? Number(profileData.gymLongitude)
+                        : null
+                    }
                     onChange={({ address, lat, lon, city }) =>
                       patch({
                         address,
-                        ...(lat != null && lon != null
+                        ...(address.trim() === ""
                           ? {
-                              gymLatitude: String(lat),
-                              gymLongitude: String(lon),
-                              gymLocationLabel: address,
-                              ...(city?.trim() ? { gymCity: city.trim() } : {}),
+                              gymLatitude: "",
+                              gymLongitude: "",
+                              gymLocationLabel: "",
                             }
-                          : { gymLatitude: "", gymLongitude: "" }),
+                          : lat != null && lon != null
+                            ? {
+                                gymLatitude: String(lat),
+                                gymLongitude: String(lon),
+                                gymLocationLabel: address,
+                                ...(city?.trim()
+                                  ? { gymCity: city.trim() }
+                                  : {}),
+                              }
+                            : {}),
                       })
                     }
                   />
@@ -264,7 +377,7 @@ export function ProfileSettingsTab({
 
               <div className="space-y-2">
                 <Label>Facilities</Label>
-                {isEditing ? (
+                {isEditing && !isSuperAdmin ? (
                   <Textarea
                     value={profileData.gymFacilities.join(", ")}
                     onChange={(e) =>
@@ -300,7 +413,7 @@ export function ProfileSettingsTab({
 
               <div className="space-y-2">
                 <Label>Services</Label>
-                {isEditing ? (
+                {isEditing && !isSuperAdmin ? (
                   <Textarea
                     value={profileData.gymServices.join(", ")}
                     onChange={(e) =>
@@ -354,7 +467,7 @@ export function ProfileSettingsTab({
                 videoUrl={profileData.gymVideoUrl}
                 videoFileUrl={profileData.gymVideoFileUrl}
                 persistToDb
-                readOnly={!isEditing}
+                readOnly={!isEditing || isSuperAdmin}
                 onUpdate={(media) =>
                   patch({
                     avatarUrl: media.logoUrl,
@@ -365,7 +478,7 @@ export function ProfileSettingsTab({
                   })
                 }
               />
-              {!isEditing ? (
+              {!isEditing && !isSuperAdmin ? (
                 <p className="mt-3 text-xs text-muted-foreground">
                   Enable edit above to upload or change gym media.
                 </p>
@@ -399,17 +512,11 @@ export function ProfileSettingsTab({
               <p className="font-medium text-foreground">Password</p>
               <p className="text-sm text-muted-foreground">Keep your password strong and updated</p>
             </div>
-            {isEditing ? (
-              <Link href="/login">
-                <Button variant="outline" size="sm">
-                  Update password
-                </Button>
-              </Link>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
+            <Link href="/login">
+              <Button variant="outline" size="sm">
                 Update password
               </Button>
-            )}
+            </Link>
           </div>
         </CardContent>
       </Card>

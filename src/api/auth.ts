@@ -220,6 +220,10 @@ export type AdminListItem = {
   gym_name?: string | null;
   gym_type?: string | null;
   gym_city?: string | null;
+  gym_main_image_url?: string | null;
+  /** Member monthly fee the gym owner set at registration */
+  gym_monthly_fee?: string | null;
+  gym_trainer_fee?: string | null;
   trial_offered?: boolean;
   trial_starts_at?: string | null;
   trial_ends_at?: string | null;
@@ -252,7 +256,10 @@ export async function fetchPendingAdmins() {
 }
 
 /** admin.approveAdmin → POST /api/admin/pending */
-export async function approveAdminAccount(userId: string) {
+export async function approveAdminAccount(
+  userId: string,
+  opts?: { platformMonthlyFee?: string | null },
+) {
   return apiRequest<{
     approved: {
       user_id: string;
@@ -261,8 +268,14 @@ export async function approveAdminAccount(userId: string) {
       admin_approved: boolean;
     };
     action: "approve";
+    trial?: { startsAt: string; endsAt: string };
+    platformMonthlyFee?: string | null;
   }>("admin", "approveAdmin", {
-    body: { userId, action: "approve" },
+    body: {
+      userId,
+      action: "approve",
+      platformMonthlyFee: opts?.platformMonthlyFee,
+    },
   });
 }
 

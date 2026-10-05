@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { PlatformPublicStats } from "@/lib/platform-stats";
+import { fetchPublicPlatformStats } from "@/api/platform";
 
 /**
  * Keeps home platform / gym member counts fresh via Realtime + silent refetch.
@@ -22,13 +23,7 @@ export function useLivePlatformStats(initial?: PlatformPublicStats) {
       window.clearTimeout(debounce);
       debounce = window.setTimeout(async () => {
         try {
-          const res = await fetch("/api/platform/public-stats", {
-            cache: "no-store",
-          });
-          const data = (await res.json()) as {
-            success?: boolean;
-            stats?: PlatformPublicStats;
-          };
+          const data = await fetchPublicPlatformStats();
           if (!cancelled && data.success && data.stats) {
             setStats(data.stats);
           }

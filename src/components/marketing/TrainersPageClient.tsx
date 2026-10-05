@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Instagram, Mail, Award, ArrowRight, Building2, MapPin } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
+import { TrainersPageFaq } from "@/components/marketing/FaqAccordion";
 import { getNameInitials } from "@/lib/utils";
 import type { PublicTrainerListItem } from "@/lib/gyms";
 import { TrainerCardSkeleton } from "@/components/loading/TrainerCardSkeleton";
@@ -228,6 +229,8 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
           </ScrollAnimate>
         </div>
       </section>
+
+      <TrainersPageFaq />
 
       <Footer />
     </div>

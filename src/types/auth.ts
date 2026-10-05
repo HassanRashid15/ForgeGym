@@ -6,7 +6,7 @@ export interface User {
   name: string;
   role: UserRole;
   avatar?: string;
-  /** Platform super admin — can approve gym-owner admins */
+  /** Platform owner — can approve gym-owner admins */
   isSuperAdmin?: boolean;
   /** Gym brand name from profiles.gym_name / gyms catalog */
   gymName?: string | null;

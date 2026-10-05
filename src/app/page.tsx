@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { listApprovedGyms } from "@/lib/gyms";
 import { getPlatformPublicStats } from "@/lib/platform-stats";
+import { getFeaturedHomePromotionSSR } from "@/lib/home-promotions";
 import HomePageClient from "@/components/marketing/HomePageClient";
 import { SplashScreen } from "@/components/marketing/SplashScreen";
 import { HomeBootSplash } from "@/components/marketing/HomeBootSplash";
@@ -8,10 +9,13 @@ import { HomeBootSplash } from "@/components/marketing/HomeBootSplash";
 export const revalidate = 60;
 
 /**
- * Loads gyms + live platform stats on the server while the SSR splash is visible.
+ * Loads gyms + live platform stats + featured promo on the server while the SSR splash is visible.
  */
 async function HomeContent() {
-  const gyms = await listApprovedGyms();
+  const [gyms, featuredPromo] = await Promise.all([
+    listApprovedGyms(),
+    getFeaturedHomePromotionSSR(),
+  ]);
   const platformStats = await getPlatformPublicStats(gyms);
 
   const featuredGyms = gyms.slice(0, 6).map((g) => ({
@@ -27,7 +31,11 @@ async function HomeContent() {
   }));
 
   return (
-    <HomePageClient featuredGyms={featuredGyms} platformStats={platformStats} />
+    <HomePageClient
+      featuredGyms={featuredGyms}
+      platformStats={platformStats}
+      featuredPromo={featuredPromo}
+    />
   );
 }
 

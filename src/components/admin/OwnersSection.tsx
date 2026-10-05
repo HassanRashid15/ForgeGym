@@ -25,8 +25,10 @@ import {
   Building2,
   Pencil,
   Trash2,
+  Eye,
 } from "lucide-react";
 import type { AdminListItem } from "@/api/auth";
+import { GymOwnerDetailsModal } from "@/components/admin/GymOwnerDetailsModal";
 
 export type FilterTab = "all" | "pending" | "approved" | "rejected";
 
@@ -104,14 +106,24 @@ export function OwnersSection({
   approvingId: string | null;
   rejectingId: string | null;
   deletingId: string | null;
-  onApprove: (id: string) => void;
+  onApprove: (admin: AdminListItem) => void;
   onReject: (id: string) => void;
   onEdit: (admin: AdminListItem) => void;
   onDelete: (admin: AdminListItem) => void;
   onRefresh: () => void;
 }) {
+  const [viewTarget, setViewTarget] = useState<AdminListItem | null>(null);
+
   return (
     <div className="space-y-6">
+      <GymOwnerDetailsModal
+        admin={viewTarget}
+        open={!!viewTarget}
+        onOpenChange={(open) => {
+          if (!open) setViewTarget(null);
+        }}
+        onEdit={onEdit}
+      />
       {error && (
         <Card className="border-destructive/40">
           <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
@@ -275,7 +287,7 @@ export function OwnersSection({
                               <Button
                                 size="sm"
                                 disabled={busy}
-                                onClick={() => onApprove(admin.user_id)}
+                                onClick={() => onApprove(admin)}
                               >
                                 {approvingId === admin.user_id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -304,6 +316,15 @@ export function OwnersSection({
                                 )}
                               </Button>
                             )}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              title="View details"
+                              disabled={busy}
+                              onClick={() => setViewTarget(admin)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button
                               size="icon"
                               variant="ghost"

@@ -23,6 +23,9 @@ async function syncGymCatalogMedia(
     gym_longitude?: number | null;
     gym_name?: string | null;
     gym_city?: string | null;
+    gym_opening_time?: string | null;
+    gym_closing_time?: string | null;
+    gym_operating_days_specific?: string[] | null;
   },
 ) {
   const service = createSupabaseServiceClient();
@@ -61,6 +64,15 @@ async function syncGymCatalogMedia(
   }
   if ("gym_city" in profile) {
     patch.city = profile.gym_city ?? null;
+  }
+  if ("gym_opening_time" in profile) {
+    patch.opening_time = profile.gym_opening_time ?? null;
+  }
+  if ("gym_closing_time" in profile) {
+    patch.closing_time = profile.gym_closing_time ?? null;
+  }
+  if ("gym_operating_days_specific" in profile) {
+    patch.operating_days_specific = profile.gym_operating_days_specific ?? null;
   }
 
   if (Object.keys(patch).length <= 1) return;

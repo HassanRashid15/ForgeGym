@@ -78,6 +78,9 @@ function mapAdmin(p: any) {
     gym_name: (p.gym_name as string | null) ?? null,
     gym_type: (p.gym_type as string | null) ?? null,
     gym_city: (p.gym_city as string | null) ?? null,
+    gym_main_image_url: (p.gym_main_image_url as string | null) ?? null,
+    gym_monthly_fee: (p.gym_monthly_fee as string | null) ?? null,
+    gym_trainer_fee: (p.gym_trainer_fee as string | null) ?? null,
     status: status as "pending" | "approved" | "rejected",
     trial_offered: trial.offered,
     trial_starts_at: trial.startsAt,
@@ -202,7 +205,7 @@ export async function POST(request: Request) {
 
   const { data: targetProfile } = await supabase
     .from("profiles")
-    .select("is_super_admin, email")
+    .select("is_super_admin, email, gym_name")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -239,6 +242,11 @@ export async function POST(request: Request) {
 
   if (action === "approve") {
     const trial = trialActivationPatch();
+    const hasFee = body?.platformMonthlyFee !== undefined;
+    const platformFee = hasFee
+      ? String(body.platformMonthlyFee ?? "").trim() || null
+      : undefined;
+
     const { data, error } = await supabase
       .from("profiles")
       .update({
@@ -251,11 +259,12 @@ export async function POST(request: Request) {
         trial_offered: true,
         trial_starts_at: trial.trial_starts_at,
         trial_ends_at: trial.trial_ends_at,
+        ...(hasFee ? { platform_monthly_fee: platformFee } : {}),
         updated_at: new Date().toISOString(),
       } as any)
       .eq("user_id", userId)
       .select(
-        "user_id, full_name, email, admin_approved, admin_rejected_at, trial_starts_at, trial_ends_at",
+        "user_id, full_name, email, admin_approved, admin_rejected_at, trial_starts_at, trial_ends_at, platform_monthly_fee, gym_name, gym_city, gym_monthly_fee",
       )
       .maybeSingle();
 
@@ -272,15 +281,14 @@ export async function POST(request: Request) {
       .eq("from_user_id", userId)
       .is("read_at", null);
 
-    const { data: gymProfile } = await supabase
-      .from("profiles")
-      .select("gym_name")
-      .eq("user_id", userId)
-      .maybeSingle();
-    void notify.gymOwnerApproved(
-      userId,
-      (gymProfile as { gym_name?: string | null } | null)?.gym_name,
-    );
+    const gymName =
+      (data as { gym_name?: string | null }).gym_name ||
+      (targetProfile as { gym_name?: string | null } | null)?.gym_name;
+    void notify.gymOwnerApproved(userId, gymName);
+
+    if (platformFee) {
+      void notify.platformFeeUpdated(userId, `$${platformFee}`);
+    }
 
     // Extra in-app notice that trial started
     try {
@@ -289,7 +297,9 @@ export async function POST(request: Request) {
         user_id: userId,
         type: "welcome",
         title: "1-month free trial started",
-        message: `Your gym is approved. Free trial runs until ${new Date(trial.trial_ends_at).toLocaleDateString()}.`,
+        message: `Your gym is approved. Free trial runs until ${new Date(trial.trial_ends_at).toLocaleDateString()}.${
+          platformFee ? ` Platform monthly fee after trial: $${platformFee}.` : ""
+        }`,
         metadata: {
           related_id: userId,
           related_type: "trial",
@@ -303,6 +313,7 @@ export async function POST(request: Request) {
 
     cacheInvalidate("admin:pending");
     cacheInvalidate("admin:users:");
+    cacheInvalidate("settings:platform_facility_fee");
 
     return NextResponse.json({
       approved: data,
@@ -311,6 +322,8 @@ export async function POST(request: Request) {
         startsAt: trial.trial_starts_at,
         endsAt: trial.trial_ends_at,
       },
+      platformMonthlyFee:
+        (data as { platform_monthly_fee?: string | null }).platform_monthly_fee || null,
     });
   }
 

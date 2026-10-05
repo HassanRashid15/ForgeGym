@@ -9,6 +9,8 @@ import { HomePromotionsSection } from "@/components/marketing/HomePromotionsSect
 import { HomePromotionModal } from "@/components/marketing/HomePromotionModal";
 import { ReviewSection } from "@/components/marketing/ReviewSection";
 import { TestimonialSection } from "@/components/marketing/TestimonialSection";
+import { HomePageFaq } from "@/components/marketing/FaqAccordion";
+import { BlogSection } from "@/components/marketing/BlogSection";
 import {
   ArrowRight,
   Zap,
@@ -27,6 +29,7 @@ import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
 import { TextType } from "@/components/marketing/TextType";
 import { HomeStatsSection } from "@/components/marketing/HomeStatsSection";
 import type { PlatformPublicStats } from "@/lib/platform-stats";
+import type { HomePromotion } from "@/lib/home-promotions";
 import { useLivePlatformStats } from "@/hooks/useLivePlatformStats";
 import { useMemo } from "react";
 
@@ -107,9 +110,11 @@ const classes = [
 export default function HomePageClient({
   featuredGyms = [],
   platformStats,
+  featuredPromo = null,
 }: {
   featuredGyms?: FeaturedGym[];
   platformStats?: PlatformPublicStats;
+  featuredPromo?: HomePromotion | null;
 }) {
   const liveStats = useLivePlatformStats(platformStats);
 
@@ -488,12 +493,18 @@ export default function HomePageClient({
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <HomePageFaq />
+
+      {/* Blog Section */}
+      <BlogSection />
+
       {/* Capture leads last */}
       <NewsletterSection />
 
       <Footer />
 
-      <HomePromotionModal />
+      <HomePromotionModal initialPromo={featuredPromo} />
     </div>
   );
 }

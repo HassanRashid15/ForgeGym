@@ -55,7 +55,8 @@ import {
   Globe,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn, getNameInitials } from "@/lib/utils";
+import { cn, getNameInitials, formatRoleName } from "@/lib/utils";
+import { brandedTitle } from "@/lib/seo";
 import ThemeToggle from "@/components/marketing/ThemeToggle";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -296,22 +297,14 @@ function ShellChrome({ children }: { children: ReactNode }) {
 
   const gymBrand =
     user?.gymName?.trim() ||
-    (isSuperAdmin ? "Forge Gym" : isAdmin ? "Your Gym" : "Forge Gym");
+    "Forge Gym";
   const gymDetailHref = user?.gymOwnerId
     ? `/gyms/${user.gymOwnerId}`
-    : user?.id && isAdmin && !isSuperAdmin
+    : user?.id && isAdmin
       ? `/gyms/${user.id}`
       : "/dashboard";
 
-  const panelLabel = isSuperAdmin
-    ? "Super Admin"
-    : isAdmin
-      ? "Gym Owner"
-      : isTrainer
-        ? "Trainer panel"
-        : user?.role === "staff"
-          ? "Staff panel"
-          : "Member panel";
+  const panelLabel = `${formatRoleName(user?.role, isSuperAdmin)} panel`;
 
   const managementItems = isSuperAdmin
     ? superAdminItems
@@ -329,7 +322,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
       ...withGroup("Home", trainItems),
       ...(managementItems.length
         ? withGroup(
-            isSuperAdmin ? "Platform" : isTrainer ? "Fees" : "Gym",
+            isSuperAdmin || isAdmin ? "Platform" : isTrainer ? "Fees" : "Gym",
             managementItems,
           )
         : []),
@@ -352,6 +345,10 @@ function ShellChrome({ children }: { children: ReactNode }) {
       ...superAdminItems,
     ].find((item) => isActivePath(pathname, item.url))?.title ||
     (pathname.startsWith("/profile") ? "Profile" : "Dashboard");
+
+  useEffect(() => {
+    document.title = brandedTitle(pageTitle);
+  }, [pageTitle]);
 
   return (
     <>
@@ -378,7 +375,12 @@ function ShellChrome({ children }: { children: ReactNode }) {
                         className="absolute inset-0 size-full object-cover"
                       />
                     ) : (
-                      <Dumbbell className="size-4" strokeWidth={2} />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src="/images/forgeicon.png"
+                        alt="Forge Gym"
+                        className="size-6 object-contain"
+                      />
                     )}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
@@ -398,7 +400,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           <NavGroup label="Account" items={accountItems} pathname={pathname} />
           {managementItems.length > 0 && (
             <NavGroup
-              label={isSuperAdmin ? "Platform" : isTrainer ? "Fees" : "Gym"}
+              label={isSuperAdmin || isAdmin ? "Platform" : isTrainer ? "Fees" : "Gym"}
               items={managementItems}
               pathname={pathname}
             />
@@ -436,8 +438,8 @@ function ShellChrome({ children }: { children: ReactNode }) {
                       <span className="truncate font-semibold text-sidebar-foreground">
                         {user?.name || "Member"}
                       </span>
-                      <span className="truncate text-xs capitalize text-white">
-                        {isSuperAdmin ? "Super Admin" : user?.role || "customer"}
+                      <span className="truncate text-xs text-sidebar-foreground/70">
+                        {formatRoleName(user?.role, isSuperAdmin)}
                       </span>
                     </div>
                     <ChevronsUpDown className="ml-auto size-4 shrink-0" />
@@ -461,6 +463,9 @@ function ShellChrome({ children }: { children: ReactNode }) {
                         <span className="truncate font-semibold">{user?.name}</span>
                         <span className="truncate text-xs text-muted-foreground">
                           {user?.email}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {formatRoleName(user?.role, isSuperAdmin)}
                         </span>
                       </div>
                     </div>

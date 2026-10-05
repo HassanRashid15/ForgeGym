@@ -35,7 +35,7 @@ export async function GET() {
     {
       id: "superadmin",
       type: "superadmin",
-      label: "Forge Platform (Super Admin)",
+      label: "Forge Platform (Platform Owner)",
     },
     ...gyms.map((g) => ({
       id: g.ownerId,
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
 
   let recipientType: "superadmin" | "gym_admin" = "superadmin";
   let recipientUserId: string | null = null;
-  let recipientLabel = "Forge Platform (Super Admin)";
+  let recipientLabel = "Forge Platform (Platform Owner)";
 
   if (recipientId && recipientId !== "superadmin") {
     const gyms = await listApprovedGyms();

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dumbbell, Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
+import { Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const footerLinks = [
-  { name: "Classes & Schedule", path: "/classes" },
-  { name: "Membership Plans", path: "/membership" },
+  { name: "Gyms", path: "/gyms" },
+  { name: "Home", path: "/" },
   { name: "Our Trainers", path: "/trainers" },
+  { name: "Exercises", path: "/exercises" },
   { name: "About Us", path: "/about" },
 ];
 
@@ -18,7 +19,8 @@ const Footer = () => {
 
   return (
     <footer className="bg-card border-t border-border" suppressHydrationWarning>
-      <div className="container mx-auto px-4 py-16">
+      {/* Main Footer Content */}
+      <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
           {/* Brand */}
           <div>
@@ -93,17 +95,17 @@ const Footer = () => {
           <div>
             <h4 className="font-display text-xl mb-4">Contact</h4>
             <ul className="space-y-3">
-              <li className="flex items-center gap-3 text-muted-foreground text-sm">
+              {/* <li className="flex items-center gap-3 text-muted-foreground text-sm">
                 <MapPin className="w-4 h-4 text-primary" />
                 <span>123 Fitness Street, Downtown</span>
-              </li>
+              </li> */}
               <li className="flex items-center gap-3 text-muted-foreground text-sm">
                 <Phone className="w-4 h-4 text-primary" />
-                <span>(555) 123-4567</span>
+                <span>03349878525</span>
               </li>
               <li className="flex items-center gap-3 text-muted-foreground text-sm">
                 <Mail className="w-4 h-4 text-primary" />
-                <span>info@forgegym.com</span>
+                <span>hassanrashid0018@gmail.com</span>
               </li>
             </ul>
           </div>

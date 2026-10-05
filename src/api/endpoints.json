@@ -181,6 +181,16 @@
       "method": "POST",
       "path": "/api/admin/apply-migration",
       "description": "Apply a guarded admin SQL/migration helper"
+    },
+    "checkWelcomeModal": {
+      "method": "GET",
+      "path": "/api/admin/check-welcome-modal",
+      "description": "Check if approved admin should see the welcome modal"
+    },
+    "welcomeModal": {
+      "method": "POST",
+      "path": "/api/admin/welcome-modal",
+      "description": "Mark welcome modal shown and save Classes/Schedule/Membership feature flags"
     }
   },
   "profiles": {

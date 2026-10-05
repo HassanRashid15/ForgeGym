@@ -29,6 +29,8 @@ import {
   Bell,
 } from "lucide-react";
 import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
+import { ApproveGymOwnerModal } from "@/components/admin/ApproveGymOwnerModal";
+import type { AdminListItem } from "@/api/auth";
 
 /**
  * Super admin home — live platform stats from DB (gym owners + approvals).
@@ -39,6 +41,7 @@ export function SuperAdminDashboardHome() {
   const queryClient = useQueryClient();
   const { stats, loading, isFetching } = useSuperAdminPlatformStats(true);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<AdminListItem | null>(null);
 
   const approvalRate =
     stats.gymOwners > 0
@@ -52,11 +55,20 @@ export function SuperAdminDashboardHome() {
     ]);
   };
 
-  const handleApprove = async (userId: string) => {
+  const handleConfirmApprove = async (platformMonthlyFee: string) => {
+    if (!approveTarget) return;
+    const userId = approveTarget.user_id;
     setActingId(userId);
     try {
-      await approveAdminAccount(userId);
-      toast.success("Gym owner approved — 1-month free trial started.");
+      await approveAdminAccount(userId, {
+        platformMonthlyFee: platformMonthlyFee || null,
+      });
+      toast.success(
+        platformMonthlyFee
+          ? `Approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
+          : "Gym owner approved — 1-month free trial started.",
+      );
+      setApproveTarget(null);
       await refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve");
@@ -80,6 +92,15 @@ export function SuperAdminDashboardHome() {
 
   return (
     <div className="relative min-h-full">
+      <ApproveGymOwnerModal
+        admin={approveTarget}
+        open={!!approveTarget}
+        confirming={!!approveTarget && actingId === approveTarget.user_id}
+        onOpenChange={(open) => {
+          if (!open && !actingId) setApproveTarget(null);
+        }}
+        onConfirm={(fee) => void handleConfirmApprove(fee)}
+      />
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
         style={{
@@ -425,7 +446,7 @@ export function SuperAdminDashboardHome() {
                                 size="sm"
                                 className="h-8 flex-1 gap-1"
                                 disabled={busy || !!actingId}
-                                onClick={() => void handleApprove(row.user_id)}
+                                onClick={() => setApproveTarget(row)}
                               >
                                 {busy ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -482,7 +503,7 @@ export function SuperAdminDashboardHome() {
                                 size="sm"
                                 className="h-8 flex-1 gap-1"
                                 disabled={busy || !!actingId}
-                                onClick={() => void handleApprove(row.user_id)}
+                                onClick={() => setApproveTarget(row)}
                               >
                                 {busy ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

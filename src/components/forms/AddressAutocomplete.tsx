@@ -1,11 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, LocateFixed, MapPin, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { placeFromAddressLabel } from "@/lib/geo/place";
+import {
+  geocodeAddressClient,
+  reverseGeocodeClient,
+} from "@/lib/geo/geocode-client";
+
+/** Default map center (Lahore) when user places pin manually */
+const FALLBACK_PIN = { lat: 31.5204, lon: 74.3587 };
+
+const LeafletGymPinMap = dynamic(
+  () =>
+    import("@/components/gyms/LeafletGymPinMap").then((m) => m.LeafletGymPinMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-44 w-full items-center justify-center bg-zinc-900 text-xs text-zinc-500">
+        Loading map…
+      </div>
+    ),
+  },
+);
 
 export type AddressValue = {
   address: string;
@@ -49,11 +70,6 @@ function sessionToken(): string {
   return `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function staticMapUrl(lat: number, lon: number): string {
-  const pin = `pin-s+ef4444(${lon},${lat})`;
-  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pin}/${lon},${lat},16,0/640x280@2x?access_token=${MAPBOX_TOKEN}`;
-}
-
 function contextName(
   context: Record<string, { name?: string } | undefined> | undefined,
   key: string,
@@ -79,6 +95,7 @@ export function AddressAutocomplete({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRef = useRef(sessionToken());
   const suppressSearchRef = useRef(false);
+  const queryRef = useRef(value);
 
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -89,9 +106,12 @@ export function AddressAutocomplete({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [showManualMap, setShowManualMap] = useState(false);
+  const pinnedAddressRef = useRef<string | null>(null);
 
   useEffect(() => {
     setQuery(value);
+    queryRef.current = value;
   }, [value]);
 
   useEffect(() => {
@@ -102,8 +122,9 @@ export function AddressAutocomplete({
       Number.isFinite(initialLon)
     ) {
       setCoords({ lat: initialLat, lon: initialLon });
+      if (value.trim()) pinnedAddressRef.current = value.trim();
     }
-  }, [initialLat, initialLon]);
+  }, [initialLat, initialLon, value]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -195,9 +216,10 @@ export function AddressAutocomplete({
 
   const handleInputChange = (next: string) => {
     setQuery(next);
+    queryRef.current = next;
     setError(null);
-    setCoords(null);
-    emit(next, null);
+    // Keep previous pin until blur geocode / new pick — avoid wiping coords on every keystroke
+    emit(next, coords);
 
     if (suppressSearchRef.current) {
       suppressSearchRef.current = false;
@@ -207,7 +229,63 @@ export function AddressAutocomplete({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       void runSearch(next);
-    }, 300);
+      // Typed address (no suggestion pick) → lat/lng for Leaflet after pause
+      const trimmed = next.trim();
+      if (trimmed.length >= 8 && pinnedAddressRef.current !== trimmed) {
+        void (async () => {
+          const place = await geocodeAddressClient(trimmed);
+          if (!place) return;
+          // Ignore stale responses if user kept typing
+          if (queryRef.current.trim() !== trimmed) return;
+          const nextCoords = { lat: place.lat, lon: place.lon };
+          pinnedAddressRef.current = trimmed;
+          setCoords(nextCoords);
+          emit(trimmed, nextCoords, {
+            city: place.city,
+            region: place.region,
+            country: place.country,
+          });
+        })();
+      }
+    }, 700);
+  };
+
+  /** Resolve typed address → lat/lng (blur / save path when no Mapbox pick) */
+  const resolveTypedAddress = async () => {
+    const q = query.trim();
+    if (q.length < 4) return;
+    // Already pinned for this exact text
+    if (
+      coords &&
+      Number.isFinite(coords.lat) &&
+      Number.isFinite(coords.lon) &&
+      pinnedAddressRef.current === q
+    ) {
+      return;
+    }
+    setSearching(true);
+    setError(null);
+    try {
+      const place = await geocodeAddressClient(q);
+      if (!place) {
+        setError(
+          "Couldn’t find that address automatically — use my location, or place the pin on the map",
+        );
+        setShowManualMap(true);
+        return;
+      }
+      const nextCoords = { lat: place.lat, lon: place.lon };
+      pinnedAddressRef.current = q;
+      setCoords(nextCoords);
+      setShowManualMap(false);
+      emit(q, nextCoords, {
+        city: place.city,
+        region: place.region,
+        country: place.country,
+      });
+    } finally {
+      setSearching(false);
+    }
   };
 
   const pickSuggestion = async (s: Suggestion) => {
@@ -263,6 +341,7 @@ export function AddressAutocomplete({
       sessionRef.current = sessionToken();
       setQuery(address);
       setCoords({ lat, lon: lng });
+      pinnedAddressRef.current = address.trim();
       setSuggestions([]);
       setOpen(false);
       emit(address, { lat, lon: lng }, { city, region, country });
@@ -274,10 +353,6 @@ export function AddressAutocomplete({
   };
 
   const useMyLocation = () => {
-    if (!MAPBOX_TOKEN) {
-      setError("Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to enable maps");
-      return;
-    }
     if (!navigator.geolocation) {
       setError("Geolocation is not supported in this browser");
       return;
@@ -289,52 +364,75 @@ export function AddressAutocomplete({
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
         try {
-          const url = new URL(
-            "https://api.mapbox.com/search/searchbox/v1/reverse",
-          );
-          url.searchParams.set("longitude", String(lon));
-          url.searchParams.set("latitude", String(lat));
-          url.searchParams.set("access_token", MAPBOX_TOKEN);
-          url.searchParams.set("language", "en");
-          url.searchParams.set("limit", "1");
-          const res = await fetch(url.toString());
-          if (!res.ok) throw new Error("reverse failed");
-          const data = (await res.json()) as {
-            features?: Array<{
-              properties?: {
-                full_address?: string;
-                name?: string;
-                place_formatted?: string;
-                context?: Record<string, { name?: string }>;
-              };
-            }>;
-          };
-          const props = data.features?.[0]?.properties;
-          const address =
-            props?.full_address ||
-            [props?.name, props?.place_formatted].filter(Boolean).join(", ") ||
-            `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-          const city =
-            contextName(props?.context, "place") ||
-            contextName(props?.context, "locality") ||
-            placeFromAddressLabel(address).city;
-          const region =
-            contextName(props?.context, "region") ||
-            placeFromAddressLabel(address).region;
-          const country = contextName(props?.context, "country");
+          let address = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+          let city: string | null = null;
+          let region: string | null = null;
+          let country: string | null = null;
 
+          if (MAPBOX_TOKEN) {
+            try {
+              const url = new URL(
+                "https://api.mapbox.com/search/searchbox/v1/reverse",
+              );
+              url.searchParams.set("longitude", String(lon));
+              url.searchParams.set("latitude", String(lat));
+              url.searchParams.set("access_token", MAPBOX_TOKEN);
+              url.searchParams.set("language", "en");
+              url.searchParams.set("limit", "1");
+              const res = await fetch(url.toString());
+              if (res.ok) {
+                const data = (await res.json()) as {
+                  features?: Array<{
+                    properties?: {
+                      full_address?: string;
+                      name?: string;
+                      place_formatted?: string;
+                      context?: Record<string, { name?: string }>;
+                    };
+                  }>;
+                };
+                const props = data.features?.[0]?.properties;
+                address =
+                  props?.full_address ||
+                  [props?.name, props?.place_formatted]
+                    .filter(Boolean)
+                    .join(", ") ||
+                  address;
+                city =
+                  contextName(props?.context, "place") ||
+                  contextName(props?.context, "locality");
+                region = contextName(props?.context, "region");
+                country = contextName(props?.context, "country");
+              }
+            } catch {
+              /* Nominatim below */
+            }
+          }
+
+          if (address.includes(",") === false || /^\d/.test(address)) {
+            const rev = await reverseGeocodeClient(lat, lon);
+            if (rev?.label) {
+              address = rev.label;
+              city = rev.city ?? city;
+              region = rev.region ?? region;
+              country = rev.country ?? country;
+            }
+          }
+
+          const parsed = placeFromAddressLabel(address);
           suppressSearchRef.current = true;
           setQuery(address);
+          queryRef.current = address;
           setCoords({ lat, lon });
+          pinnedAddressRef.current = address.trim();
+          setShowManualMap(false);
           setSuggestions([]);
           setOpen(false);
-          emit(address, { lat, lon }, { city, region, country });
-        } catch {
-          const address = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-          suppressSearchRef.current = true;
-          setQuery(address);
-          setCoords({ lat, lon });
-          emit(address, { lat, lon });
+          emit(address, { lat, lon }, {
+            city: city || parsed.city,
+            region: region || parsed.region,
+            country,
+          });
         } finally {
           setLocating(false);
         }
@@ -342,32 +440,54 @@ export function AddressAutocomplete({
       (err) => {
         setLocating(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setError("Location permission denied — search an address instead");
+          setError(
+            "Location permission denied — place the pin on the map instead",
+          );
+          setShowManualMap(true);
         } else {
-          setError("Could not detect location — search an address instead");
+          setError("Could not detect location — place the pin on the map instead");
+          setShowManualMap(true);
         }
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
     );
   };
 
+  const placePinManually = () => {
+    setError(null);
+    setShowManualMap(true);
+    if (!coords) {
+      const next = { ...FALLBACK_PIN };
+      setCoords(next);
+      const label = query.trim() || "Dropped pin";
+      pinnedAddressRef.current = label;
+      emit(label, next, placeFromAddressLabel(label));
+    }
+  };
+
+  const handlePinMove = (lat: number, lon: number) => {
+    const next = { lat, lon };
+    setCoords(next);
+    setError(null);
+    const label = query.trim() || "Dropped pin";
+    pinnedAddressRef.current = label;
+    emit(label, next, placeFromAddressLabel(label));
+  };
+
   const clearAddress = () => {
     setQuery("");
+    queryRef.current = "";
     setCoords(null);
+    pinnedAddressRef.current = null;
+    setShowManualMap(false);
     setSuggestions([]);
     setOpen(false);
     setError(null);
     emit("", null);
   };
 
-  const mapSrc =
-    showMap &&
-    MAPBOX_TOKEN &&
-    coords &&
-    Number.isFinite(coords.lat) &&
-    Number.isFinite(coords.lon)
-      ? staticMapUrl(coords.lat, coords.lon)
-      : null;
+  const hasPin =
+    !!coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lon);
 
   return (
     <div ref={rootRef} className={cn("space-y-2", className)}>
@@ -381,16 +501,18 @@ export function AddressAutocomplete({
           aria-controls={listId}
           aria-autocomplete="list"
           autoComplete="street-address"
-          placeholder={
-            MAPBOX_TOKEN
-              ? placeholder
-              : "Set Mapbox token to enable address search"
-          }
+          placeholder={placeholder}
           value={query}
-          disabled={disabled || !MAPBOX_TOKEN}
+          disabled={disabled}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => {
             if (suggestions.length > 0) setOpen(true);
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              if (open) return;
+              void resolveTypedAddress();
+            }, 180);
           }}
           className={cn("pl-10 pr-20", inputClassName)}
         />
@@ -404,6 +526,7 @@ export function AddressAutocomplete({
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-zinc-400 hover:text-white"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={clearAddress}
               aria-label="Clear address"
             >
@@ -415,8 +538,9 @@ export function AddressAutocomplete({
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-zinc-400 hover:text-white"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={useMyLocation}
-            disabled={disabled || locating || !MAPBOX_TOKEN}
+            disabled={disabled || locating}
             aria-label="Use my location"
             title="Use my location"
           >
@@ -459,40 +583,48 @@ export function AddressAutocomplete({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-        <span>Search, pick a result to drop a pin, or detect your location</span>
+        <span>
+          Auto-pin from address, or place it yourself if lookup misses
+        </span>
         <Button
           type="button"
           variant="link"
           className="h-auto p-0 text-[11px] text-zinc-400 underline-offset-2 hover:text-zinc-200"
           onClick={useMyLocation}
-          disabled={disabled || locating || !MAPBOX_TOKEN}
+          disabled={disabled || locating}
         >
           {locating ? "Detecting…" : "Use my location"}
         </Button>
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto p-0 text-[11px] text-zinc-400 underline-offset-2 hover:text-zinc-200"
+          onClick={placePinManually}
+          disabled={disabled}
+        >
+          Place pin on map
+        </Button>
       </div>
 
-      {!MAPBOX_TOKEN && (
-        <p className="text-xs text-amber-400">
-          Add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in .env to enable Mapbox search +
-          map preview.
-        </p>
-      )}
       {error && <p className="text-xs text-amber-400">{error}</p>}
 
-      {mapSrc && (
+      {showMap && (hasPin || showManualMap) && coords ? (
         <div className="overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={mapSrc}
-            alt="Selected location map"
-            className="h-40 w-full object-cover"
+          <LeafletGymPinMap
+            gymName="Gym pin"
+            addressLabel={query.trim() || null}
+            latitude={coords.lat}
+            longitude={coords.lon}
+            compact
+            interactivePin
+            onPinChange={handlePinMove}
           />
           <p className="border-t border-zinc-800 px-3 py-1.5 text-[11px] text-zinc-500">
-            Pin saved at {coords!.lat.toFixed(5)}, {coords!.lon.toFixed(5)}. Pick
-            a Mapbox suggestion again to move it.
+            Pin at {coords.lat.toFixed(5)}, {coords.lon.toFixed(5)}. Click or
+            drag the pin to fine-tune, then Save Changes.
           </p>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

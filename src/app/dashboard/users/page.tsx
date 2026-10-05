@@ -38,7 +38,9 @@ import {
 import { ManagedUserDetails } from "@/components/admin/ManagedUserDetails";
 import { MembersTable } from "@/components/admin/MembersTable";
 import { OwnersSection, type FilterTab } from "@/components/admin/OwnersSection";
+import { ApproveGymOwnerModal } from "@/components/admin/ApproveGymOwnerModal";
 import { useAdminPresence } from "@/hooks/useAdminPresence";
+import { useLiveUsers } from "@/hooks/useLiveUsers";
 import { queryKeys } from "@/lib/query-keys";
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
 
@@ -75,6 +77,7 @@ export default function UsersPage() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<AdminListItem | null>(null);
   const [memberApprovingId, setMemberApprovingId] = useState<string | null>(null);
   const [memberRejectingId, setMemberRejectingId] = useState<string | null>(null);
   const [trainerApprovingId, setTrainerApprovingId] = useState<string | null>(null);
@@ -98,7 +101,6 @@ export default function UsersPage() {
       return data.users || [];
     },
     enabled: isAdmin && !isLoading,
-    refetchInterval: 8_000,
     refetchOnWindowFocus: true,
   });
 
@@ -127,6 +129,11 @@ export default function UsersPage() {
   const invalidateMonthly = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.monthlyMembers });
 
+  // Real-time updates for user changes
+  useLiveUsers(() => {
+    void Promise.all([invalidateUsers(), invalidateMonthly(), invalidateOwners()]);
+  });
+
   const nonTrainerMembers = useMemo(() => {
     const base = members.filter((row) => row.role !== "trainer");
     if (!isSuperAdmin) return base;
@@ -142,7 +149,7 @@ export default function UsersPage() {
         row.email,
         row.phone,
         row.role,
-        row.is_super_admin ? "super admin" : "",
+        row.is_super_admin ? "platform owner" : "",
         row.staff_type,
         row.gym_name,
       ]
@@ -225,11 +232,24 @@ export default function UsersPage() {
     await handleDeleteUser(ownerAsManaged(admin));
   };
 
-  const handleApprove = async (userId: string) => {
+  const handleApprove = (admin: AdminListItem) => {
+    setApproveTarget(admin);
+  };
+
+  const handleConfirmApprove = async (platformMonthlyFee: string) => {
+    if (!approveTarget) return;
+    const userId = approveTarget.user_id;
     setApprovingId(userId);
     try {
-      await approveAdminAccount(userId);
-      toast.success("Admin approved — they can sign in now.");
+      await approveAdminAccount(userId, {
+        platformMonthlyFee: platformMonthlyFee || null,
+      });
+      toast.success(
+        platformMonthlyFee
+          ? `Admin approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
+          : "Admin approved — 1-month free trial started.",
+      );
+      setApproveTarget(null);
       await invalidateOwners();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve admin");
@@ -368,12 +388,21 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <ApproveGymOwnerModal
+        admin={approveTarget}
+        open={!!approveTarget}
+        confirming={!!approveTarget && approvingId === approveTarget.user_id}
+        onOpenChange={(open) => {
+          if (!open && !approvingId) setApproveTarget(null);
+        }}
+        onConfirm={(fee) => void handleConfirmApprove(fee)}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Users</h1>
           <p className="mt-1 text-muted-foreground">
             {isSuperAdmin
-              ? "Approve gym owners and manage platform admins / super admins"
+              ? "Approve gym owners and manage platform admins / platform owners"
               : "Manage members, admins, and staff for your gym. Trainers are under Gym → Trainers."}
           </p>
         </div>
@@ -392,7 +421,7 @@ export default function UsersPage() {
         >
           <TabsList>
             <TabsTrigger value="owners">Gym owners</TabsTrigger>
-            <TabsTrigger value="members">Admins & super admins</TabsTrigger>
+            <TabsTrigger value="members">Admins & platform owners</TabsTrigger>
           </TabsList>
           <TabsContent value="owners" className="mt-6">
             <OwnersSection
@@ -434,7 +463,7 @@ export default function UsersPage() {
               onApproveMember={handleApproveMember}
               onRejectMember={handleRejectMember}
               showRole
-              title="Admins & super admins"
+              title="Admins & platform owners"
               description={
                 memberSearch.trim()
                   ? `${filteredMembers.length} of ${nonTrainerMembers.length} platform admin(s)`

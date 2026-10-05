@@ -18,7 +18,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X, User } from "lucide-react";
+import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X, User, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { createManagedUser, updateManagedUser, type CreateStaffPayload, type ManagedUser } from "@/api/admin-users";
 import { checkAccountExists, checkPhoneExists } from "@/api/auth";
@@ -636,6 +636,8 @@ export function AddUserWizard({
   const [phoneTaken, setPhoneTaken] = useState(false);
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [openSocials, setOpenSocials] = useState<SocialLinkDbKey[]>(() =>
     SOCIAL_LINK_FIELDS.filter((f) => !!editUser?.[f.key]).map((f) => f.key),
   );
@@ -1251,22 +1253,40 @@ export function AddUserWizard({
       {needsPassword && (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field id="password" label="Password *">
-            <Input
-              id="password"
-              type="password"
-              className={inputClass}
-              value={form.password}
-              onChange={(e) => set("password", e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className={inputClass}
+                value={form.password}
+                onChange={(e) => set("password", e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </Field>
           <Field id="confirm_password" label="Confirm password *">
-            <Input
-              id="confirm_password"
-              type="password"
-              className={inputClass}
-              value={form.confirm_password}
-              onChange={(e) => set("confirm_password", e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="confirm_password"
+                type={showConfirmPassword ? "text" : "password"}
+                className={inputClass}
+                value={form.confirm_password}
+                onChange={(e) => set("confirm_password", e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </Field>
         </div>
       )}
@@ -1282,7 +1302,7 @@ export function AddUserWizard({
         )}
         {form.role === "super_admin" && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Platform super admin with full Forge Gym access.
+            Platform owner with full Forge Gym access.
           </p>
         )}
         {form.role === "staff" && form.staff_type && (
@@ -1386,7 +1406,7 @@ export function AddUserWizard({
       )}
       {form.role === "super_admin" && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-          This person will get <strong>full platform</strong> super admin access.
+          This person will get <strong>full platform</strong> platform owner access.
         </p>
       )}
     </div>
@@ -1842,7 +1862,7 @@ export function AddUserWizard({
               ? form.role === "trainer"
                 ? "Edit trainer"
                 : form.role === "super_admin"
-                  ? "Edit super admin"
+                  ? "Edit platform owner"
                   : form.role === "admin"
                     ? "Edit admin"
                     : form.role === "staff"
@@ -1864,7 +1884,7 @@ export function AddUserWizard({
             {isEdit
               ? "Update details using the same stepped form. Click any step to jump and edit."
               : platformOnly
-                ? "Create a platform super admin or gym owner admin."
+                ? "Create a platform owner or gym owner admin."
                 : roleLocked && initialRole === "trainer"
                   ? "Add a trainer for your gym only."
                   : "Add a co-admin or staff member for your gym only."}
@@ -1990,9 +2010,9 @@ export function AddUserWizard({
                   {isEdit ? "Saving…" : "Creating…"}
                 </>
               ) : isEdit ? (
-                `Save ${form.role === "super_admin" ? "super admin" : form.role}`
+                `Save ${form.role === "super_admin" ? "platform owner" : form.role}`
               ) : (
-                `Create ${form.role === "super_admin" ? "super admin" : form.role}`
+                `Create ${form.role === "super_admin" ? "platform owner" : form.role}`
               )}
             </Button>
           )}

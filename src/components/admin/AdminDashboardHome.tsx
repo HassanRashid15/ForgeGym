@@ -37,6 +37,7 @@ import {
 import { getPendingMembers, type PendingMember } from "@/api/pending-members";
 import { queryKeys } from "@/lib/query-keys";
 import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
+import { checkWelcomeModal } from "@/api/admin-welcome";
 
 interface AdminDashboardHomeProps {
   initialWelcomeData?: {
@@ -86,14 +87,11 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
   useEffect(() => {
     if (welcomeModalChecked || !user?.id) return;
 
-    const checkWelcomeModal = async () => {
+    const check = async () => {
       try {
-        const response = await fetch(`/api/admin/check-welcome-modal`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.showModal === true) {
-            setShowWelcomeModal(true);
-          }
+        const data = await checkWelcomeModal();
+        if (data.showModal === true) {
+          setShowWelcomeModal(true);
         }
       } catch (error) {
         console.error("Failed to check welcome modal status:", error);
@@ -102,7 +100,7 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
       }
     };
 
-    checkWelcomeModal();
+    void check();
   }, [user?.id, welcomeModalChecked]);
 
   const handleApproveMember = async (userId: string) => {
@@ -561,7 +559,7 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
                       : facilityFee || "Not set"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Same fee as above — set by super admin for gym owner access.
+                    Same fee as above — set by platform owner for gym owner access.
                   </p>
                 </section>
               </div>

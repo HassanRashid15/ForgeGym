@@ -20,7 +20,9 @@ import { GymGallery } from "@/components/gyms/GymGallery";
 import { GymHeroImage } from "@/components/gyms/GymHeroImage";
 import { GymOfferingsTabs } from "@/components/gyms/GymOfferingsTabs";
 import { GymReviewsSection } from "@/components/gyms/GymReviewsSection";
+import { GymLocationMap } from "@/components/gyms/GymLocationMap";
 import { ShareGymButton } from "@/components/gyms/ShareGymButton";
+import { GymWhatsAppConnect } from "@/components/gyms/GymWhatsAppConnect";
 import {
   buildPageMetadata,
   gymSeoTitle,
@@ -93,6 +95,42 @@ export async function generateMetadata({ params }: PageProps) {
   });
 }
 
+function formatOperatingDays(days: string[] | null, count: number | null): string {
+  if (days && days.length > 0) {
+    const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const sortedDays = days.sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+
+    // Check for consecutive days
+    if (sortedDays.length >= 2) {
+      const firstIndex = dayOrder.indexOf(sortedDays[0]);
+      const lastIndex = dayOrder.indexOf(sortedDays[sortedDays.length - 1]);
+
+      // If all days are consecutive
+      const isConsecutive = sortedDays.every((day, i) => {
+        const expectedIndex = firstIndex + i;
+        return dayOrder.indexOf(day) === expectedIndex;
+      });
+
+      if (isConsecutive) {
+        if (sortedDays.length === 7) return "Daily";
+        if (sortedDays.length === 5 && firstIndex === 0 && lastIndex === 4) return "Mon-Fri";
+        if (sortedDays.length === 2 && firstIndex === 5 && lastIndex === 6) return "Sat-Sun";
+        return `${sortedDays[0]}-${sortedDays[sortedDays.length - 1]}`;
+      }
+    }
+
+    // If not consecutive, show first 2 and count
+    if (sortedDays.length > 2) {
+      return `${sortedDays.slice(0, 2).join(", ")} +${sortedDays.length - 2}`;
+    }
+    return sortedDays.join(", ");
+  }
+
+  // Fallback to count if no specific days
+  if (count) return `${count} days/week`;
+  return "—";
+}
+
 export default async function GymDetailPage({ params }: PageProps) {
   const { ownerId } = await params;
   const gym = await getGymByOwnerId(ownerId);
@@ -143,7 +181,7 @@ export default async function GymDetailPage({ params }: PageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background pb-0 text-foreground">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScript(
@@ -173,6 +211,28 @@ export default async function GymDetailPage({ params }: PageProps) {
 
         <div className="container relative z-10 mx-auto flex min-h-[78vh] flex-col justify-end px-4 pb-14 pt-28 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
           <div className="pointer-events-auto max-w-3xl">
+            {(gym.openingTime || gym.closingTime || gym.peakHours || gym.operatingDays) && (
+              <div className="absolute right-4 top-28 flex flex-col items-end gap-2 md:right-6 md:top-28 lg:right-8 lg:top-28">
+                <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-2 backdrop-blur-sm">
+                  {(gym.openingTime || gym.closingTime) && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-foreground">
+                        {gym.openingTime || "—"} - {gym.closingTime || "—"}
+                      </span>
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
+                    {gym.peakHours && (
+                      <p>Peak: {gym.peakHours}</p>
+                    )}
+                    {(gym.operatingDaysSpecific || gym.operatingDays) && (
+                      <p>{formatOperatingDays(gym.operatingDaysSpecific, gym.operatingDays)}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
               {gym.gymType && (
                 <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
@@ -235,15 +295,6 @@ export default async function GymDetailPage({ params }: PageProps) {
             )}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button asChild size="lg" variant="hero">
-                <Link href={registerHref}>
-                  Join this gym
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/gyms">Browse gyms</Link>
-              </Button>
               <ShareGymButton gymName={gym.gymName} ownerId={ownerId} />
             </div>
 
@@ -257,12 +308,12 @@ export default async function GymDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      <section className="border-y border-border bg-card/60">
-        <div className="container mx-auto grid grid-cols-2 gap-px bg-border md:grid-cols-4">
+      <section className="border-y border-border bg-background">
+        <div className="grid w-full grid-cols-2 gap-px bg-border md:grid-cols-4">
           {statTiles.map((item) => (
             <div
               key={item.label}
-              className="flex flex-col gap-2 bg-background px-5 py-6 md:px-8"
+              className="flex flex-col gap-2 bg-background px-5 py-6 md:px-8 lg:px-10"
             >
               <item.icon className="h-4 w-4 text-primary" />
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -384,6 +435,14 @@ export default async function GymDetailPage({ params }: PageProps) {
         </section>
       )}
 
+      <GymLocationMap
+        gymName={gym.gymName}
+        address={gym.address}
+        city={gym.gymCity}
+        latitude={gym.latitude}
+        longitude={gym.longitude}
+      />
+
       <section className="border-t border-border py-20 md:py-28">
         <div className="container mx-auto px-4 md:px-6 lg:px-8">
           <GymReviewsSection gymOwnerId={ownerId} />
@@ -407,6 +466,13 @@ export default async function GymDetailPage({ params }: PageProps) {
           </Button>
         </div>
       </section>
+
+      <GymWhatsAppConnect
+        gymName={gym.gymName}
+        phone={gym.phone}
+        optionalPhone={gym.emergencyContact}
+        joinGymHref={registerHref}
+      />
 
       <Footer />
     </div>

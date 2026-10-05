@@ -1,6 +1,13 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { pickSocialLinksFromRow } from "@/lib/social-links";
 
+/** Coerce DB number/string coords to finite numbers. */
+function parseCoord(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export type GymListItem = {
   ownerId: string;
   gymName: string;
@@ -19,6 +26,9 @@ export type GymListItem = {
   longitude: number | null;
   monthlyFee: string | null;
   trainerFee: string | null;
+  openingTime: string | null;
+  closingTime: string | null;
+  operatingDaysSpecific: string[] | null;
 };
 
 /** Public gym detail — contact phone for visitors (address comes from list item). */
@@ -33,6 +43,8 @@ export type GymDetail = GymListItem & {
   trainerFee: string | null;
   /** Gym contact number from owner profile */
   phone: string | null;
+  /** Optional second contact (emergency_contact on profile) */
+  emergencyContact: string | null;
 };
 
 /** Prefer public.gyms catalog; fall back to profiles (no PII) pre-migration. */
@@ -43,7 +55,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
   const { data: gymRows, error: gymError } = await service
     .from("gyms")
     .select(
-      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, owner_display_name, avatar_url, main_image_url, latitude, longitude, monthly_fee, trainer_fee",
+      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, owner_display_name, avatar_url, main_image_url, latitude, longitude, monthly_fee, trainer_fee, opening_time, closing_time, operating_days_specific",
     )
     .eq("is_published", true)
     .order("name", { ascending: true });
@@ -63,7 +75,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
       const { data: ownerProfiles } = await service
         .from("profiles")
         .select(
-          "user_id, admin_approved, is_super_admin, gym_main_image_url, address, gym_latitude, gym_longitude",
+          "user_id, admin_approved, is_super_admin, gym_main_image_url, address, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
         )
         .in("user_id", ownerIds);
 
@@ -85,15 +97,9 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
       return validGyms.map((row) => {
         const profile = profileByUser.get(row.owner_user_id);
         const profileLat =
-          typeof (profile as { gym_latitude?: number | null } | undefined)?.gym_latitude ===
-          "number"
-            ? (profile as { gym_latitude: number }).gym_latitude
-            : null;
+          parseCoord((profile as { gym_latitude?: unknown } | undefined)?.gym_latitude);
         const profileLng =
-          typeof (profile as { gym_longitude?: number | null } | undefined)?.gym_longitude ===
-          "number"
-            ? (profile as { gym_longitude: number }).gym_longitude
-            : null;
+          parseCoord((profile as { gym_longitude?: unknown } | undefined)?.gym_longitude);
         return {
           ownerId: row.owner_user_id,
           gymName: row.name,
@@ -111,12 +117,13 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
           avatarUrl: row.avatar_url,
           gymMainImageUrl:
             row.main_image_url || profile?.gym_main_image_url || null,
-          latitude:
-            typeof row.latitude === "number" ? row.latitude : profileLat,
-          longitude:
-            typeof row.longitude === "number" ? row.longitude : profileLng,
+          latitude: parseCoord(row.latitude) ?? profileLat,
+          longitude: parseCoord(row.longitude) ?? profileLng,
           monthlyFee: (row as { monthly_fee?: string | null }).monthly_fee || null,
           trainerFee: (row as { trainer_fee?: string | null }).trainer_fee || null,
+          openingTime: row.opening_time || (profile as { gym_opening_time?: string | null } | undefined)?.gym_opening_time || null,
+          closingTime: row.closing_time || (profile as { gym_closing_time?: string | null } | undefined)?.gym_closing_time || null,
+          operatingDaysSpecific: row.operating_days_specific || (profile as { gym_operating_days_specific?: string[] | null } | undefined)?.gym_operating_days_specific || null,
         };
       });
     }
@@ -135,7 +142,7 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
   const { data: profiles, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, address, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee",
+      "user_id, full_name, gym_name, gym_type, gym_city, address, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee, gym_opening_time, gym_closing_time, gym_operating_days_specific",
     )
     .in("user_id", adminIds)
     .eq("admin_approved", true)
@@ -161,10 +168,13 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
       ownerName: p.full_name,
       avatarUrl: p.avatar_url,
       gymMainImageUrl: p.gym_main_image_url || null,
-      latitude: typeof p.gym_latitude === "number" ? p.gym_latitude : null,
-      longitude: typeof p.gym_longitude === "number" ? p.gym_longitude : null,
+      latitude: parseCoord(p.gym_latitude),
+      longitude: parseCoord(p.gym_longitude),
       monthlyFee: (p as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
       trainerFee: (p as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
+      openingTime: (p as { gym_opening_time?: string | null }).gym_opening_time || null,
+      closingTime: (p as { gym_closing_time?: string | null }).gym_closing_time || null,
+      operatingDaysSpecific: (p as { gym_operating_days_specific?: string[] | null }).gym_operating_days_specific || null,
     }));
 }
 
@@ -177,7 +187,7 @@ export async function getGymByOwnerId(
   const { data: gymRow, error: gymError } = await service
     .from("gyms")
     .select(
-      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, operating_days, owner_display_name, avatar_url, bio, is_published, main_image_url, optional_images_urls, video_url, video_file_url, monthly_fee, trainer_fee, latitude, longitude",
+      "owner_user_id, name, gym_type, city, facilities, services, peak_hours, member_capacity, years_operating, operating_days, owner_display_name, avatar_url, bio, is_published, main_image_url, optional_images_urls, video_url, video_file_url, monthly_fee, trainer_fee, latitude, longitude, opening_time, closing_time, operating_days_specific",
     )
     .eq("owner_user_id", ownerId)
     .eq("is_published", true)
@@ -196,7 +206,7 @@ export async function getGymByOwnerId(
     const { data: profile } = await service
       .from("profiles")
       .select(
-        "admin_approved, is_super_admin, bio, avatar_url, full_name, address, phone, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
+        "admin_approved, is_super_admin, bio, avatar_url, full_name, address, phone, emergency_contact, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
       )
       .eq("user_id", ownerId)
       .maybeSingle();
@@ -208,14 +218,12 @@ export async function getGymByOwnerId(
     const optionalFromGym = (gymRow.optional_images_urls || []).filter(Boolean);
     const optionalFromProfile = (profile.gym_optional_images_urls || []).filter(Boolean);
 
-    const profileLat =
-      typeof (profile as { gym_latitude?: number | null }).gym_latitude === "number"
-        ? (profile as { gym_latitude: number }).gym_latitude
-        : null;
-    const profileLng =
-      typeof (profile as { gym_longitude?: number | null }).gym_longitude === "number"
-        ? (profile as { gym_longitude: number }).gym_longitude
-        : null;
+    const profileLat = parseCoord(
+      (profile as { gym_latitude?: unknown }).gym_latitude,
+    );
+    const profileLng = parseCoord(
+      (profile as { gym_longitude?: unknown }).gym_longitude,
+    );
 
     return {
       ownerId: gymRow.owner_user_id,
@@ -243,19 +251,23 @@ export async function getGymByOwnerId(
         (gymRow as { trainer_fee?: string | null }).trainer_fee ||
         (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee ||
         null,
-      latitude:
-        typeof gymRow.latitude === "number" ? gymRow.latitude : profileLat,
-      longitude:
-        typeof gymRow.longitude === "number" ? gymRow.longitude : profileLng,
+      latitude: parseCoord(gymRow.latitude) ?? profileLat,
+      longitude: parseCoord(gymRow.longitude) ?? profileLng,
       address: (profile as { address?: string | null }).address?.trim() || null,
       phone: (profile as { phone?: string | null }).phone?.trim() || null,
+      emergencyContact:
+        (profile as { emergency_contact?: string | null }).emergency_contact?.trim() ||
+        null,
+      openingTime: gymRow.opening_time || (profile as { gym_opening_time?: string | null } | undefined)?.gym_opening_time || null,
+      closingTime: gymRow.closing_time || (profile as { gym_closing_time?: string | null } | undefined)?.gym_closing_time || null,
+      operatingDaysSpecific: gymRow.operating_days_specific || (profile as { gym_operating_days_specific?: string[] | null } | undefined)?.gym_operating_days_specific || null,
     };
   }
 
   const { data: profile, error } = await service
     .from("profiles")
     .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, address, phone, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude",
+      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, address, phone, emergency_contact, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
     )
     .eq("user_id", ownerId)
     .maybeSingle();
@@ -292,16 +304,16 @@ export async function getGymByOwnerId(
     gymVideoFileUrl: (profile as { gym_video_file_url?: string | null }).gym_video_file_url || null,
     monthlyFee: (profile as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
     trainerFee: (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
-    latitude:
-      typeof (profile as { gym_latitude?: number | null }).gym_latitude === "number"
-        ? (profile as { gym_latitude: number }).gym_latitude
-        : null,
-    longitude:
-      typeof (profile as { gym_longitude?: number | null }).gym_longitude === "number"
-        ? (profile as { gym_longitude: number }).gym_longitude
-        : null,
+    latitude: parseCoord((profile as { gym_latitude?: unknown }).gym_latitude),
+    longitude: parseCoord((profile as { gym_longitude?: unknown }).gym_longitude),
     address: (profile as { address?: string | null }).address?.trim() || null,
     phone: (profile as { phone?: string | null }).phone?.trim() || null,
+    emergencyContact:
+      (profile as { emergency_contact?: string | null }).emergency_contact?.trim() ||
+      null,
+    openingTime: (profile as { gym_opening_time?: string | null }).gym_opening_time || null,
+    closingTime: (profile as { gym_closing_time?: string | null }).gym_closing_time || null,
+    operatingDaysSpecific: (profile as { gym_operating_days_specific?: string[] | null }).gym_operating_days_specific || null,
   };
 }
 

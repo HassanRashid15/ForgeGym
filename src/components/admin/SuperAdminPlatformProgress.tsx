@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSuperAdminPlatformStats } from "@/hooks/useSuperAdminPlatformStats";
 import { approveAdminAccount, rejectAdminAccount } from "@/api/auth";
+import type { AdminListItem } from "@/api/auth";
 import { queryKeys } from "@/lib/query-keys";
+import { ApproveGymOwnerModal } from "@/components/admin/ApproveGymOwnerModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +35,7 @@ export function SuperAdminPlatformProgress() {
   const queryClient = useQueryClient();
   const { stats, loading, isFetching, error } = useSuperAdminPlatformStats(true);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<AdminListItem | null>(null);
 
   const refresh = async () => {
     await Promise.all([
@@ -41,11 +44,20 @@ export function SuperAdminPlatformProgress() {
     ]);
   };
 
-  const handleApprove = async (userId: string) => {
+  const handleConfirmApprove = async (platformMonthlyFee: string) => {
+    if (!approveTarget) return;
+    const userId = approveTarget.user_id;
     setActingId(userId);
     try {
-      await approveAdminAccount(userId);
-      toast.success("Gym owner approved — saved in database.");
+      await approveAdminAccount(userId, {
+        platformMonthlyFee: platformMonthlyFee || null,
+      });
+      toast.success(
+        platformMonthlyFee
+          ? `Approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
+          : "Gym owner approved — 1-month free trial started.",
+      );
+      setApproveTarget(null);
       await refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to approve");
@@ -86,6 +98,15 @@ export function SuperAdminPlatformProgress() {
 
   return (
     <div className="space-y-6 p-6">
+      <ApproveGymOwnerModal
+        admin={approveTarget}
+        open={!!approveTarget}
+        confirming={!!approveTarget && actingId === approveTarget.user_id}
+        onOpenChange={(open) => {
+          if (!open && !actingId) setApproveTarget(null);
+        }}
+        onConfirm={(fee) => void handleConfirmApprove(fee)}
+      />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2">
@@ -244,7 +265,7 @@ export function SuperAdminPlatformProgress() {
                         size="sm"
                         className="h-8 gap-1"
                         disabled={busy || !!actingId}
-                        onClick={() => void handleApprove(row.user_id)}
+                        onClick={() => setApproveTarget(row)}
                       >
                         {busy ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -336,7 +357,7 @@ export function SuperAdminPlatformProgress() {
                             size="sm"
                             className="h-8"
                             disabled={busy || !!actingId}
-                            onClick={() => void handleApprove(row.user_id)}
+                            onClick={() => setApproveTarget(row)}
                           >
                             {busy ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />

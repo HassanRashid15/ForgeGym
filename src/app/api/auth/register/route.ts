@@ -648,7 +648,7 @@ export async function POST(request: Request) {
     freeTrialOffered: requestedRole === "admin",
     freeTrialNote:
       requestedRole === "admin"
-        ? "After email verification and super admin approval, you get 1 month free trial."
+        ? "After email verification and platform owner approval, you get 1 month free trial."
         : null,
     profileSynced,
     verificationEmailSent,

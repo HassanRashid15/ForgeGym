@@ -39,6 +39,9 @@ export type Database = {
           trainer_fee: string | null
           latitude: number | null
           longitude: number | null
+          opening_time: string | null
+          closing_time: string | null
+          operating_days_specific: string[] | null
           created_at: string
           updated_at: string
         }
@@ -66,6 +69,9 @@ export type Database = {
           trainer_fee?: string | null
           latitude?: number | null
           longitude?: number | null
+          opening_time?: string | null
+          closing_time?: string | null
+          operating_days_specific?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -93,6 +99,9 @@ export type Database = {
           trainer_fee?: string | null
           latitude?: number | null
           longitude?: number | null
+          opening_time?: string | null
+          closing_time?: string | null
+          operating_days_specific?: string[] | null
           created_at?: string
           updated_at?: string
         }
@@ -352,6 +361,9 @@ export type Database = {
           gym_trainer_fee: string | null
           gym_latitude: number | null
           gym_longitude: number | null
+          gym_opening_time: string | null
+          gym_closing_time: string | null
+          gym_operating_days_specific: string[] | null
           preferred_trainer_id: string | null
           pending_trainer_id: string | null
           trainer_request_pending: boolean
@@ -445,6 +457,9 @@ export type Database = {
           gym_trainer_fee?: string | null
           gym_latitude?: number | null
           gym_longitude?: number | null
+          gym_opening_time?: string | null
+          gym_closing_time?: string | null
+          gym_operating_days_specific?: string[] | null
           preferred_trainer_id?: string | null
           pending_trainer_id?: string | null
           trainer_request_pending?: boolean
@@ -538,6 +553,9 @@ export type Database = {
           gym_trainer_fee?: string | null
           gym_latitude?: number | null
           gym_longitude?: number | null
+          gym_opening_time?: string | null
+          gym_closing_time?: string | null
+          gym_operating_days_specific?: string[] | null
           preferred_trainer_id?: string | null
           pending_trainer_id?: string | null
           trainer_request_pending?: boolean

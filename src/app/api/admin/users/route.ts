@@ -136,6 +136,26 @@ function buildProfilePayload(
       : null;
   const loginEnabled = body.login_enabled === false ? false : true;
   const role = String(body.role || "staff");
+  const isVisitor = body.is_visitor === true;
+
+  // Handle visitor trial logic
+  let trialOffered = false;
+  let trialStartsAt = null;
+  let trialEndsAt = null;
+
+  if (isVisitor) {
+    trialOffered = true;
+    const now = new Date();
+    trialStartsAt = now.toISOString();
+    const oneDayLater = new Date(now);
+    oneDayLater.setDate(oneDayLater.getDate() + 1);
+    trialEndsAt = oneDayLater.toISOString();
+  } else if (accountStatus !== "trial") {
+    // Not a visitor and not trial status - ensure no trial fields
+    trialOffered = false;
+    trialStartsAt = null;
+    trialEndsAt = null;
+  }
 
   return {
     id: userId,
@@ -215,6 +235,9 @@ function buildProfilePayload(
         : body.membership_type
           ? String(body.membership_type)
           : "basic",
+    trial_offered: trialOffered,
+    trial_starts_at: trialStartsAt,
+    trial_ends_at: trialEndsAt,
     updated_at: new Date().toISOString(),
   };
 }
@@ -371,6 +394,9 @@ export async function GET(request: Request) {
       monthly_fee_label: monthlyFeeLabel,
       gym_monthly_fee: baseMonthlyFee,
       gym_trainer_fee: trainerFee,
+      is_frozen: row.is_frozen === true,
+      frozen_until: (row.frozen_until as string | null) || null,
+      is_visitor: row.is_visitor === true,
     };
   });
 
@@ -479,6 +505,11 @@ export async function POST(request: Request) {
   let password = String(body.password || "");
   if (role === "staff" && !loginEnabled) {
     password = password || `NoLogin_${randomBytes(12).toString("hex")}`;
+  } else if (role === "user" && !password) {
+    return NextResponse.json(
+      { error: "Password is required for members" },
+      { status: 400 },
+    );
   } else if (!password || password.length < 6) {
     return NextResponse.json(
       { error: "Password must be at least 6 characters" },
@@ -493,6 +524,7 @@ export async function POST(request: Request) {
   const creatingSuperAdmin = role === "super_admin";
   const creatingPlatformAdmin = isSuperAdmin && role === "admin";
   const dbRole: AppStaffRole = creatingSuperAdmin ? "admin" : (role as AppStaffRole);
+  const isVisitor = body.is_visitor === true;
 
   // Block duplicate emails for every create path (trainer / staff / member / admin)
   {
@@ -618,7 +650,7 @@ export async function POST(request: Request) {
 
   const profilePayload = {
     ...buildProfilePayload(
-      { ...body, role: dbRole, login_enabled: loginEnabled },
+      { ...body, role: dbRole, login_enabled: loginEnabled, is_visitor: isVisitor },
       userId,
       email,
       {
@@ -663,6 +695,7 @@ export async function POST(request: Request) {
     userId,
     creatingSuperAdmin ? "super_admin" : dbRole,
     creatingSuperAdmin || creatingPlatformAdmin ? null : gymName,
+    isVisitor,
   );
 
   cacheInvalidate("admin:users:");
@@ -690,9 +723,11 @@ export async function POST(request: Request) {
             ? "Gym admin created for your gym. Verification email sent."
             : role === "trainer"
               ? "Trainer added to your gym."
-              : loginEnabled
-                ? "Staff member created."
-                : "Staff member created (login disabled).",
+              : isVisitor
+                ? "Visitor created with 1-day trial access."
+                : loginEnabled
+                  ? "Staff member created."
+                  : "Staff member created (login disabled).",
     },
     { status: 201 },
   );
@@ -912,6 +947,58 @@ export async function PATCH(request: Request) {
     });
   }
 
+  if (body.action === "freeze" || body.action === "unfreeze") {
+    // Super admins can freeze anyone except themselves
+    // Gym admins can freeze staff, trainers, users, and other admins in their gym (except themselves)
+    const canFreeze = isSuperAdmin || (
+      !isSuperAdmin &&
+      targetId !== user.id &&
+      targetGymOwnerId === gymOwnerId &&
+      (targetRole === "user" || targetRole === "staff" || targetRole === "trainer" || targetRole === "admin")
+    );
+
+    if (!canFreeze) {
+      return NextResponse.json(
+        { error: "You cannot freeze this account" },
+        { status: 403 },
+      );
+    }
+
+    const freezing = body.action === "freeze";
+    const { data: updated, error } = await supabase
+      .from("profiles")
+      .update({
+        is_frozen: freezing,
+        frozen_until: freezing ? null : null, // Can be extended to support temporary freezes
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("user_id", targetId)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (!updated) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    cacheInvalidate("admin:users:");
+    cacheInvalidate("admin:monthly");
+
+    return NextResponse.json({
+      user: {
+        ...updated,
+        role: targetRole,
+        is_super_admin: updated?.is_super_admin === true,
+        admin_approved: updated?.admin_approved === true,
+      },
+      action: body.action,
+    });
+  }
+
+  const gym = await getGymByOwnerId(gymOwnerId);
+
   const profileUpdate: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   };
@@ -930,6 +1017,18 @@ export async function PATCH(request: Request) {
   if (body.account_status !== undefined) {
     assign("account_status", String(body.account_status));
     assign("membership_status", String(body.account_status));
+    // If converting from trial visitor to member, clear trial fields
+    if (String(body.account_status) !== "trial") {
+      assign("trial_offered", false);
+      assign("trial_starts_at", null);
+      assign("trial_ends_at", null);
+    }
+  }
+  if (body.is_visitor !== undefined && !body.is_visitor) {
+    // Explicitly converting visitor to member
+    assign("trial_offered", false);
+    assign("trial_starts_at", null);
+    assign("trial_ends_at", null);
   }
   if (body.staff_type !== undefined)
     assign("staff_type", body.staff_type ? String(body.staff_type).trim() : null);
@@ -1115,6 +1214,7 @@ export async function PATCH(request: Request) {
     assign("assigned_members", splitList(body.assigned_members));
   if (body.system_permissions !== undefined)
     assign("system_permissions", splitList(body.system_permissions));
+  if (body.is_visitor !== undefined) assign("is_visitor", !!body.is_visitor);
 
   for (const field of SOCIAL_LINK_FIELDS) {
     if (body[field.key] !== undefined) {

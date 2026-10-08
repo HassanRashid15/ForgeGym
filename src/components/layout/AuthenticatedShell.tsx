@@ -88,6 +88,8 @@ type NavItem = {
   comingSoon?: boolean;
   /** When set, link only shows if the gym enabled that feature */
   featureKey?: "classes" | "schedule" | "membership";
+  /** When set, link only shows if user is an approved gym member */
+  requiresMembership?: boolean;
 };
 
 const trainItemsBase: NavItem[] = [
@@ -95,14 +97,14 @@ const trainItemsBase: NavItem[] = [
   { title: "Classes", url: "/dashboard/classes", icon: Dumbbell, featureKey: "classes" },
   { title: "Schedule", url: "/dashboard/schedule", icon: Calendar, featureKey: "schedule" },
   { title: "Membership", url: "/dashboard/membership", icon: CreditCard, featureKey: "membership" },
-  { title: "Progress", url: "/dashboard/progress", icon: BarChart3 },
-  { title: "Attendance", url: "/dashboard/attendance", icon: Clock },
-  { title: "Feedback", url: "/dashboard/feedback", icon: Star },
-  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+  { title: "Progress", url: "/dashboard/progress", icon: BarChart3, requiresMembership: true },
+  { title: "Attendance", url: "/dashboard/attendance", icon: Clock, requiresMembership: true },
+  { title: "Feedback", url: "/dashboard/feedback", icon: Star, requiresMembership: true },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell, requiresMembership: true },
 ];
 
 const accountItems: NavItem[] = [
-  { title: "Settings", url: "/profile?tab=settings", icon: Settings },
+  { title: "Settings", url: "/profile?tab=settings", icon: Settings, requiresMembership: true },
   { title: "Site Home", url: "/", icon: Home },
 ];
 
@@ -137,10 +139,12 @@ function NavGroup({
   label,
   items,
   pathname,
+  requiresMembership,
 }: {
   label: string;
   items: NavItem[];
   pathname: string;
+  requiresMembership?: boolean;
 }) {
   return (
     <SidebarGroup>
@@ -150,6 +154,7 @@ function NavGroup({
           {items.map((item) => {
             const active = isActivePath(pathname, item.url);
             const Icon = item.icon;
+            const isLockedDueToMembership = item.requiresMembership && !requiresMembership;
 
             if (item.comingSoon) {
               return (
@@ -159,7 +164,7 @@ function NavGroup({
                       <SidebarMenuButton
                         type="button"
                         aria-disabled
-                        tooltip="Coming soon"
+                        tooltip={isLockedDueToMembership ? "Join a gym to unlock" : "Coming soon"}
                         className="cursor-not-allowed text-sidebar-foreground/55 hover:bg-transparent hover:text-sidebar-foreground/55"
                         onClick={(e) => e.preventDefault()}
                       >
@@ -172,7 +177,7 @@ function NavGroup({
                       </SidebarMenuButton>
                     </TooltipTrigger>
                     <TooltipContent side="right" align="center" sideOffset={8}>
-                      Coming soon
+                      {isLockedDueToMembership ? "Join a gym to unlock" : "Coming soon"}
                     </TooltipContent>
                   </Tooltip>
                 </SidebarMenuItem>
@@ -268,7 +273,7 @@ function formatNotificationClock(timestamp: string): string {
 }
 
 function ShellChrome({ children }: { children: ReactNode }) {
-  const { user, logout, isAdmin, isSuperAdmin, isTrainer } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isTrainer, isVisitor } = useAuth();
   const pathname = usePathname();
   const { unreadCount, isConnected, notifications } = useRealtimeNotifications({
     enabled: !!user?.id,
@@ -286,14 +291,47 @@ function ShellChrome({ children }: { children: ReactNode }) {
   const featureScheduleEnabled = user?.featureScheduleEnabled === true;
   const featureMembershipEnabled = user?.featureMembershipEnabled === true;
 
+  // Check if user is a customer (not admin/trainer/staff)
+  const isCustomer = user?.role === "user" || user?.role === "customer";
+
+  // Check if user is an approved gym member
+  const isApprovedMember = Boolean(
+    isCustomer &&
+    !isVisitor &&
+    user?.gymOwnerId &&
+    user?.gymName &&
+    user?.membershipStatus === "active"
+  );
+
   const trainItems = useMemo(() => {
-    return trainItemsBase.filter((item) => {
-      if (item.featureKey === "classes") return featureClassesEnabled;
-      if (item.featureKey === "schedule") return featureScheduleEnabled;
-      if (item.featureKey === "membership") return featureMembershipEnabled;
-      return true;
+    return trainItemsBase.map((item) => {
+      // Only apply membership locks for customers
+      if (isCustomer && item.requiresMembership && !isApprovedMember) {
+        return { ...item, comingSoon: true };
+      }
+      // Filter based on feature flags
+      if (item.featureKey === "classes" && !featureClassesEnabled) {
+        return { ...item, comingSoon: true };
+      }
+      if (item.featureKey === "schedule" && !featureScheduleEnabled) {
+        return { ...item, comingSoon: true };
+      }
+      if (item.featureKey === "membership" && !featureMembershipEnabled) {
+        return { ...item, comingSoon: true };
+      }
+      return item;
     });
-  }, [featureClassesEnabled, featureScheduleEnabled, featureMembershipEnabled]);
+  }, [featureClassesEnabled, featureScheduleEnabled, featureMembershipEnabled, isApprovedMember, isCustomer]);
+
+  const filteredAccountItems = useMemo(() => {
+    return accountItems.map((item) => {
+      // Only apply membership locks for customers
+      if (isCustomer && item.requiresMembership && !isApprovedMember) {
+        return { ...item, comingSoon: true };
+      }
+      return item;
+    });
+  }, [isApprovedMember, isCustomer]);
 
   const gymBrand =
     user?.gymName?.trim() ||
@@ -304,7 +342,11 @@ function ShellChrome({ children }: { children: ReactNode }) {
       ? `/gyms/${user.id}`
       : "/dashboard";
 
-  const panelLabel = `${formatRoleName(user?.role, isSuperAdmin)} panel`;
+  const panelLabel = isAdmin || isTrainer || isSuperAdmin
+    ? `${formatRoleName(user?.role, isSuperAdmin)} panel`
+    : isApprovedMember
+      ? "Member panel"
+      : "Visitor panel";
 
   const managementItems = isSuperAdmin
     ? superAdminItems
@@ -326,7 +368,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
             managementItems,
           )
         : []),
-      ...withGroup("Account", accountItems),
+      ...withGroup("Account", filteredAccountItems),
       {
         title: "Profile",
         url: "/profile",
@@ -334,12 +376,12 @@ function ShellChrome({ children }: { children: ReactNode }) {
         icon: Users,
       },
     ];
-  }, [managementItems, isSuperAdmin, isTrainer, trainItems]);
+  }, [managementItems, isSuperAdmin, isTrainer, trainItems, filteredAccountItems]);
 
   const pageTitle =
     [
       ...trainItems,
-      ...accountItems,
+      ...filteredAccountItems,
       ...gymOwnerItems,
       ...trainerItems,
       ...superAdminItems,
@@ -396,13 +438,14 @@ function ShellChrome({ children }: { children: ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent>
-          <NavGroup label="Home" items={trainItems} pathname={pathname} />
-          <NavGroup label="Account" items={accountItems} pathname={pathname} />
+          <NavGroup label="Home" items={trainItems} pathname={pathname} requiresMembership={isCustomer ? isApprovedMember : true} />
+          <NavGroup label="Account" items={filteredAccountItems} pathname={pathname} requiresMembership={isCustomer ? isApprovedMember : true} />
           {managementItems.length > 0 && (
             <NavGroup
               label={isSuperAdmin || isAdmin ? "Platform" : isTrainer ? "Fees" : "Gym"}
               items={managementItems}
               pathname={pathname}
+              requiresMembership={true}
             />
           )}
         </SidebarContent>

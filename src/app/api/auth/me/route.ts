@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     db.from("user_roles").select("role").eq("user_id", user.id),
     (db.from("profiles") as any)
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, trial_offered, trial_starts_at, trial_ends_at, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, is_visitor, trial_offered, trial_starts_at, trial_ends_at, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     membership_type?: string | null;
     admin_approved?: boolean | null;
     is_verified?: boolean | null;
+    is_visitor?: boolean | null;
     trial_offered?: boolean | null;
     trial_starts_at?: string | null;
     trial_ends_at?: string | null;
@@ -154,6 +155,7 @@ export async function GET(request: Request) {
     isSuperAdmin,
     admin_approved: isSuperAdmin || profile?.admin_approved === true,
     is_verified: isSuperAdmin || profileRow?.is_verified === true,
+    isVisitor: profileRow?.is_visitor === true,
     avatar: profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
     gymName,
     gymOwnerId,

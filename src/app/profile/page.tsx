@@ -2032,6 +2032,23 @@ export default function ProfilePage() {
                       <Button className="bg-[#EF1111] hover:bg-[#C90808]">Browse Available Gyms</Button>
                     </Link>
                   </div>
+                  <div className="p-6 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wallet className="h-5 w-5 text-primary" />
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        Monthly fee
+                      </h3>
+                    </div>
+                    <p className="font-display text-2xl text-foreground">
+                      Fee not set
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Data fee will be charged if you become member
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Join a gym to see fee details
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             )}

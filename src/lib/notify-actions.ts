@@ -68,8 +68,8 @@ export const notify = {
   memberPending: (userId: string, gymName?: string | null) =>
     safeNotify(userId, actionTemplates.memberPending(gymName || "the gym")),
 
-  accountCreated: (userId: string, role: string, gymName?: string | null) =>
-    safeNotify(userId, actionTemplates.accountCreated(role, gymName || "the gym")),
+  accountCreated: (userId: string, role: string, gymName?: string | null, isVisitor?: boolean) =>
+    safeNotify(userId, actionTemplates.accountCreated(role, gymName || "the gym", isVisitor)),
 
   roleChanged: (userId: string, role: string) =>
     safeNotify(userId, actionTemplates.roleChanged(role)),

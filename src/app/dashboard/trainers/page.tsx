@@ -154,11 +154,14 @@ export default function TrainersPage() {
         deletingId={deletingId}
         approvingId={null}
         rejectingId={null}
+        freezingId={null}
         onView={setViewing}
         onEdit={openEdit}
         onDelete={handleDelete}
         onApproveMember={() => undefined}
         onRejectMember={() => undefined}
+        onFreezeMember={() => undefined}
+        onUnfreezeMember={() => undefined}
         showRole={false}
         hidePending
         title="Gym trainers"

@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   const { data: accessProfile } = await supabase
     .from("profiles")
     .select(
-      "login_enabled, admin_approved, gym_owner_id, is_verified, is_super_admin, join_date, created_at, membership_type",
+      "login_enabled, admin_approved, gym_owner_id, is_verified, is_super_admin, join_date, created_at, membership_type, trial_offered, trial_ends_at, is_frozen, frozen_until",
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -65,6 +65,57 @@ export async function POST(request: Request) {
       code: "login_disabled",
       requestId,
     });
+  }
+
+  // Check if account is frozen
+  const isFrozen = (accessProfile as { is_frozen?: boolean | null } | null)?.is_frozen === true;
+  const frozenUntil = (accessProfile as { frozen_until?: string | null } | null)?.frozen_until;
+
+  if (isFrozen) {
+    // Check if the freeze has expired (if frozen_until is set)
+    if (frozenUntil) {
+      const frozenUntilDate = new Date(frozenUntil);
+      const now = new Date();
+      if (now >= frozenUntilDate) {
+        // Auto-unfreeze: the freeze period has passed
+        if (service) {
+          await service
+            .from("profiles")
+            .update({ is_frozen: false, frozen_until: null })
+            .eq("user_id", userId);
+        }
+      } else {
+        // Still frozen, deny login
+        await cookieClient.auth.signOut();
+        return jsonError("Your account is frozen. Please contact your gym administrator.", 403, {
+          code: "account_frozen",
+          requestId,
+        });
+      }
+    } else {
+      // Manually frozen, deny login
+      await cookieClient.auth.signOut();
+      return jsonError("Your account is frozen. Please contact your gym administrator.", 403, {
+        code: "account_frozen",
+        requestId,
+      });
+    }
+  }
+
+  // Check if visitor trial has expired
+  const trialOffered = (accessProfile as { trial_offered?: boolean | null } | null)?.trial_offered === true;
+  const trialEndsAt = (accessProfile as { trial_ends_at?: string | null } | null)?.trial_ends_at;
+
+  if (trialOffered && trialEndsAt) {
+    const trialEndDate = new Date(trialEndsAt);
+    const now = new Date();
+    if (now > trialEndDate) {
+      await cookieClient.auth.signOut();
+      return jsonError("Your trial period has expired. Please contact gym admin to convert to a member.", 403, {
+        code: "trial_expired",
+        requestId,
+      });
+    }
   }
 
   const { data: roleRows } = await supabase

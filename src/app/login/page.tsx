@@ -22,6 +22,7 @@ import {
   UserX,
 } from "lucide-react";
 import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
+import { FrozenAccountModal } from "@/components/auth/FrozenAccountModal";
 
 function LoginContent() {
   const router = useRouter();
@@ -71,6 +72,7 @@ function LoginContent() {
   const [unconfirmedEmail, setUnconfirmedEmail] = useState(false);
   const [pendingAdminApproval, setPendingAdminApproval] = useState(false);
   const [pendingMemberApproval, setPendingMemberApproval] = useState(false);
+  const [accountFrozen, setAccountFrozen] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -144,6 +146,7 @@ function LoginContent() {
     setWelcomeName(null);
     setPendingAdminApproval(false);
     setPendingMemberApproval(false);
+    setAccountFrozen(false);
     try {
       const { name } = await login(cleanEmail, password);
       // Paint welcome before holding — setState alone can miss a frame
@@ -178,6 +181,9 @@ function LoginContent() {
       ) {
         setPendingMemberApproval(true);
         toast.error("Waiting for gym admin approval. You cannot sign in yet.");
+      } else if (lower.includes("account frozen") || lower.includes("frozen")) {
+        setAccountFrozen(true);
+        toast.error("Your account is frozen. Please contact your gym administrator.");
       } else if (lower.includes("invalid login credentials")) {
         toast.error("Invalid email or password. Please check your credentials.");
       } else {
@@ -199,6 +205,7 @@ function LoginContent() {
   return (
     <div className="h-screen w-screen overflow-hidden grid lg:grid-cols-2">
       <AuthBusyOverlay busy={isLoading} mode="login" welcomeName={welcomeName} />
+      {accountFrozen && <FrozenAccountModal canClose onClose={() => setAccountFrozen(false)} lockNavigation={false} showLogout={false} />}
       {/* ═══════════════ LEFT — Image Panel ═══════════════ */}
       <aside className="hidden lg:flex flex-col relative overflow-hidden">
         <img

@@ -18,6 +18,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Camera, Loader2, Shield, Dumbbell, HardHat, Crown, Plus, X, User, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { createManagedUser, updateManagedUser, type CreateStaffPayload, type ManagedUser } from "@/api/admin-users";
@@ -27,6 +37,8 @@ import { phonesMatch } from "@/lib/phone";
 import { SOCIAL_LINK_FIELDS, type SocialLinkDbKey } from "@/lib/social-links";
 
 export type StaffCreateRole = "admin" | "trainer" | "staff" | "user" | "super_admin";
+
+const FORM_STORAGE_KEY = "add-user-wizard-form-state";
 
 const TRAINER_STEPS = [
   { id: "basic", title: "Basic", description: "Name & contact" },
@@ -60,6 +72,7 @@ const STAFF_STEPS = [
 const MEMBER_STEPS = [
   { id: "basic", title: "Basic", description: "Name & contact" },
   { id: "plan", title: "Membership", description: "Plan & status" },
+  { id: "account", title: "Account", description: "Login access" },
   { id: "review", title: "Review", description: "Confirm details" },
 ];
 
@@ -426,6 +439,7 @@ type WizardFormState = {
   role: StaffCreateRole;
   system_permissions: string[];
   membership_type: string;
+  is_visitor: boolean;
 };
 
 const emptyForm = (): WizardFormState => ({
@@ -477,6 +491,7 @@ const emptyForm = (): WizardFormState => ({
   role: "staff",
   system_permissions: [],
   membership_type: "basic",
+  is_visitor: false,
 });
 
 function Field({
@@ -583,6 +598,7 @@ function formFromUser(user: ManagedUser, fallbackRole: StaffCreateRole): WizardF
     confirm_password: "",
     role,
     system_permissions: user.system_permissions || [],
+    is_visitor: user.is_visitor || false,
   };
 }
 
@@ -641,27 +657,70 @@ export function AddUserWizard({
   const [openSocials, setOpenSocials] = useState<SocialLinkDbKey[]>(() =>
     SOCIAL_LINK_FIELDS.filter((f) => !!editUser?.[f.key]).map((f) => f.key),
   );
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [savedFormData, setSavedFormData] = useState<WizardFormState | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const emailCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phoneCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const roleLocked = allowedRoles.length === 1 || isEdit;
 
-  const steps =
-    form.role === "super_admin"
-      ? SUPER_ADMIN_STEPS
-      : form.role === "admin"
-        ? ADMIN_STEPS
-        : form.role === "trainer"
-          ? TRAINER_STEPS
-          : form.role === "user"
-            ? MEMBER_STEPS
-            : STAFF_STEPS;
+  const getStepsForRole = (role: StaffCreateRole) => {
+    if (role === "super_admin") return SUPER_ADMIN_STEPS;
+    if (role === "admin") return ADMIN_STEPS;
+    if (role === "trainer") return TRAINER_STEPS;
+    if (role === "user") return MEMBER_STEPS;
+    return STAFF_STEPS;
+  };
+
+  const steps = getStepsForRole(form.role);
   const totalSteps = steps.length;
   const inputClass = "bg-background";
 
   const set = <K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((prev) => {
+      const updated = { ...prev, [key]: value };
+      // Save to localStorage for new users (not editing)
+      if (!isEdit) {
+        try {
+          localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({ form: updated, step }));
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      }
+      return updated;
+    });
+  };
+
+  const saveFormState = (formData: WizardFormState, currentStep: number) => {
+    if (!isEdit) {
+      try {
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify({ form: formData, step: currentStep }));
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+  };
+
+  const loadFormState = (): { form: WizardFormState; step: number } | null => {
+    if (isEdit) return null;
+    try {
+      const saved = localStorage.getItem(FORM_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return null;
+  };
+
+  const clearFormState = () => {
+    try {
+      localStorage.removeItem(FORM_STORAGE_KEY);
+    } catch (e) {
+      // Ignore localStorage errors
+    }
   };
 
   const handleEmailChange = (value: string) => {
@@ -777,6 +836,25 @@ export function AddUserWizard({
       setForm(formFromUser(editUser, initialRole));
       setOpenSocials(SOCIAL_LINK_FIELDS.filter((f) => !!editUser[f.key]).map((f) => f.key));
     } else {
+      // Check for saved form state
+      const saved = loadFormState();
+      if (saved && saved.step > 1) {
+        setSavedFormData(saved.form);
+        setShowRestoreDialog(true);
+        // Set the saved form immediately so steps are calculated correctly
+        setForm(saved.form);
+        const savedStep = loadFormState()?.step || 1;
+        setStep(Math.min(savedStep, totalSteps));
+        setOpenSocials([]);
+        setSaving(false);
+        setEmailTaken(false);
+        setCheckingEmail(false);
+        setPhoneTaken(false);
+        setCheckingPhone(false);
+        setPhoneError(null);
+        return;
+      }
+
       setForm({
         ...emptyForm(),
         role: initialRole,
@@ -841,7 +919,7 @@ export function AddUserWizard({
     reader.readAsDataURL(file);
   };
 
-  const needsPassword = !isEdit && (form.role !== "staff" || form.login_enabled);
+  const needsPassword = !isEdit && (form.role === "staff" ? form.login_enabled : true);
 
   const fullName = [form.first_name, form.last_name].map((s) => s.trim()).filter(Boolean).join(" ");
 
@@ -850,8 +928,8 @@ export function AddUserWizard({
       (form.role === "trainer" && step === 5) ||
       (form.role === "admin" && step === 2) ||
       (form.role === "super_admin" && step === 2) ||
-      (form.role === "staff" && step === 4);
-    // members have no password/account step
+      (form.role === "staff" && step === 4) ||
+      (form.role === "user" && step === 3);
 
     if (step === 1) {
       if (!form.first_name.trim() || !form.last_name.trim()) {
@@ -906,9 +984,15 @@ export function AddUserWizard({
 
   const goNext = () => {
     if (!validateStep()) return;
-    setStep((s) => Math.min(totalSteps, s + 1));
+    const nextStep = Math.min(totalSteps, step + 1);
+    setStep(nextStep);
+    saveFormState(form, nextStep);
   };
-  const goBack = () => setStep((s) => Math.max(1, s - 1));
+  const goBack = () => {
+    const prevStep = Math.max(1, step - 1);
+    setStep(prevStep);
+    saveFormState(form, prevStep);
+  };
 
   const buildPayload = (): CreateStaffPayload => ({
     full_name: fullName,
@@ -957,6 +1041,7 @@ export function AddUserWizard({
     responsibilities: form.responsibilities.trim() || null,
     login_enabled: form.role === "staff" ? form.login_enabled : true,
     system_permissions: form.system_permissions,
+    is_visitor: form.is_visitor,
   });
 
   const handleSubmit = async () => {
@@ -1011,11 +1096,13 @@ export function AddUserWizard({
           system_permissions: payload.system_permissions,
           joining_date: payload.joining_date,
           avatar_base64: payload.avatar_base64,
+          is_visitor: payload.is_visitor,
         });
         toast.success("Saved successfully");
       } else {
         const result = await createManagedUser(buildPayload());
         toast.success(result.message || "Created successfully");
+        clearFormState(); // Clear saved state on successful creation
       }
       handleOpenChange(false);
       onCreated();
@@ -1313,7 +1400,7 @@ export function AddUserWizard({
       {(form.role === "admin" ||
         form.role === "super_admin" ||
         form.role === "trainer" ||
-        form.login_enabled) && (
+        form.role === "staff") && (
         <div className="space-y-3">
           <p className="text-sm font-medium">System permissions</p>
           {PERMISSION_OPTIONS.filter((p) =>
@@ -1414,47 +1501,78 @@ export function AddUserWizard({
 
   const renderMembership = () => (
     <div className="space-y-4">
-      <Field id="membership_type" label="Membership plan">
-        <select
-          id="membership_type"
-          className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
-          value={form.membership_type}
-          onChange={(e) => set("membership_type", e.target.value)}
-        >
-          <option value="basic">Basic</option>
-          <option value="premium">Premium</option>
-          <option value="vip">VIP</option>
-          <option value="staff">Staff</option>
-        </select>
+      <Field id="member_type" label="Type">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={!form.is_visitor ? "default" : "outline"}
+            onClick={() => {
+              set("is_visitor", false);
+              set("account_status", "active");
+            }}
+          >
+            Member
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={form.is_visitor ? "default" : "outline"}
+            onClick={() => {
+              set("is_visitor", true);
+              set("account_status", "trial");
+            }}
+          >
+            Visitor (1-day trial)
+          </Button>
+        </div>
       </Field>
-      <Field id="member_status" label="Membership status">
-        <select
-          id="member_status"
-          className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
-          value={form.account_status}
-          onChange={(e) => set("account_status", e.target.value)}
-        >
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="pending">Pending</option>
-          <option value="expired">Expired</option>
-        </select>
-      </Field>
-      <Field id="joining_date" label="Join date">
-        <Input
-          id="joining_date"
-          type="date"
-          className={inputClass}
-          value={form.joining_date}
-          onChange={(e) => set("joining_date", e.target.value)}
-        />
-      </Field>
+      {!form.is_visitor && (
+        <>
+          <Field id="membership_type" label="Membership plan">
+            <select
+              id="membership_type"
+              className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
+              value={form.membership_type}
+              onChange={(e) => set("membership_type", e.target.value)}
+            >
+              <option value="basic">Basic</option>
+              <option value="premium">Premium</option>
+              <option value="vip">VIP</option>
+              <option value="staff">Staff</option>
+            </select>
+          </Field>
+          <Field id="member_status" label="Membership status">
+            <select
+              id="member_status"
+              className={`flex h-10 w-full rounded-md border border-input px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inputClass}`}
+              value={form.account_status}
+              onChange={(e) => set("account_status", e.target.value)}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="pending">Pending</option>
+              <option value="expired">Expired</option>
+            </select>
+          </Field>
+          <Field id="joining_date" label="Join date">
+            <Input
+              id="joining_date"
+              type="date"
+              className={inputClass}
+              value={form.joining_date}
+              onChange={(e) => set("joining_date", e.target.value)}
+            />
+          </Field>
+        </>
+      )}
     </div>
   );
 
   const renderMemberBody = () => {
     if (step === 1) return renderBasic();
     if (step === 2) return renderMembership();
+    if (step === 3) return renderAccount();
     return renderReview();
   };
 
@@ -1854,170 +1972,212 @@ export function AddUserWizard({
     allowedRoles.includes("super_admin");
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>
-            {isEdit
-              ? form.role === "trainer"
-                ? "Edit trainer"
-                : form.role === "super_admin"
-                  ? "Edit platform owner"
-                  : form.role === "admin"
-                    ? "Edit admin"
-                    : form.role === "staff"
-                      ? "Edit staff"
-                      : form.role === "user"
-                        ? "Edit member"
-                        : "Edit user"
-              : platformOnly
-                ? "Add platform user"
-                : roleLocked && initialRole === "trainer"
-                  ? "Add trainer"
-                  : roleLocked && initialRole === "admin"
-                    ? "Add admin"
-                    : roleLocked && initialRole === "staff"
-                      ? "Add staff"
-                      : "Add gym staff"}
-          </SheetTitle>
-          <SheetDescription>
-            {isEdit
-              ? "Update details using the same stepped form. Click any step to jump and edit."
-              : platformOnly
-                ? "Create a platform owner or gym owner admin."
-                : roleLocked && initialRole === "trainer"
-                  ? "Add a trainer for your gym only."
-                  : "Add a co-admin or staff member for your gym only."}
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          className="flex w-full flex-col overflow-y-auto sm:max-w-xl"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <SheetHeader>
+            <SheetTitle>
+              {isEdit
+                ? form.role === "trainer"
+                  ? "Edit trainer"
+                  : form.role === "super_admin"
+                    ? "Edit platform owner"
+                    : form.role === "admin"
+                      ? "Edit admin"
+                      : form.role === "staff"
+                        ? "Edit staff"
+                        : form.role === "user"
+                          ? "Edit member"
+                          : "Edit user"
+                : platformOnly
+                  ? "Add platform user"
+                  : roleLocked && initialRole === "trainer"
+                    ? "Add trainer"
+                    : roleLocked && initialRole === "admin"
+                      ? "Add admin"
+                      : roleLocked && initialRole === "staff"
+                        ? "Add staff"
+                        : "Add gym staff"}
+            </SheetTitle>
+            <SheetDescription>
+              {isEdit
+                ? "Update details using the same stepped form. Click any step to jump and edit."
+                : platformOnly
+                  ? "Create a platform owner or gym owner admin."
+                  : roleLocked && initialRole === "trainer"
+                    ? "Add a trainer for your gym only."
+                    : "Add a co-admin or staff member for your gym only."}
+            </SheetDescription>
+          </SheetHeader>
 
-        {!roleLocked && (
-          <div
-            className={`mt-4 grid gap-2 ${
-              allowedRoles.length <= 2 ? "grid-cols-2" : "grid-cols-3"
-            }`}
-          >
-            {allowedRoles.includes("super_admin") && (
-              <Button
-                type="button"
-                variant={form.role === "super_admin" ? "default" : "outline"}
-                className="gap-1 px-2"
-                onClick={() => handleRoleChange("super_admin")}
-              >
-                <Crown className="h-4 w-4" />
-                Super admin
-              </Button>
-            )}
-            {allowedRoles.includes("admin") && (
-              <Button
-                type="button"
-                variant={form.role === "admin" ? "default" : "outline"}
-                className="gap-1 px-2"
-                onClick={() => handleRoleChange("admin")}
-              >
-                <Shield className="h-4 w-4" />
-                Admin
-              </Button>
-            )}
-            {allowedRoles.includes("trainer") && (
-              <Button
-                type="button"
-                variant={form.role === "trainer" ? "default" : "outline"}
-                className="gap-1 px-2"
-                onClick={() => handleRoleChange("trainer")}
-              >
-                <Dumbbell className="h-4 w-4" />
-                Trainer
-              </Button>
-            )}
-            {allowedRoles.includes("staff") && (
-              <Button
-                type="button"
-                variant={form.role === "staff" ? "default" : "outline"}
-                className="gap-1 px-2"
-                onClick={() => handleRoleChange("staff")}
-              >
-                <HardHat className="h-4 w-4" />
-                Staff
-              </Button>
-            )}
-            {allowedRoles.includes("user") && (
-              <Button
-                type="button"
-                variant={form.role === "user" ? "default" : "outline"}
-                className="gap-1 px-2"
-                onClick={() => handleRoleChange("user")}
-              >
-                <User className="h-4 w-4" />
-                Member
-              </Button>
-            )}
-          </div>
-        )}
+          {!roleLocked && (
+            <div
+              className={`mt-4 grid gap-2 ${
+                allowedRoles.length <= 2 ? "grid-cols-2" : "grid-cols-3"
+              }`}
+            >
+              {allowedRoles.includes("super_admin") && (
+                <Button
+                  type="button"
+                  variant={form.role === "super_admin" ? "default" : "outline"}
+                  className="gap-1 px-2"
+                  onClick={() => handleRoleChange("super_admin")}
+                >
+                  <Crown className="h-4 w-4" />
+                  Super admin
+                </Button>
+              )}
+              {allowedRoles.includes("admin") && (
+                <Button
+                  type="button"
+                  variant={form.role === "admin" ? "default" : "outline"}
+                  className="gap-1 px-2"
+                  onClick={() => handleRoleChange("admin")}
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </Button>
+              )}
+              {allowedRoles.includes("trainer") && (
+                <Button
+                  type="button"
+                  variant={form.role === "trainer" ? "default" : "outline"}
+                  className="gap-1 px-2"
+                  onClick={() => handleRoleChange("trainer")}
+                >
+                  <Dumbbell className="h-4 w-4" />
+                  Trainer
+                </Button>
+              )}
+              {allowedRoles.includes("staff") && (
+                <Button
+                  type="button"
+                  variant={form.role === "staff" ? "default" : "outline"}
+                  className="gap-1 px-2"
+                  onClick={() => handleRoleChange("staff")}
+                >
+                  <HardHat className="h-4 w-4" />
+                  Staff
+                </Button>
+              )}
+              {allowedRoles.includes("user") && (
+                <Button
+                  type="button"
+                  variant={form.role === "user" ? "default" : "outline"}
+                  className="gap-1 px-2"
+                  onClick={() => handleRoleChange("user")}
+                >
+                  <User className="h-4 w-4" />
+                  Member
+                </Button>
+              )}
+            </div>
+          )}
 
-        <div className="mt-5 w-full shrink-0 space-y-3">
-          {activeStepMeta && (
-            <header>
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-primary">
-                Step {step} of {totalSteps}
-              </p>
-              <h3 className="text-xl font-semibold tracking-tight text-foreground">
-                {activeStepMeta.title}
-              </h3>
-              {activeStepMeta.description && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {activeStepMeta.description}
+          <div className="mt-5 w-full shrink-0 space-y-3">
+            {activeStepMeta && (
+              <header>
+                <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-primary">
+                  Step {step} of {totalSteps}
                 </p>
-              )}
-            </header>
-          )}
-          <Stepper
-            steps={steps}
-            currentStep={step}
-            completedSteps={completedSteps}
-            onStepClick={jumpToStep}
-          />
-        </div>
+                <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                  {activeStepMeta.title}
+                </h3>
+                {activeStepMeta.description && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {activeStepMeta.description}
+                  </p>
+                )}
+              </header>
+            )}
+            <Stepper
+              steps={steps}
+              currentStep={step}
+              completedSteps={completedSteps}
+              onStepClick={jumpToStep}
+            />
+          </div>
 
-        <div className="mt-4 flex-1">
-          {form.role === "admin" || form.role === "super_admin"
-            ? renderAdminBody()
-            : form.role === "trainer"
-              ? renderTrainerBody()
-              : form.role === "user"
-                ? renderMemberBody()
-                : renderStaffBody()}
-        </div>
+          <div className="mt-4 flex-1">
+            {form.role === "admin" || form.role === "super_admin"
+              ? renderAdminBody()
+              : form.role === "trainer"
+                ? renderTrainerBody()
+                : form.role === "user"
+                  ? renderMemberBody()
+                  : renderStaffBody()}
+          </div>
 
-        <SheetFooter className="mt-6 gap-2 sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={step === 1 ? () => handleOpenChange(false) : goBack}
-            disabled={saving}
-          >
-            {step === 1 ? "Cancel" : "Back"}
-          </Button>
-          {step < totalSteps ? (
-            <Button type="button" onClick={goNext}>
+          <SheetFooter className="mt-6 gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={step === 1 ? () => handleOpenChange(false) : goBack}
+              disabled={saving}
+            >
+              {step === 1 ? "Cancel" : "Back"}
+            </Button>
+            {step < totalSteps ? (
+              <Button type="button" onClick={goNext}>
+                Continue
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isEdit ? "Saving…" : "Creating…"}
+                  </>
+                ) : isEdit ? (
+                  `Save ${form.role === "super_admin" ? "platform owner" : form.role}`
+                ) : (
+                  `Create ${form.role === "super_admin" ? "platform owner" : form.role}`
+                )}
+              </Button>
+            )}
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Continue where you left off?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an unfinished form from a previous session. Would you like to continue from where you left off or start fresh?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                clearFormState();
+                setForm({
+                  ...emptyForm(),
+                  role: initialRole,
+                  login_enabled: initialRole !== "staff",
+                });
+                setOpenSocials([]);
+                setStep(1);
+                setShowRestoreDialog(false);
+              }}
+            >
+              Start Fresh
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                // Form is already set from the useEffect, just close the dialog
+                setShowRestoreDialog(false);
+              }}
+            >
               Continue
-            </Button>
-          ) : (
-            <Button type="button" onClick={handleSubmit} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isEdit ? "Saving…" : "Creating…"}
-                </>
-              ) : isEdit ? (
-                `Save ${form.role === "super_admin" ? "platform owner" : form.role}`
-              ) : (
-                `Create ${form.role === "super_admin" ? "platform owner" : form.role}`
-              )}
-            </Button>
-          )}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

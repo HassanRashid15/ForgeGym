@@ -223,10 +223,12 @@ export const actionTemplates = {
     metadata: { icon: "hourglass_top", priority: "medium", action_url: "/dashboard" },
   }),
 
-  accountCreated: (role: string, gymName: string): NotificationTemplate => ({
+  accountCreated: (role: string, gymName: string, isVisitor?: boolean): NotificationTemplate => ({
     type: "welcome",
     title: "Account created",
-    message: `You've been added to ${gymName} as ${role}. Sign in to open your dashboard.`,
+    message: isVisitor
+      ? `You've been added to ${gymName} as visitor. Sign in to open your dashboard.`
+      : `You've been added to ${gymName} as ${role}. Sign in to open your dashboard.`,
     metadata: { icon: "person_add", priority: "high", action_url: "/dashboard" },
   }),
 

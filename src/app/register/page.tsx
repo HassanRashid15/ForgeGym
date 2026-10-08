@@ -26,8 +26,10 @@ import {
 import { CapsuleRow } from "@/components/forms/CapsuleSelect";
 import { heightToCm } from "@/lib/validation/height";
 import { useRegisterPassword } from "@/hooks/useRegisterPassword";
+import { useFormPersistence } from "@/hooks/useFormPersistence";
 import { RegisterShell } from "@/components/register/RegisterShell";
 import { RegisterAccountStep } from "@/components/register/RegisterAccountStep";
+import { FormRestoreModal } from "@/components/register/FormRestoreModal";
 import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
 import { checkPhoneExists, checkGymDuplicate } from "@/api/auth";
 import { listGyms, getGym } from "@/api/gyms";
@@ -50,6 +52,103 @@ const CITY_OPTIONS = [
   "Other / Custom",
 ];
 
+// ─── Form Data Type for Persistence ─────────────────────────────────────────────
+type RegistrationFormData = {
+  currentStep: number;
+  accountType: AccountType;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  addressCity: string | null;
+  addressRegion: string | null;
+  addressLat: number | null;
+  addressLon: number | null;
+  emergencyContact: string;
+  selectedGymOwnerId: string;
+  preferredTrainerId: string;
+  preferredTrainerLabel: string;
+  dateOfBirth: string;
+  gender: string;
+  weight: string;
+  weightUnit: "kg" | "lbs";
+  height: string;
+  heightUnit: "ft" | "inch";
+  activityLevel: string;
+  fitnessGoal: string;
+  hasManuallySelectedGoal: boolean;
+  gymName: string;
+  gymType: string;
+  gymCity: string;
+  gymCityPreset: string;
+  gymYearsOperating: string;
+  gymMonthlyFee: string;
+  gymTrainerFee: string;
+  experienceLevel: string;
+  workoutType: string;
+  targetAreas: string[];
+  workoutDays: string;
+  workoutDuration: string;
+  preferredTime: string;
+  gymFacilities: string[];
+  gymOperatingDays: string;
+  gymOperatingDaysSpecific: string[];
+  gymPeakHours: string;
+  gymOpeningTime: string;
+  gymClosingTime: string;
+  gymMemberCapacity: string;
+  gymServices: string[];
+};
+
+const initialFormData: RegistrationFormData = {
+  currentStep: 1,
+  accountType: "customer",
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  address: "",
+  addressCity: null,
+  addressRegion: null,
+  addressLat: null,
+  addressLon: null,
+  emergencyContact: "",
+  selectedGymOwnerId: "",
+  preferredTrainerId: "",
+  preferredTrainerLabel: "",
+  dateOfBirth: "",
+  gender: "",
+  weight: "",
+  weightUnit: "kg",
+  height: "",
+  heightUnit: "ft",
+  activityLevel: "",
+  fitnessGoal: "",
+  hasManuallySelectedGoal: false,
+  gymName: "",
+  gymType: "",
+  gymCity: "",
+  gymCityPreset: "",
+  gymYearsOperating: "",
+  gymMonthlyFee: "",
+  gymTrainerFee: "",
+  experienceLevel: "",
+  workoutType: "",
+  targetAreas: [],
+  workoutDays: "",
+  workoutDuration: "",
+  preferredTime: "",
+  gymFacilities: [],
+  gymOperatingDays: "",
+  gymOperatingDaysSpecific: [],
+  gymPeakHours: "",
+  gymOpeningTime: "",
+  gymClosingTime: "",
+  gymMemberCapacity: "",
+  gymServices: [],
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 function RegisterContent() {
   const router = useRouter();
@@ -57,22 +156,30 @@ function RegisterContent() {
   const queryEmail = searchParams.get("email") || "";
   const queryGymOwnerId = searchParams.get("gym") || "";
   const { register, checkAccountExists } = useAuth();
-  const [currentStep, setCurrentStep] = useState(1);
+
+  // Form persistence
+  const [formData, setFormData, hasPersistedData, clearFormData, isLoaded] =
+    useFormPersistence<RegistrationFormData>("gym-registration-form", initialFormData);
+
+  // Modal state
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+
+  const [currentStep, setCurrentStep] = useState(formData.currentStep);
   const [isLoading, setIsLoading] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
 
   // ── Step 1 ──────────────────────────────────────────────────────────────────
-  const [accountType, setAccountType] = useState<AccountType>("customer");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState(queryEmail);
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [addressCity, setAddressCity] = useState<string | null>(null);
-  const [addressRegion, setAddressRegion] = useState<string | null>(null);
-  const [addressLat, setAddressLat] = useState<number | null>(null);
-  const [addressLon, setAddressLon] = useState<number | null>(null);
-  const [emergencyContact, setEmergencyContact] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>(formData.accountType);
+  const [firstName, setFirstName] = useState(formData.firstName);
+  const [lastName, setLastName] = useState(formData.lastName);
+  const [email, setEmail] = useState(queryEmail || formData.email);
+  const [phone, setPhone] = useState(formData.phone);
+  const [address, setAddress] = useState(formData.address);
+  const [addressCity, setAddressCity] = useState<string | null>(formData.addressCity);
+  const [addressRegion, setAddressRegion] = useState<string | null>(formData.addressRegion);
+  const [addressLat, setAddressLat] = useState<number | null>(formData.addressLat);
+  const [addressLon, setAddressLon] = useState<number | null>(formData.addressLon);
+  const [emergencyContact, setEmergencyContact] = useState(formData.emergencyContact);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -102,9 +209,9 @@ function RegisterContent() {
 
   const [gyms, setGyms] = useState<PublicGym[]>([]);
   const [loadingGyms, setLoadingGyms] = useState(false);
-  const [selectedGymOwnerId, setSelectedGymOwnerId] = useState(queryGymOwnerId);
-  const [preferredTrainerId, setPreferredTrainerId] = useState("");
-  const [preferredTrainerLabel, setPreferredTrainerLabel] = useState("");
+  const [selectedGymOwnerId, setSelectedGymOwnerId] = useState(queryGymOwnerId || formData.selectedGymOwnerId);
+  const [preferredTrainerId, setPreferredTrainerId] = useState(formData.preferredTrainerId);
+  const [preferredTrainerLabel, setPreferredTrainerLabel] = useState(formData.preferredTrainerLabel);
   const gymLockedFromUrl = Boolean(queryGymOwnerId);
 
   useEffect(() => {
@@ -112,6 +219,70 @@ function RegisterContent() {
       setEmail(queryEmail);
     }
   }, [queryEmail]);
+
+  // Show restore modal if there's persisted data and it's loaded
+  useEffect(() => {
+    if (isLoaded && hasPersistedData) {
+      setShowRestoreModal(true);
+    }
+  }, [isLoaded, hasPersistedData]);
+
+  // Handle modal actions
+  const handleContinueFromSaved = () => {
+    setShowRestoreModal(false);
+    // Data is already loaded from formData
+  };
+
+  const handleStartFresh = () => {
+    clearFormData();
+    setShowRestoreModal(false);
+    // Reset all form state to initial values
+    setCurrentStep(1);
+    setAccountType("customer");
+    setFirstName("");
+    setLastName("");
+    setEmail(queryEmail);
+    setPhone("");
+    setAddress("");
+    setAddressCity(null);
+    setAddressRegion(null);
+    setAddressLat(null);
+    setAddressLon(null);
+    setEmergencyContact("");
+    setSelectedGymOwnerId(queryGymOwnerId);
+    setPreferredTrainerId("");
+    setPreferredTrainerLabel("");
+    setDateOfBirth("");
+    setGender("");
+    setWeight("");
+    setWeightUnit("kg");
+    setHeight("");
+    setHeightUnit("ft");
+    setActivityLevel("");
+    setFitnessGoal("");
+    setHasManuallySelectedGoal(false);
+    setGymName("");
+    setGymType("");
+    setGymCity("");
+    setGymCityPreset("");
+    setGymYearsOperating("");
+    setGymMonthlyFee("");
+    setGymTrainerFee("");
+    setExperienceLevel("");
+    setWorkoutType("");
+    setTargetAreas([]);
+    setWorkoutDays("");
+    setWorkoutDuration("");
+    setPreferredTime("");
+    setGymFacilities([]);
+    setGymOperatingDays("");
+    setGymOperatingDaysSpecific([]);
+    setGymPeakHours("");
+    setGymOpeningTime("");
+    setGymClosingTime("");
+    setGymMemberCapacity("");
+    setGymServices([]);
+  };
 
   useEffect(() => {
     if (!queryGymOwnerId) return;
@@ -260,23 +431,23 @@ function RegisterContent() {
   };
 
   // ── Step 2 (customer fitness / admin gym profile) ───────────────────────────
-  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState(formData.dateOfBirth);
   const [age, setAge] = useState("");
-  const [gender, setGender] = useState("");
-  const [weight, setWeight] = useState("");
-  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
-  const [height, setHeight] = useState("");
-  const [heightUnit, setHeightUnit] = useState<"ft" | "inch">("ft");
-  const [activityLevel, setActivityLevel] = useState("");
-  const [fitnessGoal, setFitnessGoal] = useState("");
-  const [hasManuallySelectedGoal, setHasManuallySelectedGoal] = useState(false);
-  const [gymName, setGymName] = useState("");
-  const [gymType, setGymType] = useState("");
-  const [gymCity, setGymCity] = useState("");
-  const [gymCityPreset, setGymCityPreset] = useState("");
-  const [gymYearsOperating, setGymYearsOperating] = useState("");
-  const [gymMonthlyFee, setGymMonthlyFee] = useState("");
-  const [gymTrainerFee, setGymTrainerFee] = useState("");
+  const [gender, setGender] = useState(formData.gender);
+  const [weight, setWeight] = useState(formData.weight);
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">(formData.weightUnit);
+  const [height, setHeight] = useState(formData.height);
+  const [heightUnit, setHeightUnit] = useState<"ft" | "inch">(formData.heightUnit);
+  const [activityLevel, setActivityLevel] = useState(formData.activityLevel);
+  const [fitnessGoal, setFitnessGoal] = useState(formData.fitnessGoal);
+  const [hasManuallySelectedGoal, setHasManuallySelectedGoal] = useState(formData.hasManuallySelectedGoal);
+  const [gymName, setGymName] = useState(formData.gymName);
+  const [gymType, setGymType] = useState(formData.gymType);
+  const [gymCity, setGymCity] = useState(formData.gymCity);
+  const [gymCityPreset, setGymCityPreset] = useState(formData.gymCityPreset);
+  const [gymYearsOperating, setGymYearsOperating] = useState(formData.gymYearsOperating);
+  const [gymMonthlyFee, setGymMonthlyFee] = useState(formData.gymMonthlyFee);
+  const [gymTrainerFee, setGymTrainerFee] = useState(formData.gymTrainerFee);
   const [gymMainImage, setGymMainImage] = useState<File | null>(null);
   const [gymMainImagePreview, setGymMainImagePreview] = useState<string>("");
   const [gymLogo, setGymLogo] = useState<File | null>(null);
@@ -459,20 +630,122 @@ function RegisterContent() {
   };
 
   // ── Step 3 (customer workout / admin facilities) ────────────────────────────
-  const [experienceLevel, setExperienceLevel] = useState("");
-  const [workoutType, setWorkoutType] = useState("");
-  const [targetAreas, setTargetAreas] = useState<string[]>([]);
-  const [workoutDays, setWorkoutDays] = useState("");
-  const [workoutDuration, setWorkoutDuration] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
-  const [gymFacilities, setGymFacilities] = useState<string[]>([]);
-  const [gymOperatingDays, setGymOperatingDays] = useState("");
-  const [gymOperatingDaysSpecific, setGymOperatingDaysSpecific] = useState<string[]>([]);
-  const [gymPeakHours, setGymPeakHours] = useState("");
-  const [gymOpeningTime, setGymOpeningTime] = useState("");
-  const [gymClosingTime, setGymClosingTime] = useState("");
-  const [gymMemberCapacity, setGymMemberCapacity] = useState("");
-  const [gymServices, setGymServices] = useState<string[]>([]);
+  const [experienceLevel, setExperienceLevel] = useState(formData.experienceLevel);
+  const [workoutType, setWorkoutType] = useState(formData.workoutType);
+  const [targetAreas, setTargetAreas] = useState<string[]>(formData.targetAreas);
+  const [workoutDays, setWorkoutDays] = useState(formData.workoutDays);
+  const [workoutDuration, setWorkoutDuration] = useState(formData.workoutDuration);
+  const [preferredTime, setPreferredTime] = useState(formData.preferredTime);
+  const [gymFacilities, setGymFacilities] = useState<string[]>(formData.gymFacilities);
+  const [gymOperatingDays, setGymOperatingDays] = useState(formData.gymOperatingDays);
+  const [gymOperatingDaysSpecific, setGymOperatingDaysSpecific] = useState<string[]>(formData.gymOperatingDaysSpecific);
+  const [gymPeakHours, setGymPeakHours] = useState(formData.gymPeakHours);
+  const [gymOpeningTime, setGymOpeningTime] = useState(formData.gymOpeningTime);
+  const [gymClosingTime, setGymClosingTime] = useState(formData.gymClosingTime);
+  const [gymMemberCapacity, setGymMemberCapacity] = useState(formData.gymMemberCapacity);
+  const [gymServices, setGymServices] = useState<string[]>(formData.gymServices);
+
+  // Update persisted form data whenever form state changes
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    setFormData(prev => ({
+      ...prev,
+      currentStep,
+      accountType,
+      firstName,
+      lastName,
+      email,
+      phone,
+      address,
+      addressCity,
+      addressRegion,
+      addressLat,
+      addressLon,
+      emergencyContact,
+      selectedGymOwnerId,
+      preferredTrainerId,
+      preferredTrainerLabel,
+      dateOfBirth,
+      gender,
+      weight,
+      weightUnit,
+      height,
+      heightUnit,
+      activityLevel,
+      fitnessGoal,
+      hasManuallySelectedGoal,
+      gymName,
+      gymType,
+      gymCity,
+      gymCityPreset,
+      gymYearsOperating,
+      gymMonthlyFee,
+      gymTrainerFee,
+      experienceLevel,
+      workoutType,
+      targetAreas,
+      workoutDays,
+      workoutDuration,
+      preferredTime,
+      gymFacilities,
+      gymOperatingDays,
+      gymOperatingDaysSpecific,
+      gymPeakHours,
+      gymOpeningTime,
+      gymClosingTime,
+      gymMemberCapacity,
+      gymServices,
+    }));
+  }, [
+    isLoaded,
+    currentStep,
+    accountType,
+    firstName,
+    lastName,
+    email,
+    phone,
+    address,
+    addressCity,
+    addressRegion,
+    addressLat,
+    addressLon,
+    emergencyContact,
+    selectedGymOwnerId,
+    preferredTrainerId,
+    preferredTrainerLabel,
+    dateOfBirth,
+    gender,
+    weight,
+    weightUnit,
+    height,
+    heightUnit,
+    activityLevel,
+    fitnessGoal,
+    hasManuallySelectedGoal,
+    gymName,
+    gymType,
+    gymCity,
+    gymCityPreset,
+    gymYearsOperating,
+    gymMonthlyFee,
+    gymTrainerFee,
+    experienceLevel,
+    workoutType,
+    targetAreas,
+    workoutDays,
+    workoutDuration,
+    preferredTime,
+    gymFacilities,
+    gymOperatingDays,
+    gymOperatingDaysSpecific,
+    gymPeakHours,
+    gymOpeningTime,
+    gymClosingTime,
+    gymMemberCapacity,
+    gymServices,
+  ]);
+
   const [step3Errors, setStep3Errors] = useState<{
     experienceLevel?: string;
     workoutType?: string;
@@ -950,6 +1223,8 @@ function RegisterContent() {
       await new Promise((r) => window.setTimeout(r, 2000));
 
       setCurrentStep(4);
+      // Clear persisted data on successful registration
+      clearFormData();
     } catch (error: any) {
       toast.error(error?.message || "Failed to create account");
     } finally {
@@ -987,6 +1262,13 @@ function RegisterContent() {
   // ──────────────────────────────────────────────────────────────────────────────
   return (
     <RegisterShell>
+      <FormRestoreModal
+        open={showRestoreModal}
+        onOpenChange={setShowRestoreModal}
+        onContinue={handleContinueFromSaved}
+        onStartFresh={handleStartFresh}
+        stepNumber={formData.currentStep}
+      />
           <AuthBusyOverlay
             busy={isLoading}
             mode={isAdminAccount ? "register-admin" : "register"}

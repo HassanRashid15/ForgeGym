@@ -34,7 +34,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_verified")
+    .select("is_verified, is_frozen, frozen_until")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -43,8 +43,12 @@ export default async function DashboardLayout({
     redirect(`/verification${q}`);
   }
 
+  // Check if account is frozen
+  const isFrozen = profile?.is_frozen === true;
+  const frozenUntil = profile?.frozen_until;
+
   return (
-    <DashboardClientLayout serverAuthenticated>
+    <DashboardClientLayout serverAuthenticated isFrozen={isFrozen} frozenUntil={frozenUntil}>
       {children}
     </DashboardClientLayout>
   );

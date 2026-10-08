@@ -6,6 +6,9 @@ export type MePayload = {
   isSuperAdmin?: boolean;
   admin_approved: boolean;
   is_verified?: boolean;
+  isVisitor?: boolean;
+  is_frozen?: boolean;
+  frozen_until?: string | null;
   avatar: string | null;
   gymName?: string | null;
   gymOwnerId?: string | null;

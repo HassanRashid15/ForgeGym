@@ -15,6 +15,8 @@ export type ManagedUser = {
   role: "admin" | "moderator" | "user" | "trainer" | "staff";
   is_super_admin?: boolean;
   admin_approved?: boolean;
+  is_frozen?: boolean;
+  frozen_until?: string | null;
   specialization?: string | null;
   employment_type?: string | null;
   branch_department?: string | null;
@@ -60,6 +62,7 @@ export type ManagedUser = {
   monthly_fee_label?: string | null;
   gym_monthly_fee?: string | null;
   gym_trainer_fee?: string | null;
+  is_visitor?: boolean;
 };
 
 export type CreateStaffPayload = {
@@ -109,13 +112,14 @@ export type CreateStaffPayload = {
   responsibilities?: string | null;
   login_enabled?: boolean;
   system_permissions?: string[];
+  is_visitor?: boolean;
 };
 
 export type CreateUserPayload = CreateStaffPayload;
 
 export type UpdateUserPayload = {
   userId: string;
-  action?: "approve" | "reject" | "approve_trainer" | "reject_trainer";
+  action?: "approve" | "reject" | "approve_trainer" | "reject_trainer" | "freeze" | "unfreeze";
   full_name?: string;
   phone?: string | null;
   address?: string | null;
@@ -162,6 +166,7 @@ export type UpdateUserPayload = {
   avatar_base64?: string;
   preferred_trainer_id?: string | null;
   fee_concession?: string | null;
+  is_visitor?: boolean;
 };
 
 /** admin.listUsers → GET /api/admin/users */
@@ -209,6 +214,16 @@ export async function approveTrainerRequest(userId: string) {
 /** Reject a member's pending trainer change */
 export async function rejectTrainerRequest(userId: string) {
   return updateManagedUser({ userId, action: "reject_trainer" });
+}
+
+/** Freeze a member's account */
+export async function freezeMember(userId: string) {
+  return updateManagedUser({ userId, action: "freeze" });
+}
+
+/** Unfreeze a member's account */
+export async function unfreezeMember(userId: string) {
+  return updateManagedUser({ userId, action: "unfreeze" });
 }
 
 /** admin.deleteUser → DELETE /api/admin/users */

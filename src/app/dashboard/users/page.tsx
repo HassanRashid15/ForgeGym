@@ -28,6 +28,8 @@ import {
   rejectManagedMember,
   approveTrainerRequest,
   rejectTrainerRequest,
+  freezeMember,
+  unfreezeMember,
   type ManagedUser,
 } from "@/api/admin-users";
 import { useAuth } from "@/contexts/AuthContext";
@@ -82,6 +84,7 @@ export default function UsersPage() {
   const [memberRejectingId, setMemberRejectingId] = useState<string | null>(null);
   const [trainerApprovingId, setTrainerApprovingId] = useState<string | null>(null);
   const [trainerRejectingId, setTrainerRejectingId] = useState<string | null>(null);
+  const [freezingId, setFreezingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -323,6 +326,32 @@ export default function UsersPage() {
     }
   };
 
+  const handleFreezeMember = async (userId: string) => {
+    setFreezingId(userId);
+    try {
+      await freezeMember(userId);
+      toast.success("Member account frozen — they cannot sign in until unfrozen.");
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to freeze member");
+    } finally {
+      setFreezingId(null);
+    }
+  };
+
+  const handleUnfreezeMember = async (userId: string) => {
+    setFreezingId(userId);
+    try {
+      await unfreezeMember(userId);
+      toast.success("Member account unfrozen — they can now sign in.");
+      await Promise.all([invalidateUsers(), invalidateMonthly()]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to unfreeze member");
+    } finally {
+      setFreezingId(null);
+    }
+  };
+
   const allAdmins = useMemo(
     () => [...pending, ...approved, ...rejected],
     [pending, approved, rejected],
@@ -457,11 +486,14 @@ export default function UsersPage() {
               deletingId={deletingId}
               approvingId={memberApprovingId}
               rejectingId={memberRejectingId}
+              freezingId={freezingId}
               onView={openView}
               onEdit={openEdit}
               onDelete={handleDeleteUser}
               onApproveMember={handleApproveMember}
               onRejectMember={handleRejectMember}
+              onFreezeMember={handleFreezeMember}
+              onUnfreezeMember={handleUnfreezeMember}
               showRole
               title="Admins & platform owners"
               description={
@@ -486,6 +518,7 @@ export default function UsersPage() {
           deletingId={deletingId}
           approvingId={memberApprovingId}
           rejectingId={memberRejectingId}
+          freezingId={freezingId}
           onView={openView}
           onEdit={openEdit}
           onDelete={handleDeleteUser}
@@ -493,6 +526,8 @@ export default function UsersPage() {
           onRejectMember={handleRejectMember}
           onApproveTrainer={handleApproveTrainer}
           onRejectTrainer={handleRejectTrainer}
+          onFreezeMember={handleFreezeMember}
+          onUnfreezeMember={handleUnfreezeMember}
           trainerApprovingId={trainerApprovingId}
           trainerRejectingId={trainerRejectingId}
           showRole

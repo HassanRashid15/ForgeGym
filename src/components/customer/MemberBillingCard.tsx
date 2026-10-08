@@ -198,7 +198,7 @@ export function MemberBillingCard() {
             {countdown?.done || data.overdue
               ? "Renewal due today"
               : countdown
-                ? `${countdown.days} day${countdown.days === 1 ? "" : "s"} left in cycle`
+                ? `${countdown.days} day${countdown.days === 1 ? "" : "s"}${countdown.hours > 0 ? `, ${countdown.hours} hour${countdown.hours === 1 ? "" : "s"}` : ""} left in cycle`
                 : data.daysLeft === null
                   ? "Billing period unavailable"
                   : `${data.daysLeft} day${data.daysLeft === 1 ? "" : "s"} left in cycle`}

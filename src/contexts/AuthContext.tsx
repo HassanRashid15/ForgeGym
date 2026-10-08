@@ -108,6 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isSuperAdmin:
           isSeededSuper ||
           (userRef.current?.id === userId ? !!userRef.current.isSuperAdmin : false),
+        isVisitor: false,
         avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
       });
     }
@@ -134,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: fallbackName,
           role: fallbackRole,
           isSuperAdmin: isSeededSuper,
+          isVisitor: false,
           avatar:
             (sessionUser.user_metadata?.avatar_url as string | undefined) ||
             undefined,
@@ -180,6 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: resolvedName,
         role: appRole,
         isSuperAdmin,
+        isVisitor: me.isVisitor === true,
         avatar: me.avatar || (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         gymName: me.gymName || null,
         gymOwnerId: me.gymOwnerId || null,
@@ -201,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.name === nextUser.name &&
         prev.role === nextUser.role &&
         prev.isSuperAdmin === nextUser.isSuperAdmin &&
+        prev.isVisitor === nextUser.isVisitor &&
         prev.avatar === nextUser.avatar &&
         prev.gymName === nextUser.gymName &&
         prev.gymOwnerId === nextUser.gymOwnerId &&
@@ -225,6 +229,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: fallbackName,
           role: isSeededSuper ? "admin" : "customer",
           isSuperAdmin: isSeededSuper,
+          isVisitor: false,
           avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         });
       }
@@ -513,6 +518,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin: user?.role === "admin",
     isSuperAdmin: user?.isSuperAdmin === true,
     isTrainer: user?.role === "trainer",
+    isVisitor: user?.isVisitor === true,
   };
 
   if (!mounted) {
@@ -534,6 +540,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: false,
           isSuperAdmin: false,
           isTrainer: false,
+          isVisitor: false,
         }}
       >
         {children}

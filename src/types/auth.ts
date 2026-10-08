@@ -16,6 +16,8 @@ export interface User {
   gymMainImageUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
+  /** Whether user is a visitor (trial user not yet converted to full member) */
+  isVisitor?: boolean;
   /** Gym owner opted into Classes sidebar link */
   featureClassesEnabled?: boolean;
   /** Gym owner opted into Schedule sidebar link */
@@ -106,5 +108,6 @@ export interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   isTrainer: boolean;
+  isVisitor: boolean;
 }
 

@@ -23,6 +23,8 @@ import {
   Trash2,
   Users,
   Eye,
+  Snowflake,
+  Sun,
 } from "lucide-react";
 import type { ManagedUser } from "@/api/admin-users";
 import { TableRowSkeleton } from "@/components/loading/TableRowSkeleton";
@@ -90,6 +92,7 @@ export function MembersTable({
   deletingId,
   approvingId,
   rejectingId,
+  freezingId,
   onView,
   onEdit,
   onDelete,
@@ -97,6 +100,8 @@ export function MembersTable({
   onRejectMember,
   onApproveTrainer,
   onRejectTrainer,
+  onFreezeMember,
+  onUnfreezeMember,
   trainerApprovingId = null,
   trainerRejectingId = null,
   showRole,
@@ -115,6 +120,7 @@ export function MembersTable({
   deletingId: string | null;
   approvingId: string | null;
   rejectingId: string | null;
+  freezingId: string | null;
   onView: (row: ManagedUser) => void;
   onEdit: (row: ManagedUser) => void;
   onDelete: (row: ManagedUser) => void;
@@ -122,6 +128,8 @@ export function MembersTable({
   onRejectMember: (userId: string) => void;
   onApproveTrainer?: (userId: string) => void;
   onRejectTrainer?: (userId: string) => void;
+  onFreezeMember?: (userId: string) => void;
+  onUnfreezeMember?: (userId: string) => void;
   trainerApprovingId?: string | null;
   trainerRejectingId?: string | null;
   showRole: boolean;
@@ -463,19 +471,30 @@ export function MembersTable({
                     const canDecide =
                       row.role === "user" &&
                       (status === "pending" || status === "rejected");
+                    const isFrozen = row.is_frozen === true;
                     return (
-                      <TableRow key={row.user_id}>
-                        <TableCell className="font-medium">
+                      <TableRow
+                        key={row.user_id}
+                        className={isFrozen ? "!bg-amber-500/10" : ""}
+                      >
+                        <TableCell className="font-medium relative">
+                          {isFrozen && (
+                            <div className="absolute inset-0 left-0 top-0 h-full w-full bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent animate-slide-in pointer-events-none" />
+                          )}
                           <div className="flex items-center gap-3">
                             {row.avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={row.avatar_url}
                                 alt=""
-                                className="h-9 w-9 rounded-full object-cover"
+                                className={`h-9 w-9 rounded-full object-cover ${
+                                  isFrozen ? "opacity-50 grayscale" : ""
+                                }`}
                               />
                             ) : (
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                              <div className={`flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary ${
+                                isFrozen ? "opacity-50" : ""
+                              }`}>
                                 {(row.full_name || row.email || "?")
                                   .split(/\s+/)
                                   .map((p) => p[0])
@@ -486,7 +505,9 @@ export function MembersTable({
                             )}
                             <div>
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span>{row.full_name || "—"}</span>
+                                <span className={isFrozen ? "text-muted-foreground" : ""}>
+                                  {row.full_name || "—"}
+                                </span>
                                 {showOnlineStatus && (
                                   <span
                                     className={
@@ -527,12 +548,16 @@ export function MembersTable({
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{row.email || "—"}</TableCell>
-                        <TableCell>{row.phone || "—"}</TableCell>
-                        <TableCell className="capitalize">
+                        <TableCell className={isFrozen ? "text-muted-foreground" : ""}>
+                          {row.email || "—"}
+                        </TableCell>
+                        <TableCell className={isFrozen ? "text-muted-foreground" : ""}>
+                          {row.phone || "—"}
+                        </TableCell>
+                        <TableCell className={`capitalize ${isFrozen ? "text-muted-foreground" : ""}`}>
                           {planLabel(row)}
                         </TableCell>
-                        <TableCell className="tabular-nums whitespace-nowrap">
+                        <TableCell className={`tabular-nums whitespace-nowrap ${isFrozen ? "text-muted-foreground" : ""}`}>
                           {row.role === "user" ? (
                             <div className="leading-tight">
                               <span className="font-medium">{feeLabel(row)}</span>
@@ -550,18 +575,25 @@ export function MembersTable({
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              status === "rejected"
-                                ? "border-zinc-500 capitalize text-zinc-400"
-                                : status === "pending"
-                                  ? "border-amber-500 capitalize text-amber-500"
-                                  : "capitalize"
-                            }
-                          >
-                            {statusLabel(row, status)}
-                          </Badge>
+                          {!isFrozen && (
+                            <Badge
+                              variant="outline"
+                              className={
+                                status === "rejected"
+                                  ? "border-zinc-500 capitalize text-zinc-400"
+                                  : status === "pending"
+                                    ? "border-amber-500 capitalize text-amber-500"
+                                    : "capitalize"
+                              }
+                            >
+                              {statusLabel(row, status)}
+                            </Badge>
+                          )}
+                          {isFrozen && (
+                            <Badge variant="secondary" className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                              Frozen
+                            </Badge>
+                          )}
                           {row.role === "staff" && row.login_enabled === false && (
                             <Badge variant="secondary" className="ml-1 text-[10px]">
                               No login
@@ -627,6 +659,30 @@ export function MembersTable({
                                   </Button>
                                 )}
                               </>
+                            )}
+                            {status === "active" && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={isFrozen ? "text-amber-500" : "text-sky-500"}
+                                disabled={freezingId === row.user_id}
+                                onClick={() => {
+                                  if (isFrozen && onUnfreezeMember) {
+                                    onUnfreezeMember(row.user_id);
+                                  } else if (!isFrozen && onFreezeMember) {
+                                    onFreezeMember(row.user_id);
+                                  }
+                                }}
+                                title={isFrozen ? "Unfreeze account" : "Freeze account"}
+                              >
+                                {freezingId === row.user_id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : isFrozen ? (
+                                  <Sun className="h-4 w-4" />
+                                ) : (
+                                  <Snowflake className="h-4 w-4" />
+                                )}
+                              </Button>
                             )}
                             <Button
                               size="icon"

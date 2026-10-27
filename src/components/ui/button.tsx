@@ -20,6 +20,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         hero: "bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-8 text-base",
         heroOutline: "border-2 border-primary bg-background hover:bg-primary/10 text-primary h-14 px-8 text-base",
+        shape_aesthetic: "relative inline-flex items-center justify-center overflow-hidden rounded-2xl px-10 py-5 text-base font-bold text-white transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-red-600/40 active:scale-95 before:absolute before:inset-0 before:bg-[url('/images/shape_asthethic.png')] before:bg-contain before:bg-center before:bg-no-repeat before:opacity-100 hover:before:opacity-90 before:transition-opacity z-10 before:-z-10",
       },
       size: {
         default: "h-10 px-4 py-2",

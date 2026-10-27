@@ -18,10 +18,8 @@ async function requireSuperAdmin(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
   const isSuperAdmin =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   if (!isSuperAdmin) {
     return {
@@ -43,7 +41,7 @@ export async function GET(request: Request) {
   const { supabase } = auth;
 
   // Prefer RPC when present; fall back to table read via service role
-  const rpc = await (supabase.rpc as any)("get_newsletter_subscriptions");
+  const rpc = await supabase.rpc("get_newsletter_subscriptions");
   if (!rpc.error && Array.isArray(rpc.data)) {
     return NextResponse.json({
       success: true,
@@ -53,7 +51,7 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await supabase
-    .from("newsletter_subscriptions" as any)
+    .from("newsletter_subscriptions")
     .select("*")
     .order("created_at", { ascending: false });
 
@@ -94,7 +92,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
-  const rpc = await (supabase.rpc as any)("unsubscribe_from_newsletter", {
+  const rpc = await supabase.rpc("unsubscribe_from_newsletter", {
     p_email: email,
     p_reason: body?.reason || null,
   });
@@ -107,12 +105,12 @@ export async function DELETE(request: Request) {
   }
 
   const { error } = await supabase
-    .from("newsletter_subscriptions" as any)
+    .from("newsletter_subscriptions")
     .update({
       is_active: false,
       unsubscribed_at: new Date().toISOString(),
       unsubscribe_reason: body?.reason || null,
-    } as never)
+    })
     .eq("email", email);
 
   if (error) {

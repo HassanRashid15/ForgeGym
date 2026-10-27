@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, createSupabaseServiceClient } from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
@@ -20,8 +20,9 @@ export async function POST(request: Request) {
     return jsonError("Email is required", 400, { requestId });
   }
 
-  const supabase = createSupabaseServerClient();
-  const { data, error } = await (supabase.rpc as any)("check_user_exists", {
+  const service = createSupabaseServiceClient();
+  const db = service ?? createSupabaseServerClient();
+  const { data, error } = await (db.rpc as any)("check_user_exists", {
     check_email: email,
   });
 

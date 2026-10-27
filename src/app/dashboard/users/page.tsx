@@ -65,7 +65,7 @@ export default function UsersPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [mainTab, setMainTab] = useState<"members" | "owners">(
+  const [mainTab, setMainTab] = useState<"members" | "owners" | "platform_members">(
     isSuperAdmin ? "owners" : "members",
   );
 
@@ -111,6 +111,8 @@ export default function UsersPage() {
     queryKey: queryKeys.pendingAdmins,
     queryFn: fetchPendingAdmins,
     enabled: isSuperAdmin && !isLoading,
+    refetchInterval: isSuperAdmin ? 4_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   const members = membersQuery.data ?? [];
@@ -242,15 +244,14 @@ export default function UsersPage() {
   const handleConfirmApprove = async (platformMonthlyFee: string) => {
     if (!approveTarget) return;
     const userId = approveTarget.user_id;
+    const isMember = approveTarget.kind === "platform_member";
     setApprovingId(userId);
     try {
       await approveAdminAccount(userId, {
         platformMonthlyFee: platformMonthlyFee || null,
       });
       toast.success(
-        platformMonthlyFee
-          ? `Admin approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
-          : "Admin approved — 1-month free trial started.",
+        `Approved — fee $${platformMonthlyFee}/mo sent. 1-month access starts when they accept.`,
       );
       setApproveTarget(null);
       await invalidateOwners();
@@ -261,11 +262,15 @@ export default function UsersPage() {
     }
   };
 
-  const handleReject = async (userId: string) => {
+  const handleReject = async (userId: string, kind?: AdminListItem["kind"]) => {
     setRejectingId(userId);
     try {
       await rejectAdminAccount(userId);
-      toast.success("Admin request rejected.");
+      toast.success(
+        kind === "platform_member"
+          ? "Platform member rejected."
+          : "Admin request rejected.",
+      );
       await invalidateOwners();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject admin");
@@ -352,19 +357,44 @@ export default function UsersPage() {
     }
   };
 
+  const gymOwnerPending = useMemo(
+    () => pending.filter((a) => a.kind !== "platform_member"),
+    [pending],
+  );
+  const gymOwnerApproved = useMemo(
+    () => approved.filter((a) => a.kind !== "platform_member"),
+    [approved],
+  );
+  const gymOwnerRejected = useMemo(
+    () => rejected.filter((a) => a.kind !== "platform_member"),
+    [rejected],
+  );
+  const platformMemberPending = useMemo(
+    () => pending.filter((a) => a.kind === "platform_member"),
+    [pending],
+  );
+  const platformMemberRejected = useMemo(
+    () => rejected.filter((a) => a.kind === "platform_member"),
+    [rejected],
+  );
+  const platformMemberAll = useMemo(
+    () => [...platformMemberPending, ...platformMemberRejected],
+    [platformMemberPending, platformMemberRejected],
+  );
+
   const allAdmins = useMemo(
-    () => [...pending, ...approved, ...rejected],
-    [pending, approved, rejected],
+    () => [...gymOwnerPending, ...gymOwnerApproved, ...gymOwnerRejected],
+    [gymOwnerPending, gymOwnerApproved, gymOwnerRejected],
   );
 
   const filteredOwners = useMemo(() => {
     const source =
       filter === "pending"
-        ? pending
+        ? gymOwnerPending
         : filter === "approved"
-          ? approved
+          ? gymOwnerApproved
           : filter === "rejected"
-            ? rejected
+            ? gymOwnerRejected
             : allAdmins;
 
     const q = searchQuery.trim().toLowerCase();
@@ -384,7 +414,45 @@ export default function UsersPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [filter, pending, approved, rejected, allAdmins, searchQuery]);
+  }, [
+    filter,
+    gymOwnerPending,
+    gymOwnerApproved,
+    gymOwnerRejected,
+    allAdmins,
+    searchQuery,
+  ]);
+
+  const [platformFilter, setPlatformFilter] = useState<FilterTab>("pending");
+  const [platformSearch, setPlatformSearch] = useState("");
+
+  const filteredPlatformMembers = useMemo(() => {
+    const source =
+      platformFilter === "pending"
+        ? platformMemberPending
+        : platformFilter === "rejected"
+          ? platformMemberRejected
+          : platformFilter === "approved"
+            ? []
+            : platformMemberAll;
+
+    const q = platformSearch.trim().toLowerCase();
+    if (!q) return source;
+
+    return source.filter((admin) => {
+      const haystack = [admin.full_name, admin.email, admin.phone]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [
+    platformFilter,
+    platformMemberPending,
+    platformMemberRejected,
+    platformMemberAll,
+    platformSearch,
+  ]);
 
   const wizardAllowedRoles: StaffCreateRole[] = editing
     ? [editRoleFor(editing)]
@@ -446,10 +514,11 @@ export default function UsersPage() {
       {isSuperAdmin ? (
         <Tabs
           value={mainTab}
-          onValueChange={(v) => setMainTab(v as "members" | "owners")}
+          onValueChange={(v) => setMainTab(v as "members" | "owners" | "platform_members")}
         >
           <TabsList>
             <TabsTrigger value="owners">Gym owners</TabsTrigger>
+            <TabsTrigger value="platform_members">Platform members</TabsTrigger>
             <TabsTrigger value="members">Admins & platform owners</TabsTrigger>
           </TabsList>
           <TabsContent value="owners" className="mt-6">
@@ -460,9 +529,9 @@ export default function UsersPage() {
               setFilter={setFilter}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              pendingCount={pending.length}
-              approvedCount={approved.length}
-              rejectedCount={rejected.length}
+              pendingCount={gymOwnerPending.length}
+              approvedCount={gymOwnerApproved.length}
+              rejectedCount={gymOwnerRejected.length}
               filtered={filteredOwners}
               approvingId={approvingId}
               rejectingId={rejectingId}
@@ -473,6 +542,31 @@ export default function UsersPage() {
               onDelete={(admin) => void handleDeleteOwner(admin)}
               onRefresh={() => void invalidateOwners()}
               notifications={notifications}
+            />
+          </TabsContent>
+          <TabsContent value="platform_members" className="mt-6">
+            <OwnersSection
+              loading={ownersLoading}
+              error={error}
+              filter={platformFilter}
+              setFilter={setPlatformFilter}
+              searchQuery={platformSearch}
+              setSearchQuery={setPlatformSearch}
+              pendingCount={platformMemberPending.length}
+              approvedCount={0}
+              rejectedCount={platformMemberRejected.length}
+              filtered={filteredPlatformMembers}
+              approvingId={approvingId}
+              rejectingId={rejectingId}
+              deletingId={deletingId}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onEdit={handleEditOwner}
+              onDelete={(admin) => void handleDeleteOwner(admin)}
+              onRefresh={() => void invalidateOwners()}
+              notifications={notifications.filter(
+                (n) => n.type === "platform_member_approval_request",
+              )}
             />
           </TabsContent>
           <TabsContent value="members" className="mt-6">

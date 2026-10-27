@@ -8,6 +8,12 @@ import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { getDefaultSiteContact } from "@/lib/site-contact";
 import { listApprovedGyms } from "@/lib/gyms";
 import { trackEvent } from "@/lib/monitoring";
+import { sendContactNotificationEmail } from "@/lib/contact-email";
+import {
+  cacheGetOrSet,
+  CacheTTL,
+  withCacheHeaders,
+} from "@/lib/api-cache";
 
 function parseSettingLines(value: string | null | undefined, fallback: string[]) {
   if (!value?.trim()) return fallback;
@@ -27,72 +33,83 @@ export type ContactRecipientOption = {
 
 /** GET /api/contact — public contact details + messageable recipients */
 export async function GET() {
-  const defaults = getDefaultSiteContact();
-  const service = createSupabaseServiceClient();
+  const { data, hit } = await cacheGetOrSet(
+    "public:contact",
+    CacheTTL.public,
+    async () => {
+      const defaults = getDefaultSiteContact();
+      const service = createSupabaseServiceClient();
 
-  const gyms = await listApprovedGyms();
-  const recipients: ContactRecipientOption[] = [
-    {
-      id: "superadmin",
-      type: "superadmin",
-      label: "Forge Platform (Platform Owner)",
-    },
-    ...gyms.map((g) => ({
-      id: g.ownerId,
-      type: "gym_admin" as const,
-      label: g.ownerName
-        ? `${g.gymName} — ${g.ownerName}`
-        : g.gymName,
-      gymName: g.gymName,
-      ownerName: g.ownerName || undefined,
-    })),
-  ];
+      const gyms = await listApprovedGyms();
+      const recipients: ContactRecipientOption[] = [
+        {
+          id: "superadmin",
+          type: "superadmin",
+          label: "Forge Platform (Platform Owner)",
+        },
+        ...gyms.map((g) => ({
+          id: g.ownerId,
+          type: "gym_admin" as const,
+          label: g.ownerName
+            ? `${g.gymName} — ${g.ownerName}`
+            : g.gymName,
+          gymName: g.gymName,
+          ownerName: g.ownerName || undefined,
+        })),
+      ];
 
-  if (!service) {
-    return NextResponse.json({ contact: defaults, recipients });
-  }
+      if (!service) {
+        return { contact: defaults, recipients };
+      }
 
-  try {
-    const { data } = await service
-      .from("platform_settings")
-      .select("key, value")
-      .in("key", [
-        "contact_address",
-        "contact_phones",
-        "contact_emails",
-        "contact_hours",
-        "contact_map_embed",
-      ]);
+      try {
+        const { data } = await service
+          .from("platform_settings")
+          .select("key, value")
+          .in("key", [
+            "contact_address",
+            "contact_phones",
+            "contact_emails",
+            "contact_hours",
+            "contact_map_embed",
+          ]);
 
-    const map = new Map(
-      ((data as { key: string; value: string }[]) || []).map((r) => [
-        r.key,
-        r.value,
-      ]),
-    );
+        const map = new Map(
+          ((data as { key: string; value: string }[]) || []).map((r) => [
+            r.key,
+            r.value,
+          ]),
+        );
 
-    const emails = parseSettingLines(map.get("contact_emails"), defaults.emails);
-    const phones = parseSettingLines(map.get("contact_phones"), defaults.phones);
+        const emails = parseSettingLines(map.get("contact_emails"), defaults.emails);
+        const phones = parseSettingLines(map.get("contact_phones"), defaults.phones);
 
-    return NextResponse.json({
-      contact: {
-        addressLines: parseSettingLines(
-          map.get("contact_address"),
-          defaults.addressLines,
-        ),
-        phones,
-        emails,
-        hours: parseSettingLines(map.get("contact_hours"), defaults.hours),
-        mapEmbedUrl:
-          map.get("contact_map_embed")?.trim() || defaults.mapEmbedUrl,
-        supportEmail: emails[0] || defaults.supportEmail,
-        primaryPhone: phones[0] || defaults.primaryPhone,
-      },
-      recipients,
-    });
-  } catch {
-    return NextResponse.json({ contact: defaults, recipients });
-  }
+        return {
+          contact: {
+            addressLines: parseSettingLines(
+              map.get("contact_address"),
+              defaults.addressLines,
+            ),
+            phones,
+            emails,
+            hours: parseSettingLines(map.get("contact_hours"), defaults.hours),
+            mapEmbedUrl:
+              map.get("contact_map_embed")?.trim() || defaults.mapEmbedUrl,
+            supportEmail: emails[0] || defaults.supportEmail,
+            primaryPhone: phones[0] || defaults.primaryPhone,
+          },
+          recipients,
+        };
+      } catch {
+        return { contact: defaults, recipients };
+      }
+    }
+  );
+
+  return NextResponse.json(
+    data,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.public / 1000), hit),
+  );
 }
 
 /** POST /api/contact — submit contact form */
@@ -205,6 +222,23 @@ export async function POST(request: Request) {
     return jsonError(insertResult.error.message, 400);
   }
 
+  // Notify the recipient by email — must never fail the form submission
+  let notified = false;
+  try {
+    notified = await sendContactNotificationEmail(service, {
+      name,
+      email,
+      phone: phone || null,
+      subject,
+      message,
+      recipientType,
+      recipientUserId,
+      recipientLabel,
+    });
+  } catch (err) {
+    console.error("[contact] notification email failed:", err);
+  }
+
   trackEvent("contact.submitted", {
     requestId,
     recipientType,
@@ -214,6 +248,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     id: (insertResult.data as { id: string } | null)?.id,
+    notified,
     message: `Message sent to ${recipientLabel}. We'll get back to you within 24 hours.`,
   });
 }

@@ -37,9 +37,12 @@ export async function listAttendance(
 
 export async function checkInAttendance(body: {
   source?: string;
+  /** Platform self-training: training at a gym vs elsewhere */
+  locationMode?: "in_gym" | "not_in_gym";
   lat?: number;
   lng?: number;
   code?: string;
+  notes?: string | null;
 }) {
   return apiRequest<{
     checkin?: AttendanceCheckin;

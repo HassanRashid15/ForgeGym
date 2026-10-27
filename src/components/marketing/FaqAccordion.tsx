@@ -83,6 +83,34 @@ const trainersPageFaqs: FaqItem[] = [
   }
 ];
 
+const membershipPageFaqs: FaqItem[] = [
+  {
+    id: "membership-1",
+    question: "Can I change my plan later?",
+    answer: "Yes. You can upgrade or downgrade your plan at any time. Changes typically take effect on your next billing cycle, and we'll prorate when that applies."
+  },
+  {
+    id: "membership-2",
+    question: "Is there a contract or cancellation fee?",
+    answer: "No long-term contracts. You can cancel anytime. There are no cancellation fees on month-to-month memberships."
+  },
+  {
+    id: "membership-3",
+    question: "What's included in every membership?",
+    answer: "All plans include gym floor access, locker rooms, free parking, towel service, water stations, WiFi, and the mobile app. Higher tiers add classes, training, spa access, and more."
+  },
+  {
+    id: "membership-4",
+    question: "Do you offer yearly billing?",
+    answer: "Yes. Switch to yearly billing to save compared with paying month to month. You can toggle monthly or yearly on this page before you join."
+  },
+  {
+    id: "membership-5",
+    question: "How do I pay and get started?",
+    answer: "Online checkout is coming soon. For now, pick a plan, join a partner gym through Forge, and complete payment at the front desk to activate your membership."
+  }
+];
+
 interface FaqSectionProps {
   faqs: FaqItem[];
   title?: string;
@@ -93,17 +121,17 @@ export function FaqSection({ faqs, title = "Frequently Asked Questions", classNa
   return (
     <section className={`bg-background py-16 md:py-24 ${className}`}>
       <div className="container mx-auto px-4">
-        <ScrollAnimate animation="fade-up" className="max-w-3xl mx-auto">
+        <ScrollAnimate animation="fade-up" className="max-w-7xl mx-auto">
           <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-8 text-center">
             {title}
           </h2>
           <Accordion type="single" collapsible className="w-full">
             {faqs.map((item) => (
-              <AccordionItem key={item.id} value={item.id}>
-                <AccordionTrigger className="text-left">
+              <AccordionItem key={item.id} value={item.id} className="border-border">
+                <AccordionTrigger className="text-left text-base font-semibold text-foreground hover:no-underline hover:text-primary">
                   {item.question}
                 </AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
+                <AccordionContent className="text-muted-foreground leading-relaxed">
                   {item.answer}
                 </AccordionContent>
               </AccordionItem>
@@ -120,9 +148,13 @@ export function HomePageFaq() {
 }
 
 export function GymsPageFaq() {
-  return <FaqSection faqs={gymsPageFaqs} title="Gym FAQ" />;
+  return <FaqSection faqs={gymsPageFaqs} />;
 }
 
 export function TrainersPageFaq() {
-  return <FaqSection faqs={trainersPageFaqs} title="Trainer FAQ" />;
+  return <FaqSection faqs={trainersPageFaqs} />;
+}
+
+export function MembershipPageFaq() {
+  return <FaqSection faqs={membershipPageFaqs} />;
 }

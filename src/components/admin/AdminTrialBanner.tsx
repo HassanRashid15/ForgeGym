@@ -74,12 +74,20 @@ export function AdminTrialBanner({
           <div className="space-y-1">
             <p className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
               <Gift className="h-4 w-4" />
-              1-month free trial
+              1-month access
             </p>
             <p className="text-sm text-muted-foreground">
-              Your gym account is waiting for super admin approval. Once approved, your{" "}
-              <strong className="text-foreground">30-day free trial</strong> starts
-              automatically.
+              {facilityFee
+                ? <>
+                    Accept your platform fee ({facilityFee}) below to unlock{" "}
+                    <strong className="text-foreground">1 month of dashboard access</strong>
+                    , or request a concession.
+                  </>
+                : <>
+                    Your account is waiting for approval / fee acceptance. Once the
+                    fee is accepted, your{" "}
+                    <strong className="text-foreground">1-month access</strong> starts.
+                  </>}
             </p>
           </div>
         </div>

@@ -56,7 +56,7 @@ type AuthBusyOverlayProps = {
 
 function firstName(full: string) {
   const part = full.trim().split(/\s+/)[0];
-  return part || "Athlete";
+  return part || "there";
 }
 
 /**

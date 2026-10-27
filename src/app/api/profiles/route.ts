@@ -6,98 +6,75 @@ import {
 import { pickAllowedProfileFields } from "@/lib/profiles/allowlist";
 import { jsonError } from "@/lib/api/errors";
 import { notify } from "@/lib/notify-actions";
-import { cacheInvalidate } from "@/lib/api-cache";
+import {
+  cacheInvalidate,
+  cacheAside,
+  apiCacheKey,
+  CacheTTL,
+  withCacheHeaders,
+} from "@/lib/api-cache";
 import { computeBmi } from "@/lib/bmi";
+import {
+  extractGymCatalogFromProfilePayload,
+  fetchGymByOwnerId,
+  mergeProfileWithGymCatalog,
+  upsertGymCatalog,
+} from "@/lib/gyms/catalog";
 
-/** Keep public.gyms catalog media in sync when profile media URLs change. */
-async function syncGymCatalogMedia(
-  userId: string,
-  profile: {
-    gym_main_image_url?: string | null;
-    gym_optional_images_urls?: string[] | null;
-    gym_video_url?: string | null;
-    gym_video_file_url?: string | null;
-    gym_monthly_fee?: string | null;
-    gym_trainer_fee?: string | null;
-    gym_latitude?: number | null;
-    gym_longitude?: number | null;
-    gym_name?: string | null;
-    gym_city?: string | null;
-    gym_opening_time?: string | null;
-    gym_closing_time?: string | null;
-    gym_operating_days_specific?: string[] | null;
+async function loadMergedProfile(
+  db: {
+    from: (table: "profiles") => {
+      select: (cols: string) => {
+        eq: (
+          col: string,
+          val: string,
+        ) => {
+          maybeSingle: () => Promise<{
+            data: Record<string, unknown> | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
   },
+  userId: string,
 ) {
-  const service = createSupabaseServiceClient();
-  if (!service) return;
+  const { data: profile, error } = await db
+    .from("profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-  const patch: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
+  if (error) throw error;
+  if (!profile) return null;
 
-  if ("gym_main_image_url" in profile) {
-    patch.main_image_url = profile.gym_main_image_url ?? null;
-  }
-  if ("gym_optional_images_urls" in profile) {
-    patch.optional_images_urls = profile.gym_optional_images_urls ?? null;
-  }
-  if ("gym_video_url" in profile) {
-    patch.video_url = profile.gym_video_url ?? null;
-  }
-  if ("gym_video_file_url" in profile) {
-    patch.video_file_url = profile.gym_video_file_url ?? null;
-  }
-  if ("gym_monthly_fee" in profile) {
-    patch.monthly_fee = profile.gym_monthly_fee ?? null;
-  }
-  if ("gym_trainer_fee" in profile) {
-    patch.trainer_fee = profile.gym_trainer_fee ?? null;
-  }
-  if ("gym_latitude" in profile) {
-    patch.latitude = profile.gym_latitude ?? null;
-  }
-  if ("gym_longitude" in profile) {
-    patch.longitude = profile.gym_longitude ?? null;
-  }
-  if ("gym_name" in profile && profile.gym_name) {
-    patch.name = profile.gym_name;
-  }
-  if ("gym_city" in profile) {
-    patch.city = profile.gym_city ?? null;
-  }
-  if ("gym_opening_time" in profile) {
-    patch.opening_time = profile.gym_opening_time ?? null;
-  }
-  if ("gym_closing_time" in profile) {
-    patch.closing_time = profile.gym_closing_time ?? null;
-  }
-  if ("gym_operating_days_specific" in profile) {
-    patch.operating_days_specific = profile.gym_operating_days_specific ?? null;
-  }
-
-  if (Object.keys(patch).length <= 1) return;
-
-  await service.from("gyms").update(patch as never).eq("owner_user_id", userId);
+  const gym = await fetchGymByOwnerId(db as never, userId);
+  return mergeProfileWithGymCatalog(profile, gym);
 }
 
-/** GET /api/profiles — current user's profile */
+/** GET /api/profiles — current user's profile (gym_* merged from public.gyms) */
 export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
 
   const { supabase, user } = auth;
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
+  const cacheKey = apiCacheKey("profiles", user.id);
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data, hit } = await cacheAside(
+    cacheKey,
+    CacheTTL.authUser,
+    async () => {
+      const profile = await loadMergedProfile(db as never, user.id);
+      return { profile };
+    },
+  );
 
-  if (error) {
-    return jsonError(error.message, 400);
-  }
-
-  return NextResponse.json({ profile: data });
+  return NextResponse.json(
+    data,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.authUser / 1000), hit),
+  );
 }
 
 /** POST /api/profiles — create default profile if missing */
@@ -106,27 +83,36 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
 
   const { supabase, user } = auth;
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const allowed = pickAllowedProfileFields(body);
+  const { person, gym, hasGymFields } = extractGymCatalogFromProfilePayload(
+    allowed as Record<string, unknown>,
+  );
 
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("profiles")
     .select("*")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ profile: existing });
+    const merged = mergeProfileWithGymCatalog(
+      existing as Record<string, unknown>,
+      await fetchGymByOwnerId(db as never, user.id),
+    );
+    return NextResponse.json({ profile: merged });
   }
 
   const todayDate = new Date().toISOString().split("T")[0];
   const fallbackName =
-    (typeof allowed.full_name === "string" && allowed.full_name) ||
+    (typeof person.full_name === "string" && person.full_name) ||
     user.user_metadata?.full_name ||
     user.email?.split("@")[0] ||
     "Member";
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("profiles")
     .insert({
       id: user.id,
@@ -136,7 +122,7 @@ export async function POST(request: Request) {
       membership_status: "active",
       membership_type: "basic",
       join_date: todayDate,
-      ...allowed,
+      ...person,
     } as never)
     .select()
     .maybeSingle();
@@ -145,7 +131,20 @@ export async function POST(request: Request) {
     return jsonError(error.message, 400);
   }
 
-  return NextResponse.json({ profile: data }, { status: 201 });
+  if (hasGymFields && service) {
+    await upsertGymCatalog(service as never, user.id, gym, {
+      bio: (person.bio as string | null) ?? null,
+      avatar_url: (person.avatar_url as string | null) ?? null,
+      owner_display_name: fallbackName,
+      is_published: false,
+    });
+  }
+
+  const merged = mergeProfileWithGymCatalog(
+    data as Record<string, unknown>,
+    await fetchGymByOwnerId(db as never, user.id),
+  );
+  return NextResponse.json({ profile: merged }, { status: 201 });
 }
 
 /** PATCH /api/profiles — update current user's profile (creates row if missing) */
@@ -161,26 +160,29 @@ export async function PATCH(request: Request) {
   }
 
   const allowed = pickAllowedProfileFields(body as Record<string, unknown>);
+  const { person, gym, hasGymFields } = extractGymCatalogFromProfilePayload(
+    allowed as Record<string, unknown>,
+  );
 
   const service = createSupabaseServiceClient();
   const db = service || supabase;
 
   // Keep BMI in sync whenever weight/height are written
-  if ("weight_kg" in allowed || "height_cm" in allowed || "bmi" in allowed) {
+  if ("weight_kg" in person || "height_cm" in person || "bmi" in person) {
     const { data: current } = await db
       .from("profiles")
       .select("weight_kg, height_cm")
       .eq("user_id", user.id)
       .maybeSingle();
     const nextWeight =
-      "weight_kg" in allowed
-        ? (allowed.weight_kg as number | null)
+      "weight_kg" in person
+        ? (person.weight_kg as number | null)
         : ((current?.weight_kg as number | null) ?? null);
     const nextHeight =
-      "height_cm" in allowed
-        ? (allowed.height_cm as number | null)
+      "height_cm" in person
+        ? (person.height_cm as number | null)
         : ((current?.height_cm as number | null) ?? null);
-    (allowed as Record<string, unknown>).bmi = computeBmi(nextWeight, nextHeight);
+    person.bmi = computeBmi(nextWeight, nextHeight);
   }
 
   let previousTrainerId: string | null = null;
@@ -190,13 +192,13 @@ export async function PATCH(request: Request) {
   let requestedTrainerId: string | null = null;
 
   // Customer trainer changes require gym-admin approval (pending request).
-  if ("preferred_trainer_id" in allowed) {
-    const raw = allowed.preferred_trainer_id;
+  if ("preferred_trainer_id" in person) {
+    const raw = person.preferred_trainer_id;
     const trainerId =
       raw === null || raw === undefined || raw === ""
         ? null
         : String(raw).trim();
-    delete (allowed as Record<string, unknown>).preferred_trainer_id;
+    delete person.preferred_trainer_id;
 
     const { data: me } = await db
       .from("profiles")
@@ -213,9 +215,8 @@ export async function PATCH(request: Request) {
       "A member";
 
     if (String(previousTrainerId || "") === String(trainerId || "")) {
-      // Same as current — clear any stale pending request
-      (allowed as Record<string, unknown>).trainer_request_pending = false;
-      (allowed as Record<string, unknown>).pending_trainer_id = null;
+      person.trainer_request_pending = false;
+      person.pending_trainer_id = null;
     } else {
       if (trainerId) {
         if (!gymOwnerIdForNotify) {
@@ -242,19 +243,19 @@ export async function PATCH(request: Request) {
         return jsonError("Join a gym before changing trainer", 400);
       }
 
-      (allowed as Record<string, unknown>).pending_trainer_id = trainerId;
-      (allowed as Record<string, unknown>).trainer_request_pending = true;
+      person.pending_trainer_id = trainerId;
+      person.trainer_request_pending = true;
       trainerRequestPending = true;
       requestedTrainerId = trainerId;
     }
   }
 
   const updatePayload = {
-    ...allowed,
+    ...person,
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("profiles")
     .update(updatePayload as never)
     .eq("user_id", user.id)
@@ -266,11 +267,37 @@ export async function PATCH(request: Request) {
   }
 
   if (data) {
-    await syncGymCatalogMedia(user.id, allowed);
+    if (hasGymFields && service) {
+      const { data: roleRows } = await db
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      const isAdmin = (roleRows || []).some((r) => r.role === "admin");
+      const approved = (data as { admin_approved?: boolean }).admin_approved === true;
+      const superAdmin = (data as { is_super_admin?: boolean }).is_super_admin === true;
+
+      await upsertGymCatalog(service as never, user.id, gym, {
+        bio: (data as { bio?: string | null }).bio ?? null,
+        avatar_url: (data as { avatar_url?: string | null }).avatar_url ?? null,
+        owner_display_name: (data as { full_name?: string | null }).full_name ?? null,
+        is_published: isAdmin && approved && !superAdmin,
+      });
+    } else if (service && ("bio" in person || "avatar_url" in person || "full_name" in person)) {
+      // Keep owner display fields on gyms in sync even without gym_* patch
+      const existingGym = await fetchGymByOwnerId(service as never, user.id);
+      if (existingGym) {
+        await upsertGymCatalog(service as never, user.id, {}, {
+          bio: (data as { bio?: string | null }).bio ?? null,
+          avatar_url: (data as { avatar_url?: string | null }).avatar_url ?? null,
+          owner_display_name: (data as { full_name?: string | null }).full_name ?? null,
+        });
+      }
+    }
+
+    await cacheInvalidate({ prefixes: ["api-cache:auth-me:", "api-cache:profiles:"] });
 
     if (trainerRequestPending) {
-      cacheInvalidate(`membership:me:${user.id}`);
-      cacheInvalidate("admin:users:");
+      await cacheInvalidate({ prefixes: ["api-cache:membership:me:", "api-cache:admin:users:"] });
 
       let trainerName: string | null = null;
       if (requestedTrainerId) {
@@ -309,22 +336,26 @@ export async function PATCH(request: Request) {
 
         void notify.adminTrainerRequestPending(adminIds, memberName, trainerName);
       }
-    } else if (Object.keys(allowed).length > 0) {
+    } else if (Object.keys(person).length > 0 || hasGymFields) {
       void notify.profileSaved(user.id);
     }
 
-    return NextResponse.json({ profile: data, trainerRequestPending });
+    const merged = mergeProfileWithGymCatalog(
+      data as Record<string, unknown>,
+      await fetchGymByOwnerId(db as never, user.id),
+    );
+    return NextResponse.json({ profile: merged, trainerRequestPending });
   }
 
   const todayDate = new Date().toISOString().split("T")[0];
-  const { data: created, error: insertError } = await supabase
+  const { data: created, error: insertError } = await db
     .from("profiles")
     .insert({
       id: user.id,
       user_id: user.id,
       email: user.email,
       full_name:
-        (typeof allowed.full_name === "string" && allowed.full_name) ||
+        (typeof person.full_name === "string" && person.full_name) ||
         user.user_metadata?.full_name ||
         user.email?.split("@")[0] ||
         "Member",
@@ -341,9 +372,21 @@ export async function PATCH(request: Request) {
   }
 
   if (created) {
-    await syncGymCatalogMedia(user.id, allowed);
+    if (hasGymFields && service) {
+      await upsertGymCatalog(service as never, user.id, gym, {
+        bio: (created as { bio?: string | null }).bio ?? null,
+        avatar_url: (created as { avatar_url?: string | null }).avatar_url ?? null,
+        owner_display_name: (created as { full_name?: string | null }).full_name ?? null,
+        is_published: false,
+      });
+    }
+    await cacheInvalidate({ prefixes: ["api-cache:auth-me:", "api-cache:profiles:"] });
     void notify.profileSaved(user.id);
   }
 
-  return NextResponse.json({ profile: created });
+  const merged = mergeProfileWithGymCatalog(
+    created as Record<string, unknown>,
+    await fetchGymByOwnerId(db as never, user.id),
+  );
+  return NextResponse.json({ profile: merged });
 }

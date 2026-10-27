@@ -26,15 +26,21 @@ import {
   Wallet,
   UserCheck,
   X,
+  RefreshCw,
+  Snowflake,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   listManagedUsers,
-  approveManagedMember,
-  rejectManagedMember,
   type ManagedUser,
 } from "@/api/admin-users";
-import { getPendingMembers, type PendingMember } from "@/api/pending-members";
+import {
+  getPendingMembers,
+  approvePendingMember,
+  rejectPendingMember,
+  renewFrozenAccount,
+  type PendingMember,
+} from "@/api/pending-members";
 import { queryKeys } from "@/lib/query-keys";
 import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
 import { checkWelcomeModal } from "@/api/admin-welcome";
@@ -62,6 +68,7 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
 
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [renewingId, setRenewingId] = useState<string | null>(null);
   const [pendingMembers, setPendingMembers] = useState<PendingMember[]>([]);
   const [showWelcomeModal, setShowWelcomeModal] = useState(initialWelcomeData?.showModal || false);
   // Only skip client check when SSR successfully evaluated an authenticated user
@@ -106,7 +113,7 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
   const handleApproveMember = async (userId: string) => {
     setApprovingId(userId);
     try {
-      await approveManagedMember(userId);
+      await approvePendingMember(userId);
       toast.success("Member approved — they can sign in now.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers }),
@@ -123,7 +130,7 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
   const handleRejectMember = async (userId: string) => {
     setRejectingId(userId);
     try {
-      await rejectManagedMember(userId);
+      await rejectPendingMember(userId);
       toast.success("Membership request rejected.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers }),
@@ -137,79 +144,95 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
     }
   };
 
+  const handleRenewAccount = async (userId: string, trialType?: "platform" | "membership") => {
+    setRenewingId(userId);
+    try {
+      const result = await renewFrozenAccount(userId, trialType);
+      toast.success("Trial renewed successfully — account unfrozen.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.monthlyMembers }),
+        queryClient.invalidateQueries({ queryKey: ["pendingMembers"] }),
+      ]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to renew account");
+    } finally {
+      setRenewingId(null);
+    }
+  };
+  const heroImage = user?.gymMainImageUrl || "/images/hero-gym.jpg";
+  const gymLabel = stats.gymName || user?.gymName;
+
   return (
-    <div className="relative min-h-full">
+    <div className="relative min-h-full -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
       <AdminWelcomeModal
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}
         gymName={initialWelcomeData?.gymName || stats.gymName || user?.gymName}
         userName={initialWelcomeData?.userName || user?.name}
       />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 45% at 0% 0%, hsl(0 90% 50% / 0.1), transparent 55%), radial-gradient(ellipse 50% 35% at 100% 0%, hsl(var(--muted) / 0.8), transparent 50%)",
-        }}
-      />
 
-      <div className="relative mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
+      <section className="relative isolate w-full overflow-hidden bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={heroImage}
+          alt=""
+          className="block h-[65vh] w-full"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-background/10" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-transparent" />
+
+        <div className="absolute inset-0 flex flex-col justify-end gap-4 px-4 py-6 sm:px-6 sm:py-8 md:flex-row md:items-end md:justify-between lg:px-8">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Gym owner
+              </p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                <Radio className="h-3 w-3 animate-pulse" />
+                Live
+              </span>
+              {isFetching && !loading ? (
+                <span className="text-[10px] text-muted-foreground">Syncing…</span>
+              ) : null}
+            </div>
+            <h1 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
+              WELCOME,{" "}
+              <span className="text-gradient">{firstName.toUpperCase()}</span>
+            </h1>
+            <p className="max-w-md text-sm text-muted-foreground sm:text-base">
+              {gymLabel
+                ? `Running ${gymLabel}. Members, fees, and growth update from your database in realtime.`
+                : "Members, fees, and growth update from your database in realtime."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild className="gap-2">
+              <Link href="/dashboard/progress">
+                <TrendingUp className="h-4 w-4" />
+                Gym progress
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="gap-2 border-border/80 bg-background/40 backdrop-blur-sm">
+              <Link href="/dashboard/users">
+                <Users className="h-4 w-4" />
+                Manage users
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <div className="relative space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <AdminTrialBanner trial={user?.trial} facilityFee={facilityFee} />
 
         <AdminPlatformFeeCard
           facilityFee={facilityFee}
           loading={facilityFeeQuery.isPending && !facilityFee}
           trial={user?.trial}
+          platformFeeStatus={facilityFeeQuery.data?.platformFeeStatus}
+          concessionAmount={facilityFeeQuery.data?.concessionAmount}
         />
-
-        <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-20"
-            style={{
-              backgroundImage: `url('${user?.gymMainImageUrl || "/images/hero-gym.jpg"}')`,
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />
-          <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  Gym owner
-                </p>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
-                  <Radio className="h-3 w-3 animate-pulse" />
-                  Live
-                </span>
-                {isFetching && !loading ? (
-                  <span className="text-[10px] text-muted-foreground">Syncing…</span>
-                ) : null}
-              </div>
-              <h1 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl md:text-6xl">
-                WELCOME,{" "}
-                <span className="text-gradient">{firstName.toUpperCase()}</span>
-              </h1>
-              <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-                {stats.gymName || user?.gymName
-                  ? `Running ${stats.gymName || user?.gymName}. Members, fees, and growth update from your database in realtime.`
-                  : "Members, fees, and growth update from your database in realtime."}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild className="gap-2">
-                <Link href="/dashboard/progress">
-                  <TrendingUp className="h-4 w-4" />
-                  Gym progress
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="gap-2">
-                <Link href="/dashboard/users">
-                  <Users className="h-4 w-4" />
-                  Manage users
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </section>
 
         {loading ? (
           <div className="flex min-h-[20vh] items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -218,27 +241,21 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
           </div>
         ) : (
           <>
-            <section className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card p-5 shadow-sm sm:p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-amber-600" />
-                  <h2 className="text-lg font-semibold text-foreground">
-                    Pending Member Approvals
-                  </h2>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            <section className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card p-4 shadow-sm sm:p-5 md:p-6">
+              <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
+                <UserCheck className="h-5 w-5 shrink-0 text-amber-600" />
+                <h2 className="text-base font-semibold text-foreground sm:text-lg">
+                  Pending Member Approvals
+                </h2>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                     pendingMembers.length > 0
                       ? "bg-amber-500/20 text-amber-600"
                       : "bg-muted text-muted-foreground"
-                  }`}>
-                    {pendingMembers.length}
-                  </span>
-                </div>
-                <Button asChild variant="outline" size="sm" className="gap-2">
-                  <Link href="/dashboard/users">
-                    View all
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
+                  }`}
+                >
+                  {pendingMembers.length}
+                </span>
               </div>
               {pendingMembersQuery.isLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -246,69 +263,127 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
                 </div>
               ) : pendingMembers.length > 0 ? (
                 <div className="space-y-3">
-                  {pendingMembers.slice(0, 3).map((member) => (
-                    <div
-                      key={member.user_id}
-                      className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card/50 p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.avatar_url} alt={member.full_name || "User"} />
-                          <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
-                            {getNameInitials(member.full_name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground">{member.full_name || "Unknown"}</p>
-                          <p className="text-xs text-muted-foreground">{member.email}</p>
-                          {member.phone && (
-                            <p className="text-xs text-muted-foreground">{member.phone}</p>
+                  {pendingMembers.slice(0, 3).map((member) => {
+                    const isFrozenDueToTrial =
+                      member.is_frozen && member.freeze_reason === "trial_expiration";
+                    return (
+                      <div
+                        key={member.user_id}
+                        className={`flex flex-col gap-3 rounded-lg border bg-card/50 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 ${
+                          isFrozenDueToTrial
+                            ? "border-red-500/50 bg-red-950/10"
+                            : "border-border/60"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarImage
+                              src={member.avatar_url}
+                              alt={member.full_name || "User"}
+                            />
+                            <AvatarFallback className="bg-primary/20 text-xs font-semibold text-primary">
+                              {getNameInitials(member.full_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-medium text-foreground">
+                                {member.full_name || "Unknown"}
+                              </p>
+                              {isFrozenDueToTrial && (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-red-500">
+                                  <Snowflake className="h-3 w-3" />
+                                  Trial Expired
+                                </span>
+                              )}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {member.email}
+                            </p>
+                            {member.phone && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {member.phone}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
+                          {isFrozenDueToTrial ? (
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-1.5 bg-red-600 hover:bg-red-700 sm:flex-none"
+                              onClick={() =>
+                                handleRenewAccount(
+                                  member.user_id,
+                                  member.membership_trial_ends_at
+                                    ? "membership"
+                                    : "platform",
+                                )
+                              }
+                              disabled={renewingId === member.user_id}
+                            >
+                              {renewingId === member.user_id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              )}
+                              Renew
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                className="flex-1 gap-1.5 sm:flex-none"
+                                onClick={() => handleApproveMember(member.user_id)}
+                                disabled={approvingId === member.user_id}
+                              >
+                                {approvingId === member.user_id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <UserCheck className="h-3.5 w-3.5" />
+                                )}
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 gap-1.5 sm:flex-none"
+                                onClick={() => handleRejectMember(member.user_id)}
+                                disabled={rejectingId === member.user_id}
+                              >
+                                {rejectingId === member.user_id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <X className="h-3.5 w-3.5" />
+                                )}
+                                Reject
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          className="gap-1.5"
-                          onClick={() => handleApproveMember(member.user_id)}
-                          disabled={approvingId === member.user_id}
-                        >
-                          {approvingId === member.user_id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <UserCheck className="h-3.5 w-3.5" />
-                          )}
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5"
-                          onClick={() => handleRejectMember(member.user_id)}
-                          disabled={rejectingId === member.user_id}
-                        >
-                          {rejectingId === member.user_id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <X className="h-3.5 w-3.5" />
-                          )}
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <UserCheck className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                <div className="flex flex-col items-center justify-center px-2 py-8 text-center sm:py-10">
+                  <UserCheck className="mb-3 h-10 w-10 text-muted-foreground/50 sm:h-12 sm:w-12" />
                   <p className="text-sm text-muted-foreground">
                     No pending member approvals
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
                     New member requests will appear here automatically
                   </p>
                 </div>
               )}
+              <div className="mt-4 border-t border-border/50 pt-3">
+                <Button asChild variant="outline" size="sm" className="w-full gap-2">
+                  <Link href="/dashboard/users">
+                    View all
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
             </section>
 
             <ContactMessagesCard />

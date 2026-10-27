@@ -8,6 +8,13 @@ import {
 import { jsonError } from "@/lib/api/errors";
 import type { Database } from "@/integrations/supabase/types";
 import { notify } from "@/lib/notify-actions";
+import {
+  cacheAside,
+  apiCacheKey,
+  CacheTTL,
+  withCacheHeaders,
+  cacheInvalidate,
+} from "@/lib/api-cache";
 
 type ReviewerRole = "customer" | "admin" | "trainer";
 type ReviewType =
@@ -42,7 +49,7 @@ async function resolveReviewerRole(
   return "customer";
 }
 
-async function canModerateReviews(userId: string, email?: string | null) {
+async function canModerateReviews(userId: string) {
   const service = createSupabaseServiceClient();
   if (!service) return false;
 
@@ -57,9 +64,7 @@ async function canModerateReviews(userId: string, email?: string | null) {
 
   const isAdmin = (roleRows || []).some((r) => r.role === "admin");
   const isSuper =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test" ||
-    (profile as { email?: string } | null)?.email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   return isAdmin || isSuper;
 }
@@ -146,6 +151,9 @@ export async function POST(request: Request) {
 
     void notify.reviewSubmitted(user.id, stars);
 
+    // Invalidate cache
+    await cacheInvalidate({ prefixes: ["api-cache:reviews:"] });
+
     return NextResponse.json({
       success: true,
       review: data,
@@ -175,7 +183,7 @@ export async function GET(request: Request) {
     if ("error" in auth) return auth.error;
 
     if (scope === "pending") {
-      const ok = await canModerateReviews(auth.user.id, auth.user.email);
+      const ok = await canModerateReviews(auth.user.id);
       if (!ok) return jsonError("Forbidden", 403);
 
       const service = createSupabaseServiceClient();
@@ -207,144 +215,130 @@ export async function GET(request: Request) {
 
   const service = createSupabaseServiceClient();
   const db = service || createSupabaseServerClient();
+  const cacheKey = apiCacheKey("reviews", gymOwnerId || "all", limit);
 
   try {
-    let query = db
-      .from("reviews" as never)
-      .select("*")
-      .eq("is_approved", true)
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const { data, hit } = await cacheAside(
+      cacheKey,
+      CacheTTL.public,
+      async () => {
+        let query = db
+          .from("reviews" as never)
+          .select("*")
+          .eq("is_approved", true)
+          .order("created_at", { ascending: false })
+          .limit(limit);
 
-    if (gymOwnerId) {
-      query = query.eq("gym_owner_id", gymOwnerId);
-    }
-
-    const { data, error } = await query;
-    if (error) return jsonError(error.message, 400);
-
-    const rows = ((data as Array<{
-      user_id: string;
-      gym_owner_id: string | null;
-      reviewer_role: string;
-      is_featured?: boolean;
-    }>) || []).slice().sort((a, b) => {
-      const af = a.is_featured ? 1 : 0;
-      const bf = b.is_featured ? 1 : 0;
-      return bf - af;
-    });
-
-    // Resolve gym branding: prefer gym_owner_id; for gym-owner reviews use user_id
-    const ownerIds = [
-      ...new Set(
-        rows
-          .map((r) =>
-            r.gym_owner_id ||
-            (r.reviewer_role === "admin" ? r.user_id : null),
-          )
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-
-    const gymByOwner = new Map<
-      string,
-      { name: string; logoUrl: string | null }
-    >();
-
-    if (ownerIds.length && service) {
-      const [{ data: gymRows }, { data: profileRows }] = await Promise.all([
-        service
-          .from("gyms")
-          .select("owner_user_id, name, main_image_url, avatar_url")
-          .in("owner_user_id", ownerIds),
-        service
-          .from("profiles")
-          .select("user_id, gym_name, gym_main_image_url, avatar_url")
-          .in("user_id", ownerIds),
-      ]);
-
-      for (const p of profileRows || []) {
-        const row = p as {
-          user_id: string;
-          gym_name: string | null;
-          gym_main_image_url: string | null;
-          avatar_url: string | null;
-        };
-        if (row.gym_name?.trim()) {
-          gymByOwner.set(row.user_id, {
-            name: row.gym_name.trim(),
-            logoUrl: row.gym_main_image_url || row.avatar_url || null,
-          });
+        if (gymOwnerId) {
+          query = query.eq("gym_owner_id", gymOwnerId);
         }
-      }
 
-      for (const g of gymRows || []) {
-        const row = g as {
-          owner_user_id: string;
-          name: string;
-          main_image_url: string | null;
-          avatar_url: string | null;
-        };
-        const prev = gymByOwner.get(row.owner_user_id);
-        gymByOwner.set(row.owner_user_id, {
-          name: row.name || prev?.name || "Partner gym",
-          logoUrl:
-            row.avatar_url ||
-            row.main_image_url ||
-            prev?.logoUrl ||
-            null,
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = ((data as Array<{
+          user_id: string;
+          gym_owner_id: string | null;
+          reviewer_role: string;
+          is_featured?: boolean;
+        }>) || []).slice().sort((a, b) => {
+          const af = a.is_featured ? 1 : 0;
+          const bf = b.is_featured ? 1 : 0;
+          return bf - af;
         });
+
+        // Resolve gym branding: prefer gym_owner_id; for gym-owner reviews use user_id
+        const ownerIds = [
+          ...new Set(
+            rows
+              .map((r) =>
+                r.gym_owner_id ||
+                (r.reviewer_role === "admin" ? r.user_id : null),
+              )
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+
+        const gymByOwner = new Map<
+          string,
+          { name: string; logoUrl: string | null }
+        >();
+
+        if (ownerIds.length && service) {
+          const { data: gymRows } = await service
+            .from("gyms")
+            .select("owner_user_id, name, main_image_url, avatar_url")
+            .in("owner_user_id", ownerIds);
+
+          for (const g of gymRows || []) {
+            const row = g as {
+              owner_user_id: string;
+              name: string;
+              main_image_url: string | null;
+              avatar_url: string | null;
+            };
+            gymByOwner.set(row.owner_user_id, {
+              name: row.name || "Partner gym",
+              logoUrl: row.avatar_url || row.main_image_url || null,
+            });
+          }
+        }
+
+        const reviews = rows.map((r) => {
+          const key =
+            r.gym_owner_id ||
+            (r.reviewer_role === "admin" ? r.user_id : null);
+          const gym = key ? gymByOwner.get(key) : undefined;
+          return {
+            ...r,
+            gym_name: gym?.name || null,
+            gym_logo_url: gym?.logoUrl || null,
+          };
+        });
+
+        // Full stats across all approved reviews (not just this page)
+        let count = reviews.length;
+        let average: number | null =
+          count > 0
+            ? Math.round(
+                (reviews.reduce(
+                  (sum, r) => sum + (Number((r as { rating?: number }).rating) || 0),
+                  0,
+                ) /
+                  count) *
+                  10,
+              ) / 10
+            : null;
+
+        if (service) {
+          let statsQuery = service
+            .from("reviews" as never)
+            .select("rating")
+            .eq("is_approved", true);
+          if (gymOwnerId) {
+            statsQuery = statsQuery.eq("gym_owner_id", gymOwnerId);
+          }
+          const { data: allRatings } = await statsQuery;
+          const ratingRows = (allRatings as { rating: number }[] | null) || [];
+          count = ratingRows.length;
+          average =
+            count > 0
+              ? Math.round(
+                  (ratingRows.reduce((s, r) => s + (Number(r.rating) || 0), 0) /
+                    count) *
+                    10,
+                ) / 10
+              : null;
+        }
+
+        return { reviews, average, count };
       }
-    }
+    );
 
-    const reviews = rows.map((r) => {
-      const key =
-        r.gym_owner_id ||
-        (r.reviewer_role === "admin" ? r.user_id : null);
-      const gym = key ? gymByOwner.get(key) : undefined;
-      return {
-        ...r,
-        gym_name: gym?.name || null,
-        gym_logo_url: gym?.logoUrl || null,
-      };
-    });
-
-    // Full stats across all approved reviews (not just this page)
-    let count = reviews.length;
-    let average: number | null =
-      count > 0
-        ? Math.round(
-            (reviews.reduce(
-              (sum, r) => sum + (Number((r as { rating?: number }).rating) || 0),
-              0,
-            ) /
-              count) *
-              10,
-          ) / 10
-        : null;
-
-    if (service) {
-      let statsQuery = service
-        .from("reviews" as never)
-        .select("rating")
-        .eq("is_approved", true);
-      if (gymOwnerId) {
-        statsQuery = statsQuery.eq("gym_owner_id", gymOwnerId);
-      }
-      const { data: allRatings } = await statsQuery;
-      const ratingRows = (allRatings as { rating: number }[] | null) || [];
-      count = ratingRows.length;
-      average =
-        count > 0
-          ? Math.round(
-              (ratingRows.reduce((s, r) => s + (Number(r.rating) || 0), 0) /
-                count) *
-                10,
-            ) / 10
-          : null;
-    }
-
-    return NextResponse.json({ reviews, average, count });
+    return NextResponse.json(
+      data,
+      withCacheHeaders(undefined, Math.floor(CacheTTL.public / 1000), hit),
+    );
   } catch (error) {
     return jsonError(
       error instanceof Error ? error.message : "Failed to fetch reviews",
@@ -386,7 +380,7 @@ export async function PATCH(request: Request) {
     return jsonError("id is required", 400);
   }
 
-  const isModerator = await canModerateReviews(auth.user.id, auth.user.email);
+  const isModerator = await canModerateReviews(auth.user.id);
   const isOwnerEdit =
     rating !== undefined ||
     reviewText !== undefined ||
@@ -448,6 +442,10 @@ export async function PATCH(request: Request) {
       .single();
 
     if (error) return jsonError(error.message, 400);
+
+    // Invalidate cache
+    await cacheInvalidate({ prefixes: ["api-cache:reviews:"] });
+
     return NextResponse.json({
       success: true,
       review: data,
@@ -495,6 +493,10 @@ export async function PATCH(request: Request) {
       .single();
 
     if (error) return jsonError(error.message, 400);
+
+    // Invalidate cache
+    await cacheInvalidate({ prefixes: ["api-cache:reviews:"] });
+
     return NextResponse.json({ success: true, review: data });
   }
 
@@ -514,6 +516,10 @@ export async function PATCH(request: Request) {
     .single();
 
   if (error) return jsonError(error.message, 400);
+
+  // Invalidate cache
+  await cacheInvalidate({ prefixes: ["api-cache:reviews:"] });
+
   return NextResponse.json({ success: true, review: data });
 }
 
@@ -529,7 +535,7 @@ export async function DELETE(request: Request) {
   const id = url.searchParams.get("id");
   if (!id) return jsonError("id is required", 400);
 
-  const isModerator = await canModerateReviews(auth.user.id, auth.user.email);
+  const isModerator = await canModerateReviews(auth.user.id);
 
   const { data: existing, error: findErr } = await service
     .from("reviews" as never)
@@ -547,5 +553,9 @@ export async function DELETE(request: Request) {
 
   const { error } = await service.from("reviews" as never).delete().eq("id", id);
   if (error) return jsonError(error.message, 400);
+
+  // Invalidate cache
+  await cacheInvalidate({ prefixes: ["api-cache:reviews:"] });
+
   return NextResponse.json({ success: true, deleted: true });
 }

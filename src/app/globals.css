@@ -37,13 +37,10 @@
 
 @layer base {
   /*
-   * Reserve scrollbar space always so hiding overflow (modals) does not
-   * change layout width. Radix dialogs still inject padding — neutralize it.
+   * Neutralize Radix / react-remove-scroll body padding so modals
+   * don’t leave a right-edge gap. Do NOT use scrollbar-gutter: stable
+   * on html — it reserves empty space on dashboard (inner scroll).
    */
-  html {
-    scrollbar-gutter: stable;
-  }
-
   body[data-scroll-locked],
   html body[data-scroll-locked] {
     --removed-body-scroll-bar-size: 0px !important;
@@ -224,7 +221,7 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
+    width: 4px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
@@ -235,13 +232,13 @@
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: hsl(var(--primary) / 0.7);
     border-radius: 999px;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--primary));
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
   }
 
@@ -256,8 +253,8 @@
   }
 
   *::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 4px;
+    height: 4px;
   }
 
   *::-webkit-scrollbar-track {
@@ -268,13 +265,13 @@
   *::-webkit-scrollbar-thumb {
     background: hsl(var(--primary));
     border-radius: 999px;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
   }
 
   *::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--primary) / 0.85);
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     background-clip: padding-box;
   }
 
@@ -822,6 +819,37 @@
     .forge-hero-bg {
       object-position: 48% 48%;
     }
+  }
+
+  @keyframes shine {
+    0% {
+      transform: translateX(-100%) translateY(100%);
+    }
+    100% {
+      transform: translateX(100%) translateY(-100%);
+    }
+  }
+
+  .animate-shine {
+    animation: shine 3s ease-in-out infinite;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar-track {
+    display: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar-thumb {
+    display: none;
   }
 }
 

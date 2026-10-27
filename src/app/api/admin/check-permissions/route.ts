@@ -29,8 +29,7 @@ export async function GET(request: Request) {
 
   const email = (profile?.email || user.email || "").toLowerCase();
   const roleNames = (roles || []).map((r) => r.role);
-  const isSuperAdmin =
-    profile?.is_super_admin === true || email === "superadmin@forge.test";
+  const isSuperAdmin = profile?.is_super_admin === true;
   const hasAdminRole = roleNames.includes("admin");
   const adminApproved = profile?.admin_approved === true;
 

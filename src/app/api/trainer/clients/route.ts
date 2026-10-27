@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     supabase
       .from("profiles")
       .select(
-        "user_id, full_name, email, gym_owner_id, gym_name, salary, pt_sessions, specialization, years_experience, max_client_capacity, employment_type, working_days, working_hours, availability, assigned_members",
+        "user_id, full_name, email, gym_owner_id, salary, pt_sessions, specialization, years_experience, max_client_capacity, employment_type, working_days, working_hours, availability, assigned_members",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -83,32 +83,13 @@ export async function GET(request: Request) {
 
   let gymMonthlyFee: string | null = null;
   let trainerFee: string | null = null;
-  let gymName: string | null =
-    (trainerProfile?.gym_name as string | null) || null;
+  let gymName: string | null = null;
 
   if (gymOwnerId) {
     const gym = await getGymByOwnerId(gymOwnerId);
     gymMonthlyFee = gym?.monthlyFee || null;
     trainerFee = gym?.trainerFee || null;
-    gymName = gym?.gymName || gymName;
-
-    if (!gymMonthlyFee || !trainerFee) {
-      const { data: ownerProfile } = await supabase
-        .from("profiles")
-        .select("gym_name, gym_monthly_fee, gym_trainer_fee")
-        .eq("user_id", gymOwnerId)
-        .maybeSingle();
-      gymMonthlyFee =
-        gymMonthlyFee ||
-        (ownerProfile?.gym_monthly_fee as string | null) ||
-        null;
-      trainerFee =
-        trainerFee ||
-        (ownerProfile?.gym_trainer_fee as string | null) ||
-        null;
-      gymName =
-        gymName || (ownerProfile?.gym_name as string | null) || null;
-    }
+    gymName = gym?.gymName || null;
   }
 
   const clients = (rows || []).map((p) => {
@@ -179,7 +160,9 @@ export async function GET(request: Request) {
       specialization:
         (trainerProfile?.specialization as string | null) || null,
       yearsExperience:
-        (trainerProfile?.years_experience as string | null) || null,
+        trainerProfile?.years_experience == null
+          ? null
+          : String(trainerProfile.years_experience),
       maxClientCapacity:
         (trainerProfile?.max_client_capacity as string | null) || null,
       employmentType:

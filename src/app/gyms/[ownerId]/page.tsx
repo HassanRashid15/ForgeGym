@@ -95,40 +95,28 @@ export async function generateMetadata({ params }: PageProps) {
   });
 }
 
-function formatOperatingDays(days: string[] | null, count: number | null): string {
-  if (days && days.length > 0) {
+function formatOperatingDays(days: string[] | null | undefined, count: number | null | undefined): string {
+  const list = Array.isArray(days)
+    ? days.map((d) => String(d).trim()).filter(Boolean)
+    : [];
+
+  if (list.length > 0) {
     const dayOrder = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const sortedDays = days.sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
-
-    // Check for consecutive days
-    if (sortedDays.length >= 2) {
-      const firstIndex = dayOrder.indexOf(sortedDays[0]);
-      const lastIndex = dayOrder.indexOf(sortedDays[sortedDays.length - 1]);
-
-      // If all days are consecutive
-      const isConsecutive = sortedDays.every((day, i) => {
-        const expectedIndex = firstIndex + i;
-        return dayOrder.indexOf(day) === expectedIndex;
-      });
-
-      if (isConsecutive) {
-        if (sortedDays.length === 7) return "Daily";
-        if (sortedDays.length === 5 && firstIndex === 0 && lastIndex === 4) return "Mon-Fri";
-        if (sortedDays.length === 2 && firstIndex === 5 && lastIndex === 6) return "Sat-Sun";
-        return `${sortedDays[0]}-${sortedDays[sortedDays.length - 1]}`;
-      }
-    }
-
-    // If not consecutive, show first 2 and count
-    if (sortedDays.length > 2) {
-      return `${sortedDays.slice(0, 2).join(", ")} +${sortedDays.length - 2}`;
-    }
+    const sortedDays = [...list].sort(
+      (a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b),
+    );
+    if (sortedDays.length === 7) return "Mon, Tue, Wed, Thu, Fri, Sat, Sun";
     return sortedDays.join(", ");
   }
 
-  // Fallback to count if no specific days
-  if (count) return `${count} days/week`;
-  return "—";
+  const n = typeof count === "number" ? count : Number(count);
+  if (Number.isFinite(n) && n > 0) {
+    if (n >= 7) return "Mon, Tue, Wed, Thu, Fri, Sat, Sun";
+    // No specific weekdays stored — show count clearly
+    return `${n} days/week`;
+  }
+
+  return "";
 }
 
 export default async function GymDetailPage({ params }: PageProps) {
@@ -156,6 +144,10 @@ export default async function GymDetailPage({ params }: PageProps) {
 
   const registerHref = `/register?gym=${encodeURIComponent(ownerId)}`;
   const pageUrl = `${resolveSiteUrl().replace(/\/$/, "")}/gyms/${ownerId}`;
+  const operatingDaysLabel = formatOperatingDays(
+    gym.operatingDaysSpecific,
+    gym.operatingDays,
+  );
 
   const statTiles = [
     {
@@ -211,43 +203,23 @@ export default async function GymDetailPage({ params }: PageProps) {
 
         <div className="container relative z-10 mx-auto flex min-h-[78vh] flex-col justify-end px-4 pb-14 pt-28 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
           <div className="pointer-events-auto max-w-3xl">
-            {(gym.openingTime || gym.closingTime || gym.peakHours || gym.operatingDays) && (
-              <div className="absolute right-4 top-28 flex flex-col items-end gap-2 md:right-6 md:top-28 lg:right-8 lg:top-28">
-                <div className="rounded-lg border border-border/60 bg-background/80 px-4 py-2 backdrop-blur-sm">
-                  {(gym.openingTime || gym.closingTime) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-primary" />
-                      <span className="font-medium text-foreground">
-                        {gym.openingTime || "—"} - {gym.closingTime || "—"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="mt-1 flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
-                    {gym.peakHours && (
-                      <p>Peak: {gym.peakHours}</p>
-                    )}
-                    {(gym.operatingDaysSpecific || gym.operatingDays) && (
-                      <p>{formatOperatingDays(gym.operatingDaysSpecific, gym.operatingDays)}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
             <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
+            {gym.gymCity && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  {gym.gymCity}
+                </span>
+              )}
               {gym.gymType && (
                 <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
                   {gym.gymType}
                 </span>
               )}
-              {gym.gymCity && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
-                  {gym.gymCity}
-                </span>
-              )}
               {gym.yearsOperating && (
                 <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1 backdrop-blur-sm">
-                  {gym.yearsOperating} years
+                  {/year/i.test(gym.yearsOperating)
+                    ? gym.yearsOperating
+                    : `${gym.yearsOperating} years`}
                 </span>
               )}
             </div>
@@ -293,6 +265,22 @@ export default async function GymDetailPage({ params }: PageProps) {
                 </a>
               </p>
             )}
+
+            {(gym.openingTime || gym.closingTime) && (
+              <p className="mt-2 flex max-w-xl items-center gap-2 text-sm text-muted-foreground md:text-base">
+                <Clock className="h-4 w-4 shrink-0 text-primary" />
+                <span>
+                  {gym.openingTime || "—"} – {gym.closingTime || "—"}
+                </span>
+              </p>
+            )}
+
+            {operatingDaysLabel ? (
+              <p className="mt-2 flex max-w-xl items-center gap-2 text-sm text-muted-foreground md:text-base">
+                <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+                <span>{operatingDaysLabel}</span>
+              </p>
+            ) : null}
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <ShareGymButton gymName={gym.gymName} ownerId={ownerId} />

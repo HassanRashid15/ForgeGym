@@ -1,6 +1,7 @@
 import { apiRequest } from "@/api/client";
 import { supabase } from "@/integrations/supabase/client";
 import type { FitnessProfileData, RegisterMediaFiles } from "@/types/auth";
+import { logger } from "@/lib/logger";
 
 type AuthSessionPayload = {
   user: any;
@@ -23,7 +24,7 @@ export async function loginWithPassword(email: string, password: string) {
     });
     if (error) {
       // Still proceed — cookies from /api/auth/login may be enough
-      console.warn("setSession after login:", error.message);
+      logger.warn("setSession after login", { error: error.message });
     }
   } else {
     // Ensure client session exists even if response omitted tokens
@@ -203,6 +204,8 @@ export async function fetchCurrentUser() {
       daysLeft: number | null;
       label: string;
     } | null;
+    platformFeeStatus?: string | null;
+    platformMonthlyFee?: string | null;
   }>("auth", "me");
 }
 
@@ -211,10 +214,13 @@ export type AdminListItem = {
   full_name: string | null;
   email: string | null;
   phone: string | null;
+  avatar_url?: string | null;
   created_at: string | null;
   admin_approved: boolean;
   admin_rejected_at?: string | null;
   status?: "pending" | "approved" | "rejected";
+  /** Gym owner vs self-training platform member */
+  kind?: "gym_owner" | "platform_member";
   is_verified?: boolean;
   approval_requested_at?: string | null;
   gym_name?: string | null;
@@ -300,10 +306,96 @@ export async function fetchPlatformSettings() {
     platformFacilityFee: string;
     globalFacilityFee?: string;
     personalMonthlyFee?: string | null;
+    platformFeeStatus?: string | null;
+    concessionAmount?: string | null;
+    concessionNote?: string | null;
     updatedAt: string | null;
     stored: boolean;
     warning?: string;
   }>("admin", "platformSettings");
+}
+
+export type PlatformFeeConcessionItem = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  platform_monthly_fee: string | null;
+  platform_fee_status: string | null;
+  platform_fee_concession_amount: string | null;
+  platform_fee_concession_note: string | null;
+  platform_fee_responded_at: string | null;
+  gym_name: string | null;
+  gym_city: string | null;
+};
+
+/** admin.platformFeeConcessions → GET /api/admin/platform-fee?queue=1 */
+export async function fetchPlatformFeeConcessions() {
+  return apiRequest<{ concessions: PlatformFeeConcessionItem[] }>(
+    "admin",
+    "platformFeeConcessions",
+    { query: { queue: 1 } },
+  );
+}
+
+/** admin.platformFeeConcessions → GET /api/admin/platform-fee (own status) */
+export async function fetchOwnPlatformFee() {
+  return apiRequest<{
+    userId: string;
+    platformMonthlyFee: string | null;
+    platformFeeStatus: string | null;
+    concessionAmount: string | null;
+    concessionNote: string | null;
+    respondedAt: string | null;
+  }>("admin", "platformFeeConcessions");
+}
+
+/** admin.respondPlatformFee → POST /api/admin/platform-fee (accept) */
+export async function acceptPlatformFee() {
+  return apiRequest<{ ok: boolean; platformFeeStatus: string }>(
+    "admin",
+    "respondPlatformFee",
+    { body: { action: "accept" } },
+  );
+}
+
+/** admin.respondPlatformFee → POST /api/admin/platform-fee (request_concession) */
+export async function requestPlatformFeeConcession(
+  concessionAmount: string,
+  note?: string,
+) {
+  return apiRequest<{ ok: boolean; platformFeeStatus: string }>(
+    "admin",
+    "respondPlatformFee",
+    {
+      body: {
+        action: "request_concession",
+        concessionAmount,
+        note: note || null,
+      },
+    },
+  );
+}
+
+/** admin.respondPlatformFee → POST /api/admin/platform-fee (resolve_concession) */
+export async function resolvePlatformFeeConcession(
+  userId: string,
+  decision: "accept" | "reject",
+  platformMonthlyFee?: string,
+) {
+  return apiRequest<{
+    ok: boolean;
+    decision: string;
+    platformFeeStatus: string;
+    platformMonthlyFee: string | null;
+  }>("admin", "respondPlatformFee", {
+    body: {
+      action: "resolve_concession",
+      userId,
+      decision,
+      platformMonthlyFee,
+    },
+  });
 }
 
 /** admin.updatePlatformSettings → PATCH /api/admin/platform-settings */

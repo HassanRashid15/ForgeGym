@@ -89,7 +89,7 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
                             <img
                               src={trainer.avatarUrl}
                               alt={trainer.fullName || "Trainer"}
-                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              className="h-full w-full transition-transform duration-500 group-hover:scale-105"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-primary text-4xl font-bold text-primary-foreground">
@@ -210,9 +210,7 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
             </div>
           )}
         </div>
-      </section>
-
-      {/* CTA */}
+      </section>    
       <section className="bg-card py-24">
         <div className="container mx-auto px-4 text-center">
           <ScrollAnimate animation="scale">
@@ -229,9 +227,7 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
           </ScrollAnimate>
         </div>
       </section>
-
       <TrainersPageFaq />
-
       <Footer />
     </div>
   );

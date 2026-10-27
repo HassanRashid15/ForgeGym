@@ -85,10 +85,7 @@ CREATE POLICY "Super admin upload promotions media"
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND (
-          p.is_super_admin = true
-          OR lower(coalesce(p.email, '')) = 'superadmin@forge.test'
-        )
+        AND p.is_super_admin = true
     )
   );
 
@@ -105,10 +102,7 @@ CREATE POLICY "Super admin update promotions media"
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND (
-          p.is_super_admin = true
-          OR lower(coalesce(p.email, '')) = 'superadmin@forge.test'
-        )
+        AND p.is_super_admin = true
     )
   )
   WITH CHECK (
@@ -130,9 +124,6 @@ CREATE POLICY "Super admin delete promotions media"
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND (
-          p.is_super_admin = true
-          OR lower(coalesce(p.email, '')) = 'superadmin@forge.test'
-        )
+        AND p.is_super_admin = true
     )
   );

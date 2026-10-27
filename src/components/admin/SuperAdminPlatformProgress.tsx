@@ -47,15 +47,14 @@ export function SuperAdminPlatformProgress() {
   const handleConfirmApprove = async (platformMonthlyFee: string) => {
     if (!approveTarget) return;
     const userId = approveTarget.user_id;
+    const isMember = approveTarget.kind === "platform_member";
     setActingId(userId);
     try {
       await approveAdminAccount(userId, {
         platformMonthlyFee: platformMonthlyFee || null,
       });
       toast.success(
-        platformMonthlyFee
-          ? `Approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
-          : "Gym owner approved — 1-month free trial started.",
+        `Approved — fee $${platformMonthlyFee}/mo sent. 1-month access starts when they accept.`,
       );
       setApproveTarget(null);
       await refresh();
@@ -66,11 +65,19 @@ export function SuperAdminPlatformProgress() {
     }
   };
 
-  const handleReject = async (userId: string) => {
+  const handleApproveClick = (row: AdminListItem) => {
+    setApproveTarget(row);
+  };
+
+  const handleReject = async (userId: string, kind?: AdminListItem["kind"]) => {
     setActingId(userId);
     try {
       await rejectAdminAccount(userId);
-      toast.success("Gym owner rejected — saved in database.");
+      toast.success(
+        kind === "platform_member"
+          ? "Platform member rejected — saved in database."
+          : "Gym owner rejected — saved in database.",
+      );
       await refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject");
@@ -230,7 +237,7 @@ export function SuperAdminPlatformProgress() {
           <CardHeader>
             <CardTitle className="text-base">Pending approvals</CardTitle>
             <CardDescription>
-              Approve or reject gym owners — status saved to the database
+              Approve or reject gym owners and platform members
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -241,6 +248,7 @@ export function SuperAdminPlatformProgress() {
             ) : (
               stats.pendingList.map((row) => {
                 const busy = actingId === row.user_id;
+                const isMember = row.kind === "platform_member";
                 return (
                   <div
                     key={row.user_id}
@@ -253,11 +261,12 @@ export function SuperAdminPlatformProgress() {
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">
-                        {row.full_name || row.email || "Owner"}
+                        {row.full_name || row.email || (isMember ? "Member" : "Owner")}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {row.gym_name || "Gym"}
-                        {row.gym_city ? ` · ${row.gym_city}` : ""}
+                        {isMember
+                          ? "Platform member · Self-training"
+                          : `${row.gym_name || "Gym"}${row.gym_city ? ` · ${row.gym_city}` : ""}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-1.5">
@@ -265,7 +274,7 @@ export function SuperAdminPlatformProgress() {
                         size="sm"
                         className="h-8 gap-1"
                         disabled={busy || !!actingId}
-                        onClick={() => setApproveTarget(row)}
+                        onClick={() => void handleApproveClick(row)}
                       >
                         {busy ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -279,7 +288,7 @@ export function SuperAdminPlatformProgress() {
                         variant="outline"
                         className="h-8 gap-1"
                         disabled={busy || !!actingId}
-                        onClick={() => void handleReject(row.user_id)}
+                        onClick={() => void handleReject(row.user_id, row.kind)}
                       >
                         <X className="h-3.5 w-3.5" />
                         Reject
@@ -305,7 +314,7 @@ export function SuperAdminPlatformProgress() {
             <TrendingUp className="h-4 w-4" />
             Recent gym owners
           </CardTitle>
-          <CardDescription>Latest owner accounts in the database</CardDescription>
+          <CardDescription>Latest approved owner accounts in the database</CardDescription>
         </CardHeader>
         <CardContent>
           {stats.recentOwners.length === 0 ? (
@@ -314,72 +323,41 @@ export function SuperAdminPlatformProgress() {
             </p>
           ) : (
             <ul className="divide-y">
-              {stats.recentOwners.map((row) => {
-                const isPending = row.status === "pending" || !row.status;
-                const busy = actingId === row.user_id;
-                return (
-                  <li
-                    key={row.user_id}
-                    className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
+              {stats.recentOwners.map((row) => (
+                <li
+                  key={row.user_id}
+                  className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="h-9 w-9">
+                      <AvatarFallback className="bg-muted text-xs font-semibold">
+                        {getNameInitials(row.full_name || row.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {row.full_name || row.email || "Owner"}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {row.gym_name || "—"}
+                        {row.gym_city ? ` · ${row.gym_city}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={
+                      row.status === "approved"
+                        ? "default"
+                        : row.status === "rejected"
+                          ? "destructive"
+                          : "outline"
+                    }
+                    className="capitalize"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-muted text-xs font-semibold">
-                          {getNameInitials(row.full_name || row.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {row.full_name || row.email || "Owner"}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {row.gym_name || "—"}
-                          {row.gym_city ? ` · ${row.gym_city}` : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant={
-                          row.status === "approved"
-                            ? "default"
-                            : row.status === "rejected"
-                              ? "destructive"
-                              : "outline"
-                        }
-                        className="capitalize"
-                      >
-                        {row.status || "pending"}
-                      </Badge>
-                      {isPending ? (
-                        <>
-                          <Button
-                            size="sm"
-                            className="h-8"
-                            disabled={busy || !!actingId}
-                            onClick={() => setApproveTarget(row)}
-                          >
-                            {busy ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              "Approve"
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8"
-                            disabled={busy || !!actingId}
-                            onClick={() => void handleReject(row.user_id)}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
+                    {row.status || "pending"}
+                  </Badge>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>

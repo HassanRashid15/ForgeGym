@@ -8,6 +8,11 @@ function parseCoord(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function feeStr(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  return String(value);
+}
+
 export type GymListItem = {
   ownerId: string;
   gymName: string;
@@ -47,7 +52,7 @@ export type GymDetail = GymListItem & {
   emergencyContact: string | null;
 };
 
-/** Prefer public.gyms catalog; fall back to profiles (no PII) pre-migration. */
+/** Public catalog from public.gyms (source of truth). Owner profile used for approval + PII only. */
 export async function listApprovedGyms(): Promise<GymListItem[]> {
   const service = createSupabaseServiceClient();
   if (!service) return [];
@@ -60,122 +65,66 @@ export async function listApprovedGyms(): Promise<GymListItem[]> {
     .eq("is_published", true)
     .order("name", { ascending: true });
 
-  if (!gymError && gymRows && gymRows.length > 0) {
-    const ownerIds = [...new Set(gymRows.map((row) => row.owner_user_id).filter(Boolean))];
+  if (gymError || !gymRows?.length) return [];
 
-    if (ownerIds.length > 0) {
-      const { data: adminRoles } = await service
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin")
-        .in("user_id", ownerIds);
+  const ownerIds = [...new Set(gymRows.map((row) => row.owner_user_id).filter(Boolean))];
+  if (ownerIds.length === 0) return [];
 
-      const validAdminIds = new Set((adminRoles || []).map((r) => r.user_id));
-
-      const { data: ownerProfiles } = await service
-        .from("profiles")
-        .select(
-          "user_id, admin_approved, is_super_admin, gym_main_image_url, address, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
-        )
-        .in("user_id", ownerIds);
-
-      const profileByUser = new Map(
-        (ownerProfiles || []).map((p) => [p.user_id, p] as const),
-      );
-
-      const validOwnerIds = new Set(
-        (ownerProfiles || [])
-          .filter((p) => p.admin_approved === true && p.is_super_admin !== true)
-          .map((p) => p.user_id),
-      );
-
-      const validGyms = gymRows.filter(
-        (row) =>
-          validAdminIds.has(row.owner_user_id) && validOwnerIds.has(row.owner_user_id),
-      );
-
-      return validGyms.map((row) => {
-        const profile = profileByUser.get(row.owner_user_id);
-        const profileLat =
-          parseCoord((profile as { gym_latitude?: unknown } | undefined)?.gym_latitude);
-        const profileLng =
-          parseCoord((profile as { gym_longitude?: unknown } | undefined)?.gym_longitude);
-        return {
-          ownerId: row.owner_user_id,
-          gymName: row.name,
-          gymType: row.gym_type,
-          gymCity: row.city,
-          address:
-            (profile as { address?: string | null } | undefined)?.address?.trim() ||
-            null,
-          facilities: row.facilities || [],
-          services: row.services || [],
-          peakHours: row.peak_hours,
-          capacity: row.member_capacity,
-          yearsOperating: row.years_operating,
-          ownerName: row.owner_display_name,
-          avatarUrl: row.avatar_url,
-          gymMainImageUrl:
-            row.main_image_url || profile?.gym_main_image_url || null,
-          latitude: parseCoord(row.latitude) ?? profileLat,
-          longitude: parseCoord(row.longitude) ?? profileLng,
-          monthlyFee: (row as { monthly_fee?: string | null }).monthly_fee || null,
-          trainerFee: (row as { trainer_fee?: string | null }).trainer_fee || null,
-          openingTime: row.opening_time || (profile as { gym_opening_time?: string | null } | undefined)?.gym_opening_time || null,
-          closingTime: row.closing_time || (profile as { gym_closing_time?: string | null } | undefined)?.gym_closing_time || null,
-          operatingDaysSpecific: row.operating_days_specific || (profile as { gym_operating_days_specific?: string[] | null } | undefined)?.gym_operating_days_specific || null,
-        };
-      });
-    }
-
-    return [];
-  }
-
-  const { data: roles } = await service
+  const { data: adminRoles } = await service
     .from("user_roles")
     .select("user_id")
-    .eq("role", "admin");
+    .eq("role", "admin")
+    .in("user_id", ownerIds);
 
-  const adminIds = [...new Set((roles || []).map((r) => r.user_id).filter(Boolean))];
-  if (adminIds.length === 0) return [];
+  const validAdminIds = new Set((adminRoles || []).map((r) => r.user_id));
 
-  const { data: profiles, error } = await service
+  const { data: ownerProfiles } = await service
     .from("profiles")
-    .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, address, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, avatar_url, admin_approved, is_super_admin, gym_main_image_url, gym_latitude, gym_longitude, gym_monthly_fee, gym_trainer_fee, gym_opening_time, gym_closing_time, gym_operating_days_specific",
-    )
-    .in("user_id", adminIds)
-    .eq("admin_approved", true)
-    .eq("is_super_admin", false)
-    .not("gym_name", "is", null)
-    .order("gym_name", { ascending: true });
+    .select("user_id, admin_approved, is_super_admin, address")
+    .in("user_id", ownerIds);
 
-  if (error || !profiles) return [];
+  const profileByUser = new Map(
+    (ownerProfiles || []).map((p) => [p.user_id, p] as const),
+  );
 
-  return profiles
-    .filter((p) => (p.gym_name || "").trim().length > 0)
-    .map((p) => ({
-      ownerId: p.user_id,
-      gymName: p.gym_name!,
-      gymType: p.gym_type,
-      gymCity: p.gym_city,
-      address: (p as { address?: string | null }).address?.trim() || null,
-      facilities: p.gym_facilities || [],
-      services: p.gym_services || [],
-      peakHours: p.gym_peak_hours,
-      capacity: p.gym_member_capacity,
-      yearsOperating: p.gym_years_operating,
-      ownerName: p.full_name,
-      avatarUrl: p.avatar_url,
-      gymMainImageUrl: p.gym_main_image_url || null,
-      latitude: parseCoord(p.gym_latitude),
-      longitude: parseCoord(p.gym_longitude),
-      monthlyFee: (p as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
-      trainerFee: (p as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
-      openingTime: (p as { gym_opening_time?: string | null }).gym_opening_time || null,
-      closingTime: (p as { gym_closing_time?: string | null }).gym_closing_time || null,
-      operatingDaysSpecific: (p as { gym_operating_days_specific?: string[] | null }).gym_operating_days_specific || null,
-    }));
+  const validOwnerIds = new Set(
+    (ownerProfiles || [])
+      .filter((p) => p.admin_approved === true && p.is_super_admin !== true)
+      .map((p) => p.user_id),
+  );
+
+  const validGyms = gymRows.filter(
+    (row) =>
+      validAdminIds.has(row.owner_user_id) && validOwnerIds.has(row.owner_user_id),
+  );
+
+  return validGyms.map((row) => {
+    const profile = profileByUser.get(row.owner_user_id);
+    return {
+      ownerId: row.owner_user_id,
+      gymName: row.name,
+      gymType: row.gym_type,
+      gymCity: row.city,
+      address:
+        (profile as { address?: string | null } | undefined)?.address?.trim() ||
+        null,
+      facilities: row.facilities || [],
+      services: row.services || [],
+      peakHours: row.peak_hours,
+      capacity: row.member_capacity,
+      yearsOperating: row.years_operating,
+      ownerName: row.owner_display_name,
+      avatarUrl: row.avatar_url,
+      gymMainImageUrl: row.main_image_url || null,
+      latitude: parseCoord(row.latitude),
+      longitude: parseCoord(row.longitude),
+      monthlyFee: feeStr(row.monthly_fee),
+      trainerFee: feeStr(row.trainer_fee),
+      openingTime: row.opening_time || null,
+      closingTime: row.closing_time || null,
+      operatingDaysSpecific: row.operating_days_specific || null,
+    };
+  });
 }
 
 export async function getGymByOwnerId(
@@ -193,88 +142,7 @@ export async function getGymByOwnerId(
     .eq("is_published", true)
     .maybeSingle();
 
-  if (!gymError && gymRow) {
-    // Validate that the gym owner still exists and has admin role
-    const { data: roleRows } = await service
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", ownerId);
-
-    const isAdmin = (roleRows || []).some((r) => r.role === "admin");
-    if (!isAdmin) return null;
-
-    const { data: profile } = await service
-      .from("profiles")
-      .select(
-        "admin_approved, is_super_admin, bio, avatar_url, full_name, address, phone, emergency_contact, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_operating_days, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_facilities, gym_services, gym_type, gym_city, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
-      )
-      .eq("user_id", ownerId)
-      .maybeSingle();
-
-    if (!profile || profile.is_super_admin || !profile.admin_approved) {
-      return null;
-    }
-
-    const optionalFromGym = (gymRow.optional_images_urls || []).filter(Boolean);
-    const optionalFromProfile = (profile.gym_optional_images_urls || []).filter(Boolean);
-
-    const profileLat = parseCoord(
-      (profile as { gym_latitude?: unknown }).gym_latitude,
-    );
-    const profileLng = parseCoord(
-      (profile as { gym_longitude?: unknown }).gym_longitude,
-    );
-
-    return {
-      ownerId: gymRow.owner_user_id,
-      gymName: gymRow.name || "",
-      gymType: gymRow.gym_type || profile.gym_type,
-      gymCity: gymRow.city || profile.gym_city,
-      facilities: (gymRow.facilities?.length ? gymRow.facilities : profile.gym_facilities) || [],
-      services: (gymRow.services?.length ? gymRow.services : profile.gym_services) || [],
-      peakHours: gymRow.peak_hours || profile.gym_peak_hours,
-      capacity: gymRow.member_capacity || profile.gym_member_capacity,
-      yearsOperating: gymRow.years_operating || profile.gym_years_operating,
-      operatingDays: gymRow.operating_days ?? profile.gym_operating_days,
-      ownerName: gymRow.owner_display_name || profile.full_name,
-      bio: gymRow.bio || profile.bio,
-      avatarUrl: gymRow.avatar_url || profile.avatar_url,
-      gymMainImageUrl: gymRow.main_image_url || profile.gym_main_image_url || null,
-      gymOptionalImagesUrls: optionalFromGym.length ? optionalFromGym : optionalFromProfile,
-      gymVideoUrl: gymRow.video_url || profile.gym_video_url || null,
-      gymVideoFileUrl: gymRow.video_file_url || profile.gym_video_file_url || null,
-      monthlyFee:
-        (gymRow as { monthly_fee?: string | null }).monthly_fee ||
-        (profile as { gym_monthly_fee?: string | null }).gym_monthly_fee ||
-        null,
-      trainerFee:
-        (gymRow as { trainer_fee?: string | null }).trainer_fee ||
-        (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee ||
-        null,
-      latitude: parseCoord(gymRow.latitude) ?? profileLat,
-      longitude: parseCoord(gymRow.longitude) ?? profileLng,
-      address: (profile as { address?: string | null }).address?.trim() || null,
-      phone: (profile as { phone?: string | null }).phone?.trim() || null,
-      emergencyContact:
-        (profile as { emergency_contact?: string | null }).emergency_contact?.trim() ||
-        null,
-      openingTime: gymRow.opening_time || (profile as { gym_opening_time?: string | null } | undefined)?.gym_opening_time || null,
-      closingTime: gymRow.closing_time || (profile as { gym_closing_time?: string | null } | undefined)?.gym_closing_time || null,
-      operatingDaysSpecific: gymRow.operating_days_specific || (profile as { gym_operating_days_specific?: string[] | null } | undefined)?.gym_operating_days_specific || null,
-    };
-  }
-
-  const { data: profile, error } = await service
-    .from("profiles")
-    .select(
-      "user_id, full_name, gym_name, gym_type, gym_city, gym_facilities, gym_services, gym_peak_hours, gym_member_capacity, gym_years_operating, gym_operating_days, avatar_url, bio, address, phone, emergency_contact, admin_approved, is_super_admin, gym_main_image_url, gym_optional_images_urls, gym_video_url, gym_video_file_url, gym_monthly_fee, gym_trainer_fee, gym_latitude, gym_longitude, gym_opening_time, gym_closing_time, gym_operating_days_specific",
-    )
-    .eq("user_id", ownerId)
-    .maybeSingle();
-
-  if (error || !profile || profile.is_super_admin || !profile.admin_approved || !profile.gym_name) {
-    return null;
-  }
+  if (gymError || !gymRow) return null;
 
   const { data: roleRows } = await service
     .from("user_roles")
@@ -284,36 +152,48 @@ export async function getGymByOwnerId(
   const isAdmin = (roleRows || []).some((r) => r.role === "admin");
   if (!isAdmin) return null;
 
+  const { data: profile } = await service
+    .from("profiles")
+    .select(
+      "admin_approved, is_super_admin, bio, avatar_url, full_name, address, phone, emergency_contact",
+    )
+    .eq("user_id", ownerId)
+    .maybeSingle();
+
+  if (!profile || profile.is_super_admin || !profile.admin_approved) {
+    return null;
+  }
+
   return {
-    ownerId: profile.user_id,
-    gymName: profile.gym_name,
-    gymType: profile.gym_type,
-    gymCity: profile.gym_city,
-    facilities: profile.gym_facilities || [],
-    services: profile.gym_services || [],
-    peakHours: profile.gym_peak_hours,
-    capacity: profile.gym_member_capacity,
-    yearsOperating: profile.gym_years_operating,
-    operatingDays: profile.gym_operating_days,
-    ownerName: profile.full_name,
-    bio: profile.bio,
-    avatarUrl: profile.avatar_url,
-    gymMainImageUrl: (profile as { gym_main_image_url?: string | null }).gym_main_image_url || null,
-    gymOptionalImagesUrls: (profile as { gym_optional_images_urls?: string[] | null }).gym_optional_images_urls || [],
-    gymVideoUrl: (profile as { gym_video_url?: string | null }).gym_video_url || null,
-    gymVideoFileUrl: (profile as { gym_video_file_url?: string | null }).gym_video_file_url || null,
-    monthlyFee: (profile as { gym_monthly_fee?: string | null }).gym_monthly_fee || null,
-    trainerFee: (profile as { gym_trainer_fee?: string | null }).gym_trainer_fee || null,
-    latitude: parseCoord((profile as { gym_latitude?: unknown }).gym_latitude),
-    longitude: parseCoord((profile as { gym_longitude?: unknown }).gym_longitude),
+    ownerId: gymRow.owner_user_id,
+    gymName: gymRow.name || "",
+    gymType: gymRow.gym_type,
+    gymCity: gymRow.city,
+    facilities: gymRow.facilities || [],
+    services: gymRow.services || [],
+    peakHours: gymRow.peak_hours,
+    capacity: gymRow.member_capacity,
+    yearsOperating: gymRow.years_operating,
+    operatingDays: gymRow.operating_days,
+    ownerName: gymRow.owner_display_name || profile.full_name,
+    bio: gymRow.bio || profile.bio,
+    avatarUrl: gymRow.avatar_url || profile.avatar_url,
+    gymMainImageUrl: gymRow.main_image_url || null,
+    gymOptionalImagesUrls: (gymRow.optional_images_urls || []).filter(Boolean),
+    gymVideoUrl: gymRow.video_url || null,
+    gymVideoFileUrl: gymRow.video_file_url || null,
+    monthlyFee: feeStr(gymRow.monthly_fee),
+    trainerFee: feeStr(gymRow.trainer_fee),
+    latitude: parseCoord(gymRow.latitude),
+    longitude: parseCoord(gymRow.longitude),
     address: (profile as { address?: string | null }).address?.trim() || null,
     phone: (profile as { phone?: string | null }).phone?.trim() || null,
     emergencyContact:
       (profile as { emergency_contact?: string | null }).emergency_contact?.trim() ||
       null,
-    openingTime: (profile as { gym_opening_time?: string | null }).gym_opening_time || null,
-    closingTime: (profile as { gym_closing_time?: string | null }).gym_closing_time || null,
-    operatingDaysSpecific: (profile as { gym_operating_days_specific?: string[] | null }).gym_operating_days_specific || null,
+    openingTime: gymRow.opening_time || null,
+    closingTime: gymRow.closing_time || null,
+    operatingDaysSpecific: gymRow.operating_days_specific || null,
   };
 }
 
@@ -364,7 +244,8 @@ export async function getGymTrainers(ownerId: string): Promise<GymTrainerPublic[
       avatarUrl: p.avatar_url,
       specialization: p.specialization,
       bio: (p.trainer_bio as string | null) || (p.bio as string | null) || null,
-      yearsExperience: p.years_experience as string | null,
+      yearsExperience:
+        p.years_experience == null ? null : String(p.years_experience),
       certifications: (p.certifications as string[] | null) || null,
     }));
 }
@@ -424,7 +305,8 @@ export async function listAllPublicTrainers(): Promise<PublicTrainerListItem[]> 
         avatarUrl: p.avatar_url,
         specialization: p.specialization,
         bio: (p.trainer_bio as string | null) || (p.bio as string | null) || null,
-        yearsExperience: (p.years_experience as string | null) || null,
+        yearsExperience:
+          p.years_experience == null ? null : String(p.years_experience),
         certifications: (p.certifications as string[] | null) || null,
         skills: (p.skills as string[] | null) || null,
         gymOwnerId: ownerId,
@@ -502,18 +384,6 @@ export async function getPublicTrainerById(
       gymName = gymRow.name;
       gymCity = gymRow.city || null;
       gymMainImageUrl = gymRow.main_image_url || null;
-    }
-    if (!gymName) {
-      const { data: owner } = await service
-        .from("profiles")
-        .select("gym_name, gym_city, gym_main_image_url, admin_approved")
-        .eq("user_id", gymOwnerId)
-        .maybeSingle();
-      if (owner?.admin_approved === true) {
-        gymName = owner?.gym_name || null;
-        gymCity = owner?.gym_city || null;
-        gymMainImageUrl = owner?.gym_main_image_url || null;
-      }
     }
   }
 

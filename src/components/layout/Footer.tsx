@@ -10,6 +10,7 @@ const footerLinks = [
   { name: "Home", path: "/" },
   { name: "Our Trainers", path: "/trainers" },
   { name: "Exercises", path: "/exercises" },
+  { name: "Blog", path: "/blog" },
   { name: "About Us", path: "/about" },
 ];
 
@@ -60,7 +61,12 @@ const Footer = () => {
                     href={link.path}
                     suppressHydrationWarning
                     className={`text-sm transition-colors ${
-                      pathname === link.path
+                      (
+                        link.path === "/"
+                          ? pathname === "/"
+                          : pathname === link.path ||
+                            pathname.startsWith(`${link.path}/`)
+                      )
                         ? "text-primary font-semibold"
                         : "text-muted-foreground hover:text-primary"
                     }`}

@@ -23,9 +23,7 @@ async function requireSuperAdmin(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
-  const isSuperAdmin =
-    profile?.is_super_admin === true || email === "superadmin@forge.test";
+  const isSuperAdmin = profile?.is_super_admin === true;
 
   if (!isSuperAdmin) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };

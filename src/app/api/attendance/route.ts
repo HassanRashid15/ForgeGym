@@ -67,7 +67,9 @@ async function resolveActor(db: Db, userId: string) {
   const [{ data: profile }, { data: roles }] = await Promise.all([
     db
       .from("profiles")
-      .select("gym_owner_id, is_super_admin, full_name, gender, email")
+      .select(
+        "gym_owner_id, is_super_admin, full_name, gender, email, admin_approved, platform_fee_status",
+      )
       .eq("user_id", userId)
       .maybeSingle(),
     db.from("user_roles").select("role").eq("user_id", userId),
@@ -85,14 +87,24 @@ async function resolveActor(db: Db, userId: string) {
   else if (isStaff) role = "staff";
   else if (roleNames.includes("moderator")) role = "moderator";
 
+  // Approved self-training platform member (no gym) — own attendance scope
+  const isPlatformMember =
+    !isAdmin &&
+    !isTrainer &&
+    !isStaff &&
+    profile?.is_super_admin !== true &&
+    profile?.admin_approved === true &&
+    !profile?.gym_owner_id;
+
   const gymOwnerId = isAdmin
     ? profile?.gym_owner_id || userId
-    : profile?.gym_owner_id || null;
+    : profile?.gym_owner_id || (isPlatformMember ? userId : null);
 
   return {
     gymOwnerId,
     isAdmin,
     isTrainer,
+    isPlatformMember,
     canViewGym: Boolean(isAdmin),
     role,
     fullName: (profile?.full_name as string | null) || null,
@@ -214,11 +226,11 @@ export async function GET(request: Request) {
     scope,
   });
 
-  const cacheScopeKey = viewGym
-    ? apiCacheKey("attendance", "gym", actor.gymOwnerId || viewerUserId)
-    : apiCacheKey("attendance", "user", viewerUserId);
+  // Flat key so invalidateAttendanceCache prefixes (`api-cache:attendance:user:…`) match
   const listCacheKey = apiCacheKey(
-    cacheScopeKey,
+    "attendance",
+    viewGym ? "gym" : "user",
+    viewGym ? actor.gymOwnerId || viewerUserId : viewerUserId,
     scope,
     roleFilter,
     from || "-",
@@ -309,8 +321,11 @@ export async function GET(request: Request) {
         closedMessage: isAttendanceOpen() ? null : getAttendanceClosedMessage(),
         genderRequired: !genderGate.ok,
         genderError: genderGate.ok === false ? genderGate.error : null,
-        geoRequired: Boolean(gym?.latitude != null && gym?.longitude != null),
+        geoRequired: actor.isPlatformMember
+          ? false
+          : Boolean(gym?.latitude != null && gym?.longitude != null),
         geoRadiusM: ATTENDANCE_GEO_RADIUS_M,
+        platformSelfTraining: actor.isPlatformMember === true,
         pagination: {
           page,
           pageSize,
@@ -415,7 +430,10 @@ export async function POST(request: Request) {
   }
 
   if (!targetGymOwnerId) {
-    return jsonError("Join a gym before checking in", 400);
+    return jsonError(
+      "Join a gym before checking in — or register as a platform member for self-training check-in",
+      400,
+    );
   }
 
   if (!isAttendanceOpen()) {
@@ -449,7 +467,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const gym = await getGymByOwnerId(targetGymOwnerId);
+  const platformSelf =
+    actor.isPlatformMember === true && targetUserId === auth.user.id;
+  const gym = platformSelf ? null : await getGymByOwnerId(targetGymOwnerId);
   const rawLat = body?.lat;
   const rawLng = body?.lng;
   const userLat =
@@ -464,12 +484,13 @@ export async function POST(request: Request) {
       : rawLng != null && rawLng !== ""
         ? Number(rawLng)
         : null;
+  // Platform self-training members are not tied to a gym GPS pin
   const presence = verifyPresence({
     gymLat: gym?.latitude ?? null,
     gymLng: gym?.longitude ?? null,
     userLat: Number.isFinite(userLat as number) ? (userLat as number) : null,
     userLng: Number.isFinite(userLng as number) ? (userLng as number) : null,
-    adminBypass,
+    adminBypass: adminBypass || platformSelf,
   });
   if (presence.ok === false) {
     return jsonError(presence.error, 400);
@@ -558,6 +579,15 @@ export async function POST(request: Request) {
     });
   }
 
+  const locationMode =
+    body?.locationMode === "in_gym" || body?.locationMode === "not_in_gym"
+      ? (body.locationMode as "in_gym" | "not_in_gym")
+      : null;
+  const source =
+    platformSelf && locationMode
+      ? locationMode
+      : body?.source || presence.method || "manual";
+
   const { data, error } = await service
     .from("attendance_checkins")
     .insert({
@@ -568,8 +598,14 @@ export async function POST(request: Request) {
       gender: targetGender,
       role: targetRole,
       full_name: targetName,
-      source: body?.source || presence.method || "manual",
-      notes: body?.notes || null,
+      source,
+      notes:
+        body?.notes ||
+        (locationMode === "in_gym"
+          ? "Training in gym"
+          : locationMode === "not_in_gym"
+            ? "Training outside gym (self)"
+            : null),
     })
     .select("*")
     .maybeSingle();
@@ -633,31 +669,35 @@ export async function PATCH(request: Request) {
   }
 
   const gymOwnerId = actor.gymOwnerId;
-  if (!gymOwnerId) {
-    return jsonError("Join a gym before checking out", 400);
-  }
 
   let query = service
     .from("attendance_checkins")
-    .select("id, checked_in_at, checked_out_at, user_id")
-    .eq("gym_owner_id", gymOwnerId)
+    .select("id, checked_in_at, checked_out_at, user_id, gym_owner_id")
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: false })
     .limit(1);
 
   if (body?.id) {
+    // Check out by row id — do not require gym_owner_id match (platform self
+    // rows use the member's user id; stale gym links must still close).
     query = service
       .from("attendance_checkins")
-      .select("id, checked_in_at, checked_out_at, user_id")
+      .select("id, checked_in_at, checked_out_at, user_id, gym_owner_id")
       .eq("id", String(body.id))
-      .eq("gym_owner_id", gymOwnerId)
       .is("checked_out_at", null)
       .limit(1);
     if (!actor.isAdmin) {
       query = query.eq("user_id", auth.user.id);
+    } else if (gymOwnerId) {
+      query = query.eq("gym_owner_id", gymOwnerId);
     }
+  } else if (gymOwnerId) {
+    query = query.eq("gym_owner_id", gymOwnerId).eq("user_id", targetUserId);
   } else {
-    query = query.eq("user_id", targetUserId);
+    return jsonError(
+      "Join a gym before checking out — or use platform member self-training check-in",
+      400,
+    );
   }
 
   const { data: openRow, error: findError } = await query.maybeSingle();
@@ -674,6 +714,7 @@ export async function PATCH(request: Request) {
     .maybeSingle();
 
   if (error) return jsonError(error.message, 400);
+  if (!data) return jsonError("Check-out failed — session not updated", 400);
 
   const row = data as {
     user_id?: string;
@@ -707,8 +748,11 @@ export async function PATCH(request: Request) {
     }
   }
 
-  void invalidateAttendanceCache({
-    gymOwnerId,
+  await invalidateAttendanceCache({
+    gymOwnerId:
+      gymOwnerId ||
+      (row as { gym_owner_id?: string } | null)?.gym_owner_id ||
+      null,
     userId: row?.user_id || targetUserId,
   });
 

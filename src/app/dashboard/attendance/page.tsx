@@ -24,6 +24,7 @@ import {
   Loader2,
   LogIn,
   LogOut,
+  Home,
   MapPin,
   Moon,
   Sun,
@@ -38,6 +39,7 @@ import {
 } from "@/api/attendance";
 import { getAttendanceClosedMessage } from "@/lib/attendance-security";
 import { ApiError } from "@/api/client";
+import { ActiveSessionTimer } from "@/components/attendance/ActiveSessionTimer";
 
 type AttendanceRow = {
   id: string;
@@ -67,6 +69,7 @@ type Meta = {
   genderError: string | null;
   geoRequired: boolean;
   geoRadiusM: number;
+  platformSelfTraining?: boolean;
   pagination: {
     page: number;
     pageSize: number;
@@ -156,8 +159,12 @@ export default function AttendancePage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
+  const [locationMode, setLocationMode] = useState<"in_gym" | "not_in_gym">(
+    "not_in_gym",
+  );
 
   const canViewGym = meta?.canViewGym ?? isAdmin;
+  const isPlatformSelf = meta?.platformSelfTraining === true;
 
   const load = useCallback(async () => {
     const data = await listAttendance({
@@ -238,19 +245,26 @@ export default function AttendancePage() {
 
     setBusy(true);
     try {
-      const gps = await readGps();
+      const gps = isPlatformSelf ? null : await readGps();
       const data = await checkInAttendance({
-        source: "manual",
+        source: isPlatformSelf ? locationMode : "manual",
+        locationMode: isPlatformSelf ? locationMode : undefined,
         lat: gps?.lat,
         lng: gps?.lng,
       });
       if (data.needsCheckout) {
         toast.message("Already checked in — check out first");
       } else {
+        const where =
+          isPlatformSelf
+            ? locationMode === "in_gym"
+              ? " · In gym"
+              : " · Not in gym"
+            : "";
         toast.success(
           `Checked in · ${formatSlotLabel(
             (data.checkin?.slot as AttendanceSlot | null | undefined) ?? null,
-          )}${data.presenceMethod ? ` · via ${data.presenceMethod}` : ""}`,
+          )}${where}${data.presenceMethod && !isPlatformSelf ? ` · via ${data.presenceMethod}` : ""}`,
         );
       }
       await load();
@@ -263,10 +277,19 @@ export default function AttendancePage() {
 
   async function checkOut() {
     if (!myOpen) return;
+    const closingId = myOpen.id;
     const spent = formatElapsed(myOpen.checked_in_at, Date.now());
     setBusy(true);
     try {
-      await checkOutAttendance({ id: myOpen.id });
+      await checkOutAttendance({ id: closingId });
+      const outAt = new Date().toISOString();
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === closingId
+            ? { ...r, open: false, checked_out_at: outAt }
+            : r,
+        ),
+      );
       toast.success(`Checked out · spent ${spent}`);
       await load();
     } catch (err) {
@@ -297,14 +320,16 @@ export default function AttendancePage() {
           <p className="mt-0.5 text-sm text-muted-foreground">
             {canViewGym
               ? "All gym check-ins — filter, date range, and export. Presence via GPS or today's code."
-              : "Your visits only. Check in near the gym (GPS) or with today's desk code."}
+              : isPlatformSelf
+                ? "Log your session — pick In gym or Not in gym, then check in."
+                : "Your visits only. Check in near the gym (GPS) or with today's desk code."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {myOpen && myElapsed ? (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-center">
               <p className="text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Time in gym
+                {myOpen.source === "not_in_gym" ? "Session time" : "Time in gym"}
               </p>
               <p className="font-mono text-2xl font-semibold tabular-nums tracking-tight">
                 {myElapsed}
@@ -312,19 +337,33 @@ export default function AttendancePage() {
             </div>
           ) : null}
           {myOpen ? (
-            <Button
-              onClick={() => void checkOut()}
-              disabled={busy}
-              variant="outline"
-              className="gap-2"
-            >
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LogOut className="h-4 w-4" />
-              )}
-              Check out
-            </Button>
+            <>
+              {myOpen.source === "in_gym" || myOpen.source === "not_in_gym" ? (
+                <Badge
+                  variant="outline"
+                  className={
+                    myOpen.source === "in_gym"
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  }
+                >
+                  {myOpen.source === "in_gym" ? "In gym" : "Not in gym"}
+                </Badge>
+              ) : null}
+              <Button
+                onClick={() => void checkOut()}
+                disabled={busy}
+                variant="outline"
+                className="gap-2"
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4" />
+                )}
+                Check out
+              </Button>
+            </>
           ) : (
             <Button
               onClick={() => void checkIn()}
@@ -349,6 +388,35 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      {isPlatformSelf && !myOpen ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={locationMode === "in_gym" ? "default" : "outline"}
+            className="gap-1.5"
+            disabled={busy}
+            onClick={() => setLocationMode("in_gym")}
+          >
+            <MapPin className="h-3.5 w-3.5" />
+            In gym
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={locationMode === "not_in_gym" ? "default" : "outline"}
+            className="gap-1.5"
+            disabled={busy}
+            onClick={() => setLocationMode("not_in_gym")}
+          >
+            <Home className="h-3.5 w-3.5" />
+            Not in gym
+          </Button>
+        </div>
+      ) : null}
+
+      {myOpen ? <ActiveSessionTimer variant="card" /> : null}
+
       {meta?.closedMessage ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
           {meta.closedMessage}
@@ -368,31 +436,47 @@ export default function AttendancePage() {
         </p>
       ) : null}
 
-      <Card>
-        <CardContent className="space-y-2 p-4">
-          <p className="flex items-center gap-2 text-sm font-medium">
-            <MapPin className="h-4 w-4 text-primary" />
-            Location check
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {meta?.geoRequired
-              ? `GPS must be within ~${meta.geoRadiusM}m of the gym to check in.`
-              : "Gym GPS not set — check-in is blocked until the owner sets location."}
-          </p>
-          {!meta?.geoRequired && (
-            <p className="text-xs text-muted-foreground">
-              Gym owner: set location in{" "}
-              <Link
-                href="/profile?tab=gym"
-                className="font-medium text-primary underline-offset-2 hover:underline"
-              >
-                Profile → Gym
-              </Link>
-              .
+      {isPlatformSelf ? (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <MapPin className="h-4 w-4 text-primary" />
+              Where are you training?
             </p>
-          )}
-        </CardContent>
-      </Card>
+            <p className="text-sm text-muted-foreground">
+              Choose <strong className="text-foreground">In gym</strong> or{" "}
+              <strong className="text-foreground">Not in gym</strong> above,
+              then check in. No GPS required for platform members.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <MapPin className="h-4 w-4 text-primary" />
+              Location check
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {meta?.geoRequired
+                ? `GPS must be within ~${meta.geoRadiusM}m of the gym to check in.`
+                : "Gym GPS not set — check-in is blocked until the owner sets location."}
+            </p>
+            {!meta?.geoRequired && (
+              <p className="text-xs text-muted-foreground">
+                Gym owner: set location in{" "}
+                <Link
+                  href="/profile?tab=gym"
+                  className="font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Profile → Gym
+                </Link>
+                .
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         {(["morning", "afternoon", "evening"] as AttendanceSlot[]).map(
@@ -592,6 +676,7 @@ function AttendanceTable({
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Gender</th>
               <th className="px-4 py-3 font-medium">Slot</th>
+              <th className="px-4 py-3 font-medium">Where</th>
               <th className="px-4 py-3 font-medium">Check in</th>
               {mode === "completed" ? (
                 <th className="px-4 py-3 font-medium">Check out</th>
@@ -648,6 +733,22 @@ function AttendanceTable({
                     >
                       {formatSlotLabel(r.slot)}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.source === "in_gym" || r.source === "not_in_gym" ? (
+                      <Badge
+                        variant="outline"
+                        className={
+                          r.source === "in_gym"
+                            ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                            : "border-amber-500/40 text-amber-700 dark:text-amber-400"
+                        }
+                      >
+                        {r.source === "in_gym" ? "In gym" : "Not in gym"}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 tabular-nums">
                     {formatVisitWhen(r.checked_in_at)}

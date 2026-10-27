@@ -106,8 +106,8 @@ export function OwnersSection({
   approvingId: string | null;
   rejectingId: string | null;
   deletingId: string | null;
-  onApprove: (admin: AdminListItem) => void;
-  onReject: (id: string) => void;
+  onApprove: (admin: AdminListItem) => void | Promise<void>;
+  onReject: (id: string, kind?: AdminListItem["kind"]) => void | Promise<void>;
   onEdit: (admin: AdminListItem) => void;
   onDelete: (admin: AdminListItem) => void;
   onRefresh: () => void;
@@ -212,15 +212,46 @@ export function OwnersSection({
                     return (
                       <TableRow key={admin.user_id}>
                         <TableCell>
-                          <div className="font-medium">{admin.full_name || "—"}</div>
-                          <div className="text-xs text-muted-foreground">{admin.email}</div>
+                          <div className="flex items-center gap-3">
+                            {admin.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={admin.avatar_url}
+                                alt=""
+                                className="h-11 w-11 shrink-0 aspect-square rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-11 w-11 shrink-0 aspect-square items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+                                {(admin.full_name || admin.email || "?")
+                                  .split(/\s+/)
+                                  .map((p) => p[0])
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">
+                                {admin.full_name || "—"}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {admin.email}
+                              </div>
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1.5 text-sm">
                             <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                            {admin.gym_name || "—"}
+                            {admin.kind === "platform_member"
+                              ? "Self-training"
+                              : admin.gym_name || "—"}
                           </div>
-                          {(admin.gym_city || admin.gym_type) && (
+                          {admin.kind === "platform_member" ? (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Platform member
+                            </div>
+                          ) : (admin.gym_city || admin.gym_type) ? (
                             <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                               {admin.gym_city && (
                                 <span className="inline-flex items-center gap-1">
@@ -230,7 +261,7 @@ export function OwnersSection({
                               )}
                               {admin.gym_type && <span>{admin.gym_type}</span>}
                             </div>
-                          )}
+                          ) : null}
                         </TableCell>
                         <TableCell>
                           {admin.phone ? (
@@ -242,7 +273,7 @@ export function OwnersSection({
                             "—"
                           )}
                           {admin.created_at && (
-                            <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <div className="ml-3 inline-flex items-center gap-1 text-xs text-muted-foreground">
                               <Calendar className="h-3 w-3" />
                               {new Date(admin.created_at).toLocaleDateString()}
                             </div>
@@ -266,7 +297,9 @@ export function OwnersSection({
                           {admin.trial_status === "active" && admin.trial_ends_at && (
                             <LiveTrialLabel endsAt={admin.trial_ends_at} />
                           )}
-                          {admin.trial_status === "pending_approval" && status === "pending" && (
+                          {admin.kind !== "platform_member" &&
+                            admin.trial_status === "pending_approval" &&
+                            status === "pending" && (
                             <span className="text-[11px] text-muted-foreground">
                               Trial starts on approve
                             </span>
@@ -304,7 +337,7 @@ export function OwnersSection({
                                 size="sm"
                                 variant="outline"
                                 disabled={busy}
-                                onClick={() => onReject(admin.user_id)}
+                                onClick={() => onReject(admin.user_id, admin.kind)}
                               >
                                 {rejectingId === admin.user_id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />

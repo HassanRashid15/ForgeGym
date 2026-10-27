@@ -28,7 +28,10 @@ export async function notifyMany(userIds: string[], template: NotificationTempla
 /** Approval-request rows stay on admin_notifications (type-compatible). */
 export async function notifyApprovalRequest(params: {
   recipientIds: string[];
-  type: "admin_approval_request" | "member_approval_request";
+  type:
+    | "admin_approval_request"
+    | "member_approval_request"
+    | "platform_member_approval_request";
   fromUserId: string;
   title: string;
   message: string;
@@ -58,6 +61,12 @@ export const notify = {
 
   gymOwnerRejected: (userId: string) =>
     safeNotify(userId, actionTemplates.gymOwnerRejected()),
+
+  platformMemberApproved: (userId: string) =>
+    safeNotify(userId, actionTemplates.platformMemberApproved()),
+
+  platformMemberRejected: (userId: string) =>
+    safeNotify(userId, actionTemplates.platformMemberRejected()),
 
   memberApproved: (userId: string, gymName?: string | null) =>
     safeNotify(userId, membershipTemplates.welcome(gymName || "the gym")),
@@ -226,6 +235,26 @@ export const notify = {
 
   platformFeeUpdated: (userId: string, feeLabel: string | null) =>
     safeNotify(userId, actionTemplates.platformFeeUpdated(feeLabel)),
+
+  platformFeeConcessionResolved: (
+    userId: string,
+    accepted: boolean,
+    feeLabel: string | null,
+  ) =>
+    safeNotify(
+      userId,
+      actionTemplates.platformFeeConcessionResolved(accepted, feeLabel),
+    ),
+
+  platformFeeAccessGranted: (
+    userId: string,
+    feeLabel: string | null,
+    endsAt: string,
+  ) =>
+    safeNotify(
+      userId,
+      actionTemplates.platformFeeAccessGranted(feeLabel, endsAt),
+    ),
 
   promotionPublished: (userId: string, title: string) =>
     safeNotify(userId, actionTemplates.promotionPublished(title)),

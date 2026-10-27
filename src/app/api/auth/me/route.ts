@@ -3,28 +3,49 @@ import {
   createSupabaseServiceClient,
   requireAuth,
 } from "@/lib/supabase/server";
-import { computeTrialInfo } from "@/lib/admin-trial";
+import { computeTrialInfo, trialActivationPatch } from "@/lib/admin-trial";
+import { cacheAside, apiCacheKey, CacheTTL, withCacheHeaders } from "@/lib/api-cache";
 
 /** GET /api/auth/me — role + profile (self-heals missing admin role for gym owners) */
 export async function GET(request: Request) {
   const auth = await requireAuth(request);
   if ("error" in auth) return auth.error;
 
+  const { user } = auth;
+  const cacheKey = apiCacheKey("auth-me", user.id);
+
+  // Use server-side cache to reduce redundant calls
+  const { data, hit } = await cacheAside(
+    cacheKey,
+    CacheTTL.authUser,
+    async () => {
+      return await fetchMeData(auth);
+    }
+  );
+
+  return NextResponse.json(data, withCacheHeaders(undefined, 0, hit));
+}
+
+async function fetchMeData(auth: { user: any; supabase: any }) {
   const { user, supabase } = auth;
   const service = createSupabaseServiceClient();
   const db = service || supabase;
 
-  const [{ data: roles }, { data: profile }] = await Promise.all([
+  const [{ data: roles }, { data: profile }, { data: ownGym }] = await Promise.all([
     db.from("user_roles").select("role").eq("user_id", user.id),
-    (db.from("profiles") as any)
+    db.from("profiles")
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_name, gym_owner_id, gym_city, gym_type, membership_status, membership_type, is_visitor, trial_offered, trial_starts_at, trial_ends_at, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
+        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_owner_id, membership_status, membership_type, is_visitor, trial_offered, trial_starts_at, trial_ends_at, platform_monthly_fee, platform_fee_status, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
+    db.from("gyms")
+      .select("name, city, gym_type, main_image_url")
+      .eq("owner_user_id", user.id)
+      .maybeSingle(),
   ]);
 
-  const roleNames = (roles || []).map((r) => r.role);
+  const roleNames = (roles || []).map((r: { role: string }) => r.role);
   let role: "admin" | "moderator" | "customer" | "trainer" | "staff" = "customer";
   if (roleNames.includes("admin")) role = "admin";
   else if (roleNames.includes("trainer")) role = "trainer";
@@ -32,18 +53,10 @@ export async function GET(request: Request) {
   else if (roleNames.includes("moderator")) role = "moderator";
 
   const email = (profile?.email || user.email || "").toLowerCase();
-  let isSuperAdmin = (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
-
-  if (email === "superadmin@forge.test") {
-    isSuperAdmin = true;
-    role = "admin";
-  }
+  const isSuperAdmin = (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   const profileRow = profile as {
-    gym_name?: string | null;
     gym_owner_id?: string | null;
-    gym_city?: string | null;
-    gym_type?: string | null;
     avatar_url?: string | null;
     membership_status?: string | null;
     membership_type?: string | null;
@@ -62,20 +75,19 @@ export async function GET(request: Request) {
     (user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
   ).toLowerCase();
 
-  // Only heal true gym-owner signups missing a user_roles row.
-  // Do NOT treat gym_name alone as ownership — members/staff often inherit
-  // the gym display name via gym_owner_id linkage and must stay customers.
-  const ownsOwnGymProfile =
-    Boolean(profileRow?.gym_name?.trim()) &&
-    (!profileRow?.gym_owner_id || profileRow.gym_owner_id === user.id);
+  // Heal true gym-owner signups missing a user_roles row.
+  // Ownership = gyms row for this user OR meta admin + own gym_owner_id — never inherit via linked gym.
+  const ownsOwnGym =
+    Boolean(ownGym?.name?.trim()) ||
+    (profileRow?.gym_owner_id != null && profileRow.gym_owner_id === user.id);
   const looksLikeGymOwnerSignup =
-    metaRequested === "admin" && ownsOwnGymProfile;
+    metaRequested === "admin" && ownsOwnGym;
 
   if (role === "customer" && (isSuperAdmin || looksLikeGymOwnerSignup)) {
     role = "admin";
     if (service && !roleNames.includes("admin")) {
       const { error: healErr } = await service.from("user_roles").upsert(
-        { user_id: user.id, role: "admin" } as never,
+        { user_id: user.id, role: "admin" },
         { onConflict: "user_id,role" },
       );
       if (healErr) {
@@ -87,15 +99,15 @@ export async function GET(request: Request) {
   const gymOwnerId =
     profileRow?.gym_owner_id || (role === "admin" ? user.id : null);
 
-  let gymName = profileRow?.gym_name || null;
-  let gymCity = profileRow?.gym_city || null;
-  let gymType = profileRow?.gym_type || null;
-  let gymMainImageUrl: string | null = null;
+  let gymName = ownGym?.name || null;
+  let gymCity = ownGym?.city || null;
+  let gymType = ownGym?.gym_type || null;
+  let gymMainImageUrl: string | null = ownGym?.main_image_url || null;
   let featureClassesEnabled = profileRow?.feature_classes_enabled === true;
   let featureScheduleEnabled = profileRow?.feature_schedule_enabled === true;
   let featureMembershipEnabled = profileRow?.feature_membership_enabled === true;
 
-  if (gymOwnerId && service) {
+  if (gymOwnerId && service && gymOwnerId !== user.id) {
     const [{ data: gymRow }, { data: ownerProfile }] = await Promise.all([
       service
         .from("gyms")
@@ -105,46 +117,82 @@ export async function GET(request: Request) {
       service
         .from("profiles")
         .select(
-          "gym_name, gym_city, gym_type, gym_main_image_url, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
+          "feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
         )
         .eq("user_id", gymOwnerId)
         .maybeSingle(),
     ]);
 
-    const owner = ownerProfile as {
-      gym_name?: string | null;
-      gym_city?: string | null;
-      gym_type?: string | null;
-      gym_main_image_url?: string | null;
-      feature_classes_enabled?: boolean | null;
-      feature_schedule_enabled?: boolean | null;
-      feature_membership_enabled?: boolean | null;
-    } | null;
+    gymName = gymRow?.name || gymName;
+    gymCity = gymRow?.city || gymCity;
+    gymType = gymRow?.gym_type || gymType;
+    gymMainImageUrl = gymRow?.main_image_url || gymMainImageUrl;
 
-    gymName = gymRow?.name || owner?.gym_name || gymName;
-    gymCity = gymRow?.city || owner?.gym_city || gymCity;
-    gymType = gymRow?.gym_type || owner?.gym_type || gymType;
-    gymMainImageUrl =
-      gymRow?.main_image_url || owner?.gym_main_image_url || null;
+    if (ownerProfile) {
+      featureClassesEnabled = ownerProfile.feature_classes_enabled === true;
+      featureScheduleEnabled = ownerProfile.feature_schedule_enabled === true;
+      featureMembershipEnabled = ownerProfile.feature_membership_enabled === true;
+    }
+  } else if (role === "admin" && ownGym) {
+    gymName = ownGym.name || gymName;
+    gymCity = ownGym.city || gymCity;
+    gymType = ownGym.gym_type || gymType;
+    gymMainImageUrl = ownGym.main_image_url || gymMainImageUrl;
+  }
 
-    // Members/trainers inherit the gym owner's feature flags
-    if (owner) {
-      featureClassesEnabled = owner.feature_classes_enabled === true;
-      featureScheduleEnabled = owner.feature_schedule_enabled === true;
-      featureMembershipEnabled = owner.feature_membership_enabled === true;
+  const approved = isSuperAdmin || profile?.admin_approved === true;
+  const isPlatformMember =
+    !isSuperAdmin &&
+    role === "customer" &&
+    approved &&
+    !gymOwnerId;
+
+  // Heal: fee accepted earlier but access month never written
+  let trialStartsAt = profileRow?.trial_starts_at || null;
+  let trialEndsAt = profileRow?.trial_ends_at || null;
+  let trialOffered = profileRow?.trial_offered === true;
+  const feeStatus = (
+    profileRow as { platform_fee_status?: string | null } | null
+  )?.platform_fee_status;
+  if (
+    isPlatformMember &&
+    feeStatus === "accepted" &&
+    (!trialStartsAt || !trialEndsAt) &&
+    service
+  ) {
+    const patch = trialActivationPatch();
+    const { data: healed } = await service
+      .from("profiles")
+      .update({
+        ...patch,
+        account_status: "active",
+        membership_status: "active",
+        is_frozen: false,
+        frozen_until: null,
+        freeze_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", user.id)
+      .select("trial_offered, trial_starts_at, trial_ends_at")
+      .maybeSingle();
+    if (healed) {
+      trialOffered = healed.trial_offered === true;
+      trialStartsAt = healed.trial_starts_at || null;
+      trialEndsAt = healed.trial_ends_at || null;
     }
   }
 
   const trial = computeTrialInfo({
     isSuperAdmin,
     isGymOwnerAdmin: role === "admin" && !isSuperAdmin,
-    adminApproved: isSuperAdmin || profile?.admin_approved === true,
-    trialOffered: profileRow?.trial_offered === true,
-    trialStartsAt: profileRow?.trial_starts_at || null,
-    trialEndsAt: profileRow?.trial_ends_at || null,
+    isPlatformMember,
+    adminApproved: approved,
+    trialOffered: trialOffered || feeStatus === "pending_acceptance",
+    trialStartsAt,
+    trialEndsAt,
   });
 
-  return NextResponse.json({
+  return {
     id: user.id,
     email: profile?.email || user.email,
     name:
@@ -153,7 +201,7 @@ export async function GET(request: Request) {
       email.split("@")[0],
     role,
     isSuperAdmin,
-    admin_approved: isSuperAdmin || profile?.admin_approved === true,
+    admin_approved: approved,
     is_verified: isSuperAdmin || profileRow?.is_verified === true,
     isVisitor: profileRow?.is_visitor === true,
     avatar: profileRow?.avatar_url || user.user_metadata?.avatar_url || null,
@@ -167,6 +215,10 @@ export async function GET(request: Request) {
     featureClassesEnabled,
     featureScheduleEnabled,
     featureMembershipEnabled,
+    platformFeeStatus: feeStatus || null,
+    platformMonthlyFee:
+      (profileRow as { platform_monthly_fee?: string | null } | null)
+        ?.platform_monthly_fee || null,
     trial,
-  });
+  };
 }

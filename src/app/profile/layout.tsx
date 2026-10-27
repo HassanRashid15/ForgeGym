@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { createSupabaseCookieClient } from "@/lib/supabase/server";
+import {
+  createSupabaseCookieClient,
+  createSupabaseServiceClient,
+} from "@/lib/supabase/server";
 import ProfileClientLayout from "./ProfileClientLayout";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -29,13 +32,19 @@ export default async function ProfileLayout({
     redirect(`/verification${q}`);
   }
 
-  const { data: profile } = await supabase
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
+  const { data: profile, error: profileError } = await db
     .from("profiles")
     .select("is_verified, is_frozen, frozen_until")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (profile?.is_verified !== true) {
+  if (profileError) {
+    console.warn("profile layout gate error:", profileError.message);
+  }
+
+  if (profile && profile.is_verified !== true) {
     const q = user.email ? `?email=${encodeURIComponent(user.email)}` : "";
     redirect(`/verification${q}`);
   }

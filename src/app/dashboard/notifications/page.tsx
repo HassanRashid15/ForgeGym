@@ -247,17 +247,22 @@ export default function NotificationsPage() {
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfThatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayDiff = Math.round(
+      (startOfToday.getTime() - startOfThatDay.getTime()) / 86_400_000,
+    );
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return "Yesterday";
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
+    const fullDate = date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    if (dayDiff === 0) return `Today · ${weekday}, ${fullDate}`;
+    if (dayDiff === 1) return `Yesterday · ${weekday}, ${fullDate}`;
+    return `${weekday}, ${fullDate}`;
   };
 
   const groupNotificationsByDate = (notifs: Notification[]) => {
@@ -270,7 +275,6 @@ export default function NotificationsPage() {
     const groups: { [key: string]: Notification[] } = {
       today: [],
       yesterday: [],
-      older: [],
     };
 
     notifs.forEach((notif) => {
@@ -282,7 +286,16 @@ export default function NotificationsPage() {
       } else if (notifDate.getTime() === yesterday.getTime()) {
         groups.yesterday.push(notif);
       } else {
-        groups.older.push(notif);
+        const dateKey = notifDate.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+        if (!groups[dateKey]) {
+          groups[dateKey] = [];
+        }
+        groups[dateKey].push(notif);
       }
     });
 
@@ -397,15 +410,15 @@ export default function NotificationsPage() {
             </CardContent>
           </Card>
         ) : (
-          (
-            [
-              ["today", "Today"],
-              ["yesterday", "Yesterday"],
-              ["older", "Older"],
-            ] as const
-          ).map(([key, label]) => {
-            const items = groupedNotifications[key];
+          Object.entries(groupedNotifications).map(([key, items]) => {
             if (!items.length) return null;
+            
+            // Determine label based on key
+            let label = key;
+            if (key === "today") label = "Today";
+            else if (key === "yesterday") label = "Yesterday";
+            // For other keys, use the formatted date as-is
+            
             return (
               <section key={key} className="space-y-3">
                 <div className="flex items-center gap-3 pt-1">

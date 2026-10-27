@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Platform facility / personal monthly fee — live for approved gym admins + superadmin.
- * Refetches when this admin's profile.platform_monthly_fee changes in the DB.
+ * Updates in near real time when fee / concession status changes.
  */
 export function usePlatformFacilityFee(enabled = true) {
   const { user } = useAuth();
@@ -20,7 +20,9 @@ export function usePlatformFacilityFee(enabled = true) {
     queryKey: queryKeys.platformSettings,
     queryFn: fetchPlatformSettings,
     enabled,
-    staleTime: 15_000,
+    staleTime: 2_000,
+    refetchInterval: enabled ? 4_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -29,18 +31,26 @@ export function usePlatformFacilityFee(enabled = true) {
     const channel = supabase.channel(
       `platform-fee:${user.id}:${instanceId.current}`,
     );
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.platformSettings,
-      });
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.platformSettings,
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.ownPlatformFee,
+        });
+      }, 400);
     };
 
     channel
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "profiles",
           filter: `user_id=eq.${user.id}`,
@@ -56,9 +66,15 @@ export function usePlatformFacilityFee(enabled = true) {
         },
         refresh,
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_notifications" },
+        refresh,
+      )
       .subscribe();
 
     return () => {
+      if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
   }, [enabled, user?.id, queryClient]);

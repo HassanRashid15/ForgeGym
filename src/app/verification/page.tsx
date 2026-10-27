@@ -52,27 +52,50 @@ function VerificationContent() {
     }
   }, [queryEmail, email]);
 
-  // Handle successful verification — clear any auto-session, then send user to login
+  // Only celebrate after profiles.is_verified is true in DB.
+  // Confirm-link session → mark verified → sign out → login (never skip to dashboard).
   const handleVerificationSuccess = useCallback(async () => {
+    // Lock immediately so polling / realtime / auth events cannot stack toasts
     if (isVerifiedRef.current) return;
     isVerifiedRef.current = true;
-    setIsVerified(true);
-    toast.success("Email verified successfully! 🎉");
 
     const targetEmail = (email || queryEmail).trim().toLowerCase();
+    if (!targetEmail) {
+      isVerifiedRef.current = false;
+      return;
+    }
 
-    // Persist app-level verified flag while confirmation session may still exist
     try {
       await markEmailVerified();
     } catch {
-      // trigger / polling may have already set is_verified
+      // DB trigger may already have set is_verified from the confirm link
     }
 
-    // Email confirm links create a Supabase session — sign out so user logs in manually
+    let verified = false;
+    try {
+      verified = await checkEmailVerified(targetEmail);
+    } catch {
+      verified = false;
+    }
+
+    if (!verified) {
+      // Unlock so a later real confirm can still succeed
+      isVerifiedRef.current = false;
+      return;
+    }
+
+    setIsVerified(true);
+    toast.success("Email verified successfully! 🎉", { id: "email-verified" });
+
     try {
       await logoutAccount();
     } catch {
       // ignore
+    }
+
+    if (redirectTimerRef.current) {
+      clearInterval(redirectTimerRef.current);
+      redirectTimerRef.current = null;
     }
 
     let count = 2;
@@ -82,14 +105,17 @@ function VerificationContent() {
       count -= 1;
       setRedirectCountdown(count);
       if (count <= 0) {
-        if (redirectTimerRef.current) clearInterval(redirectTimerRef.current);
-        toast.info("Please log in with your credentials to continue");
+        if (redirectTimerRef.current) {
+          clearInterval(redirectTimerRef.current);
+          redirectTimerRef.current = null;
+        }
+        // Single redirect — login page shows the sign-in toast (avoid duplicate loop)
         router.replace(
           `/login?verified=true${targetEmail ? `&email=${encodeURIComponent(targetEmail)}` : ""}`
         );
       }
     }, 1000);
-  }, [email, queryEmail, router]);
+  }, [email, queryEmail, router, checkEmailVerified]);
 
   const handleProceed = async () => {
     if (redirectTimerRef.current) clearInterval(redirectTimerRef.current);
@@ -179,21 +205,38 @@ function VerificationContent() {
     };
   }, [email, isVerified, handleVerificationSuccess]);
 
-  // 2. Supabase Auth State Change (catches magic link / token redirect in same browser)
+  // 2. Confirm-link callback only (code/hash from email). Do NOT treat password
+  //    login leftovers as verification — that auto-verified without clicking email.
   useEffect(() => {
     if (isVerified) return;
+
+    const hasConfirmParams = () => {
+      if (typeof window === "undefined") return false;
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("code")) return true;
+      const hash = window.location.hash || "";
+      return (
+        hash.includes("access_token") ||
+        hash.includes("type=signup") ||
+        hash.includes("type=email") ||
+        hash.includes("type=magiclink")
+      );
+    };
+
+    if (!hasConfirmParams()) return;
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user && (session.user as any).email_confirmed_at) {
-        if (
-          !email ||
-          session.user.email?.toLowerCase() === email.toLowerCase()
-        ) {
-          handleVerificationSuccess();
-        }
+      if (event !== "SIGNED_IN" && event !== "INITIAL_SESSION") return;
+      if (!session?.user?.email_confirmed_at) return;
+      if (
+        email &&
+        session.user.email?.toLowerCase() !== email.toLowerCase()
+      ) {
+        return;
       }
+      void handleVerificationSuccess();
     });
 
     return () => subscription.unsubscribe();

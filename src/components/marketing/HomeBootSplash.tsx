@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-const HOLD_MS = 9_600;
+const HOLD_MS = 7_500;
 const FADE_MS = 600;
 const SPLASH_LOCK = "forge-splash-lock";
 

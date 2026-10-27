@@ -31,6 +31,7 @@ function LoginContent() {
 
   const queryVerified = searchParams.get("verified") === "true";
   const queryEmail = searchParams.get("email") || "";
+  const queryError = searchParams.get("error") || "";
   const redirectTo = searchParams.get("redirect") || "/dashboard";
 
   const [email, setEmail] = useState(queryEmail);
@@ -39,20 +40,45 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
+  const [accountExists, setAccountExists] = useState<boolean | null>(null);
+  const [unconfirmedEmail, setUnconfirmedEmail] = useState(false);
+  const [pendingAdminApproval, setPendingAdminApproval] = useState(false);
+  const [pendingMemberApproval, setPendingMemberApproval] = useState(false);
+  const [accountFrozen, setAccountFrozen] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const safeRedirect =
     redirectTo.startsWith("/") && !redirectTo.startsWith("//")
       ? redirectTo
       : "/dashboard";
 
-  // If already logged in, redirect — but never during the sign-in welcome beat
+  // If already logged in + approved, redirect — never during welcome / pending approval
   useEffect(() => {
     if (queryVerified) return;
-    if (isLoading || welcomeName) return;
-    if (!isAuthLoading && user) {
+    if (isLoading || welcomeName || isAuthLoading) return;
+    if (pendingAdminApproval || pendingMemberApproval) return;
+    if (
+      queryError === "platform_member_approval_pending" ||
+      queryError === "admin_approval_pending" ||
+      queryError === "member_approval_pending"
+    ) {
+      return;
+    }
+    if (user) {
       window.location.assign(safeRedirect);
     }
-  }, [user, isAuthLoading, queryVerified, safeRedirect, isLoading, welcomeName]);
+  }, [
+    user,
+    isAuthLoading,
+    queryVerified,
+    queryError,
+    safeRedirect,
+    isLoading,
+    welcomeName,
+    pendingAdminApproval,
+    pendingMemberApproval,
+  ]);
 
   // Prefill from query if present
   useEffect(() => {
@@ -62,18 +88,29 @@ function LoginContent() {
     if (queryVerified) {
       // Drop any session created by the email confirm link
       void supabase.auth.signOut({ scope: "local" });
-      toast.success("Email verified successfully! Please sign in to continue.");
+      toast.success("Email verified — please sign in to continue.", {
+        id: "email-verified-login",
+      });
     }
   }, [queryEmail, queryVerified]);
 
-  // Real-time account check state
-  const [isCheckingAccount, setIsCheckingAccount] = useState(false);
-  const [accountExists, setAccountExists] = useState<boolean | null>(null);
-  const [unconfirmedEmail, setUnconfirmedEmail] = useState(false);
-  const [pendingAdminApproval, setPendingAdminApproval] = useState(false);
-  const [pendingMemberApproval, setPendingMemberApproval] = useState(false);
-  const [accountFrozen, setAccountFrozen] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  useEffect(() => {
+    if (!queryError) return;
+    if (
+      queryError === "platform_member_approval_pending" ||
+      queryError === "admin_approval_pending"
+    ) {
+      setPendingAdminApproval(true);
+      toast.error("Waiting for platform owner approval. You cannot access the dashboard yet.", {
+        id: "approval-pending-platform",
+      });
+    } else if (queryError === "member_approval_pending") {
+      setPendingMemberApproval(true);
+      toast.error("Waiting for gym admin approval. You cannot access the dashboard yet.", {
+        id: "approval-pending-gym",
+      });
+    }
+  }, [queryError]);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -150,7 +187,7 @@ function LoginContent() {
     try {
       const { name } = await login(cleanEmail, password);
       // Paint welcome before holding — setState alone can miss a frame
-      setWelcomeName(name.trim() || "Athlete");
+      setWelcomeName(name.trim() || "there");
       toast.success("Welcome back! Let's crush it today.");
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
@@ -165,13 +202,16 @@ function LoginContent() {
 
       if (lower.includes("email not confirmed") || lower.includes("not confirmed")) {
         setUnconfirmedEmail(true);
-        toast.error("Your email is not verified yet. Redirecting to verification...");
+        toast.error(
+          "Confirm your email first — open the link we sent, then sign in.",
+        );
         setTimeout(() => {
           router.push(`/verification?email=${encodeURIComponent(cleanEmail)}`);
-        }, 1000);
+        }, 1200);
       } else if (
         lower.includes("admin approval pending") ||
-        lower.includes("pending platform owner")
+        lower.includes("pending platform owner") ||
+        lower.includes("platform owner approval pending")
       ) {
         setPendingAdminApproval(true);
         toast.error("Waiting for platform owner approval. You cannot sign in yet.");
@@ -205,7 +245,7 @@ function LoginContent() {
   return (
     <div className="h-screen w-screen overflow-hidden grid lg:grid-cols-2">
       <AuthBusyOverlay busy={isLoading} mode="login" welcomeName={welcomeName} />
-      {accountFrozen && <FrozenAccountModal canClose onClose={() => setAccountFrozen(false)} lockNavigation={false} showLogout={false} />}
+      {accountFrozen && <FrozenAccountModal canClose onClose={() => setAccountFrozen(false)} lockNavigation={false} />}
       {/* ═══════════════ LEFT — Image Panel ═══════════════ */}
       <aside className="hidden lg:flex flex-col relative overflow-hidden">
         <img

@@ -169,7 +169,7 @@ export default function AboutPage() {
           <ScrollAnimate animation="fade-up">
             <h2 className="font-display text-5xl text-center mb-16">OUR JOURNEY</h2>
           </ScrollAnimate>
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             {timeline.map((item, index) => (
               <ScrollAnimate
                 key={item.year}

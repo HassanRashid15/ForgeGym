@@ -21,10 +21,8 @@ async function requireSuperAdmin(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
   const isSuperAdmin =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   if (!isSuperAdmin) {
     return {
@@ -76,7 +74,7 @@ export async function GET(request: Request) {
   const { data: profiles, error } = await supabase
     .from("profiles")
     .select(
-      "user_id, full_name, email, gym_name, gym_city, admin_approved, is_super_admin, platform_monthly_fee, trial_offered, trial_starts_at, trial_ends_at",
+      "user_id, full_name, email, admin_approved, is_super_admin, platform_monthly_fee, trial_offered, trial_starts_at, trial_ends_at",
     )
     .in("user_id", adminIds)
     .eq("admin_approved", true)
@@ -85,6 +83,14 @@ export async function GET(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  const { data: gymRows } = await supabase
+    .from("gyms")
+    .select("owner_user_id, name, city")
+    .in("owner_user_id", adminIds);
+  const gymByOwner = new Map(
+    (gymRows || []).map((g) => [g.owner_user_id, g] as const),
+  );
 
   const admins: MembershipFeeAdmin[] = (profiles || [])
     .filter((p) => (p as { is_super_admin?: boolean }).is_super_admin !== true)
@@ -97,12 +103,13 @@ export async function GET(request: Request) {
         trialStartsAt: p.trial_starts_at || null,
         trialEndsAt: p.trial_ends_at || null,
       });
+      const gym = gymByOwner.get(p.user_id as string);
       return {
         user_id: p.user_id as string,
         full_name: (p.full_name as string | null) ?? null,
         email: (p.email as string | null) ?? null,
-        gym_name: (p.gym_name as string | null) ?? null,
-        gym_city: (p.gym_city as string | null) ?? null,
+        gym_name: gym?.name ?? null,
+        gym_city: gym?.city ?? null,
         admin_approved: true,
         platform_monthly_fee:
           ((p as { platform_monthly_fee?: string | null }).platform_monthly_fee ||
@@ -139,7 +146,7 @@ export async function PATCH(request: Request) {
 
   const { data: target, error: targetError } = await supabase
     .from("profiles")
-    .select("user_id, is_super_admin, admin_approved, full_name, gym_name")
+    .select("user_id, is_super_admin, admin_approved, full_name")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -163,10 +170,17 @@ export async function PATCH(request: Request) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .update({ platform_monthly_fee: fee })
+    .update({
+      platform_monthly_fee: fee,
+      platform_fee_status: fee ? "pending_acceptance" : null,
+      platform_fee_concession_amount: null,
+      platform_fee_concession_note: null,
+      platform_fee_responded_at: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("user_id", userId)
     .select(
-      "user_id, full_name, email, gym_name, gym_city, platform_monthly_fee, trial_starts_at, trial_ends_at, trial_offered",
+      "user_id, full_name, email, platform_monthly_fee, trial_starts_at, trial_ends_at, trial_offered, platform_fee_status",
     )
     .maybeSingle();
 
@@ -182,6 +196,12 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const { data: gymRow } = await supabase
+    .from("gyms")
+    .select("name, city")
+    .eq("owner_user_id", userId)
+    .maybeSingle();
+
   cacheInvalidate("admin:pending:");
   cacheInvalidate("settings:platform_facility_fee");
 
@@ -193,8 +213,8 @@ export async function PATCH(request: Request) {
       user_id: data?.user_id,
       full_name: data?.full_name ?? null,
       email: data?.email ?? null,
-      gym_name: data?.gym_name ?? null,
-      gym_city: data?.gym_city ?? null,
+      gym_name: gymRow?.name ?? null,
+      gym_city: gymRow?.city ?? null,
       platform_monthly_fee: data?.platform_monthly_fee || null,
     },
   });

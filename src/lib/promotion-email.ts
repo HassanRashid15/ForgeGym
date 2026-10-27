@@ -1,5 +1,10 @@
 import { buildUnsubscribeUrl } from "@/lib/newsletter-token";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
+import {
+  escapeHtml,
+  getBrevoConfig,
+  sendBrevoEmail,
+} from "@/lib/brevo";
 
 /**
  * Send promotion emails via Brevo transactional SMTP API.
@@ -17,16 +22,6 @@ export async function sendPromotionEmails(opts: {
   if (recipients.length === 0) {
     return { sent: 0, skipped: 0, mode: "queued" };
   }
-
-  const apiKey =
-    process.env.BREVO_API_KEY?.trim() ||
-    process.env.SENDINBLUE_API_KEY?.trim() ||
-    "";
-
-  const fromRaw =
-    process.env.NEWSLETTER_FROM_EMAIL?.trim() ||
-    process.env.BREVO_FROM_EMAIL?.trim() ||
-    "";
 
   const service = createSupabaseServiceClient();
 
@@ -49,7 +44,7 @@ export async function sendPromotionEmails(opts: {
     }
   }
 
-  if (!apiKey || !fromRaw) {
+  if (!getBrevoConfig()) {
     console.info(
       `[promotions] BREVO_API_KEY / NEWSLETTER_FROM_EMAIL not set — queued ${recipients.length} emails (not sent)`,
     );
@@ -59,7 +54,6 @@ export async function sendPromotionEmails(opts: {
     return { sent: 0, skipped: recipients.length, mode: "queued" };
   }
 
-  const sender = parseSender(fromRaw);
   const site =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://forge.gym";
   const href = opts.ctaHref
@@ -90,31 +84,19 @@ export async function sendPromotionEmails(opts: {
   `;
 
     try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": apiKey,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          sender,
-          to: [{ email: recipient }],
-          subject: opts.title,
-          htmlContent,
-          headers: {
-            "List-Unsubscribe": `<${unsub}>`,
-          },
-        }),
+      const result = await sendBrevoEmail({
+        to: [recipient],
+        subject: opts.title,
+        htmlContent,
+        headers: { "List-Unsubscribe": `<${unsub}>` },
       });
-      if (res.ok) {
+      if (result.ok) {
         sent += 1;
         await logRow(recipient, "sent");
       } else {
-        const errText = await res.text().catch(() => "");
-        console.error("[promotions] Brevo error:", res.status, errText);
+        console.error("[promotions] Brevo error:", result.error);
         skipped += 1;
-        await logRow(recipient, "failed", errText.slice(0, 500));
+        await logRow(recipient, "failed", result.error?.slice(0, 500));
       }
     } catch (err) {
       console.error("[promotions] Brevo send failed:", err);
@@ -124,23 +106,4 @@ export async function sendPromotionEmails(opts: {
   }
 
   return { sent, skipped, mode: "brevo" };
-}
-
-function parseSender(raw: string): { name: string; email: string } {
-  const named = raw.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
-  if (named) {
-    return {
-      name: named[1].replace(/^["']|["']$/g, "").trim() || "Forge Gym",
-      email: named[2].trim(),
-    };
-  }
-  return { name: "Forge Gym", email: raw.trim() };
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

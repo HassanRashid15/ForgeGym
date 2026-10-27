@@ -13,7 +13,8 @@ export type MonitorEvent =
   | "newsletter.rate_limited"
   | "newsletter.subscribed"
   | "contact.rate_limited"
-  | "contact.submitted";
+  | "contact.submitted"
+  | "admin_welcome_modal_shown";
 
 /**
  * Lightweight production monitoring hook.

@@ -21,7 +21,12 @@ import {
   Building2,
   Dumbbell,
 } from "lucide-react";
-import type { AccountType, PublicGym, RegisterStep1Errors } from "./types";
+import type {
+  AccountType,
+  AccountTypeOrEmpty,
+  PublicGym,
+  RegisterStep1Errors,
+} from "./types";
 import { getGymTrainers } from "@/api/gyms";
 import { feeBreakdownLabel, formatCombinedFee } from "@/lib/fees";
 
@@ -40,8 +45,8 @@ type GymTrainerOption = {
 
 export type RegisterAccountStepProps = {
   isLoading: boolean;
-  accountType: AccountType;
-  setAccountType: (v: AccountType) => void;
+  accountType: AccountTypeOrEmpty;
+  setAccountType: (v: AccountTypeOrEmpty) => void;
   firstName: string;
   setFirstName: (v: string) => void;
   lastName: string;
@@ -200,7 +205,7 @@ export function RegisterAccountStep({
     <form onSubmit={onSubmit} noValidate className="min-w-0 space-y-4">
       <div className="space-y-2">
         <Label className="text-zinc-300 font-medium text-sm">Register as</Label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
           <button
             type="button"
             onClick={() => {
@@ -208,7 +213,7 @@ export function RegisterAccountStep({
               if (errors.accountType) setErrors({ ...errors, accountType: undefined });
             }}
             disabled={isLoading}
-            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all ${
+            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all shrink-0 ${
               accountType === "customer"
                 ? "border-red-500 bg-red-500/15 shadow-[0_0_16px_rgba(239,17,17,0.25)]"
                 : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
@@ -227,7 +232,40 @@ export function RegisterAccountStep({
               >
                 Customer
               </p>
-              <p className="text-[11px] text-zinc-500">Member account</p>
+              <p className="text-[11px] text-zinc-500">Join a gym</p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAccountType("platform_member");
+              setSelectedGymOwnerId("");
+              setPreferredTrainerId("");
+              setPreferredTrainerLabel("");
+              if (errors.accountType) setErrors({ ...errors, accountType: undefined });
+              if (errors.gymOwnerId) setErrors({ ...errors, gymOwnerId: undefined });
+            }}
+            disabled={isLoading}
+            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all shrink-0 ${
+              accountType === "platform_member"
+                ? "border-red-500 bg-red-500/15 shadow-[0_0_16px_rgba(239,17,17,0.25)]"
+                : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
+            }`}
+          >
+            <Dumbbell
+              className={`h-4 w-4 shrink-0 ${
+                accountType === "platform_member" ? "text-red-400" : "text-zinc-400"
+              }`}
+            />
+            <div>
+              <p
+                className={`text-sm font-semibold ${
+                  accountType === "platform_member" ? "text-white" : "text-zinc-300"
+                }`}
+              >
+                Platform Member
+              </p>
+              <p className="text-[11px] text-zinc-500">Normal user without gym</p>
             </div>
           </button>
           <button
@@ -241,7 +279,7 @@ export function RegisterAccountStep({
               if (errors.gymOwnerId) setErrors({ ...errors, gymOwnerId: undefined });
             }}
             disabled={isLoading}
-            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all ${
+            className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-all shrink-0 ${
               accountType === "admin"
                 ? "border-red-500 bg-red-500/15 shadow-[0_0_16px_rgba(239,17,17,0.25)]"
                 : "border-zinc-700 bg-zinc-900 hover:border-zinc-500"
@@ -266,6 +304,12 @@ export function RegisterAccountStep({
         </div>
         {errors.accountType && (
           <p className="text-xs text-red-400">{errors.accountType}</p>
+        )}
+        {accountType === "platform_member" && (
+          <p className="text-[11px] text-emerald-400/90 leading-relaxed">
+            Platform members pay a single monthly fee to access all gyms. Super admin approval
+            required.
+          </p>
         )}
         {accountType === "admin" && (
           <p className="text-[11px] text-amber-400/90 leading-relaxed">

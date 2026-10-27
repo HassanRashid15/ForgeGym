@@ -24,7 +24,7 @@ export interface User {
   featureScheduleEnabled?: boolean;
   /** Gym owner opted into Membership sidebar link */
   featureMembershipEnabled?: boolean;
-  /** Gym-owner free trial (set after superadmin approval) */
+  /** Gym-owner free trial / platform-member access month */
   trial?: {
     offered: boolean;
     status: "pending_approval" | "active" | "expired" | "none";
@@ -33,6 +33,8 @@ export interface User {
     daysLeft: number | null;
     label: string;
   } | null;
+  platformFeeStatus?: string | null;
+  platformMonthlyFee?: string | null;
 }
 
 export type RegisterAccountType = "admin" | "customer";

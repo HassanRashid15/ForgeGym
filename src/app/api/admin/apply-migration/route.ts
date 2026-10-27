@@ -38,9 +38,7 @@ export async function POST(request: Request) {
       .maybeSingle(),
   ]);
 
-  const email = (profile?.email || user.email || "").toLowerCase();
-  const isSuperAdmin =
-    profile?.is_super_admin === true || email === "superadmin@forge.test";
+  const isSuperAdmin = profile?.is_super_admin === true;
   const isAdmin = (roles || []).some((r) => r.role === "admin");
 
   if (!isAdmin || !isSuperAdmin) {

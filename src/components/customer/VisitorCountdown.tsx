@@ -50,8 +50,6 @@ export function VisitorCountdown() {
           .eq("user_id", user.id)
           .single();
 
-        console.log("Profile data:", profile);
-
         // Use trial_ends_at if available, otherwise calculate from join_date/created_at
         let targetDate: Date;
         if (profile?.trial_ends_at) {
@@ -59,7 +57,6 @@ export function VisitorCountdown() {
         } else {
           const joinDate = profile?.join_date || profile?.created_at || new Date().toISOString();
           const startDate = new Date(joinDate);
-          console.log("Join date:", joinDate, "Start date:", startDate);
 
           // Set target to 1 day after join date
           targetDate = new Date(startDate);
@@ -68,11 +65,8 @@ export function VisitorCountdown() {
 
         setPeriodEnd(targetDate.toISOString());
 
-        console.log("Target date:", targetDate, "Period end:", periodEnd);
-
         setLoading(false);
       } catch (error) {
-        console.error("Failed to fetch user join date:", error);
         setLoading(false);
       }
     };

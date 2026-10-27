@@ -3,6 +3,7 @@ import { createSupabaseServiceClient, requireAuth } from "@/lib/supabase/server"
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/admin/welcome-modal
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
         feature_schedule_enabled: enableSchedule,
         feature_membership_enabled: enableMembership,
         updated_at: new Date().toISOString(),
-      } as any)
+      })
       .eq("user_id", auth.user.id);
 
     if (error) {
@@ -57,7 +58,7 @@ export async function POST(request: Request) {
         msg.includes("feature_schedule_enabled") ||
         msg.includes("feature_membership_enabled")
       ) {
-        console.log("Some welcome-modal columns missing, using partial update");
+        logger.info("Some welcome-modal columns missing, using partial update");
         const { error: fallbackError } = await service
           .from("profiles")
           .update({
@@ -66,14 +67,14 @@ export async function POST(request: Request) {
           .eq("user_id", auth.user.id);
 
         if (fallbackError) {
-          console.error("Error updating profile as fallback:", fallbackError);
+          logger.error("Error updating profile as fallback", { error: fallbackError });
         }
       } else {
-        console.error("Error marking welcome modal as shown:", error);
+        logger.error("Error marking welcome modal as shown", { error });
       }
     }
 
-    trackEvent("admin_welcome_modal_shown" as any, {
+    trackEvent("admin_welcome_modal_shown", {
       userId: auth.user.id,
       requestId,
       enableClasses,

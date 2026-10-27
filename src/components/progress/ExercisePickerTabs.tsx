@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import type { CatalogExercise } from "@/api/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Check, Search } from "lucide-react";
+import { Check, Search, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TAB_ORDER = [
+const EQUIPMENT_TABS = [
   "All",
   "Barbell",
   "Dumbbell",
@@ -17,9 +17,10 @@ const TAB_ORDER = [
   "Other",
 ] as const;
 
-type TabId = (typeof TAB_ORDER)[number];
+type EquipmentTab = (typeof EQUIPMENT_TABS)[number];
+type TabId = "Recommended" | EquipmentTab;
 
-function exerciseEquipmentTab(ex: CatalogExercise): Exclude<TabId, "All"> {
+function exerciseEquipmentTab(ex: CatalogExercise): Exclude<EquipmentTab, "All"> {
   const eq = (ex.equipment || []).map((e) => e.toLowerCase()).join(" ");
   const name = ex.name.toLowerCase();
   const hay = `${eq} ${name}`;
@@ -53,6 +54,8 @@ type ExercisePickerTabsProps = {
   value: string;
   loggedNames?: string[];
   focusLabel?: string;
+  /** Mood/energy suggestions — shown as first tab when present */
+  recommendedNames?: string[];
   onSelect: (name: string) => void;
 };
 
@@ -61,6 +64,7 @@ export function ExercisePickerTabs({
   value,
   loggedNames = [],
   focusLabel = "exercise",
+  recommendedNames = [],
   onSelect,
 }: ExercisePickerTabsProps) {
   const [query, setQuery] = useState("");
@@ -69,26 +73,66 @@ export function ExercisePickerTabs({
     [loggedNames],
   );
 
+  const recommendedSet = useMemo(
+    () => new Set(recommendedNames.map((n) => n.trim().toLowerCase()).filter(Boolean)),
+    [recommendedNames],
+  );
+
+  const recommendedExercises = useMemo(() => {
+    if (recommendedSet.size === 0) return [] as CatalogExercise[];
+    const fromCatalog = exercises.filter((ex) =>
+      recommendedSet.has(ex.name.toLowerCase()),
+    );
+    const found = new Set(fromCatalog.map((e) => e.name.toLowerCase()));
+    // Keep mood list order; add stub rows for names not in catalog yet
+    const ordered: CatalogExercise[] = [];
+    for (const name of recommendedNames) {
+      const hit = fromCatalog.find(
+        (e) => e.name.toLowerCase() === name.trim().toLowerCase(),
+      );
+      if (hit) ordered.push(hit);
+      else if (name.trim() && !found.has(name.trim().toLowerCase())) {
+        ordered.push({
+          name: name.trim(),
+          imageUrl: null,
+          videoUrl: null,
+          primaryMuscles: [],
+          secondaryMuscles: [],
+          howTo: null,
+          equipment: [],
+        });
+      }
+    }
+    return ordered;
+  }, [exercises, recommendedNames, recommendedSet]);
+
   const byTab = useMemo(() => {
     const map = new Map<TabId, CatalogExercise[]>();
-    for (const tab of TAB_ORDER) map.set(tab, []);
+    map.set("Recommended", recommendedExercises);
+    for (const tab of EQUIPMENT_TABS) map.set(tab, []);
     for (const ex of exercises) {
       map.get("All")!.push(ex);
       map.get(exerciseEquipmentTab(ex))!.push(ex);
     }
     return map;
-  }, [exercises]);
+  }, [exercises, recommendedExercises]);
 
   const visibleTabs = useMemo(() => {
-    return TAB_ORDER.filter((tab) => {
-      if (tab === "All") return exercises.length > 0;
-      return (byTab.get(tab)?.length || 0) > 0;
-    });
-  }, [byTab, exercises.length]);
+    const tabs: TabId[] = [];
+    if (recommendedExercises.length > 0) tabs.push("Recommended");
+    for (const tab of EQUIPMENT_TABS) {
+      if (tab === "All") {
+        if (exercises.length > 0) tabs.push(tab);
+        continue;
+      }
+      if ((byTab.get(tab)?.length || 0) > 0) tabs.push(tab);
+    }
+    return tabs;
+  }, [byTab, exercises.length, recommendedExercises.length]);
 
   const defaultTab = visibleTabs[0] || "All";
 
-  if (exercises.length === 0) {
+  if (exercises.length === 0 && recommendedExercises.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         No {focusLabel} exercises found
@@ -118,7 +162,14 @@ export function ExercisePickerTabs({
                 value={tab}
                 className="px-2.5 py-1.5 text-xs sm:text-sm"
               >
-                {tab}
+                {tab === "Recommended" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    Recommended
+                  </span>
+                ) : (
+                  tab
+                )}
                 <span className="ml-1 text-muted-foreground">({count})</span>
               </TabsTrigger>
             );
@@ -146,6 +197,7 @@ export function ExercisePickerTabs({
                   list.map((ex) => {
                     const alreadyLogged = logged.has(ex.name.toLowerCase());
                     const selected = value === ex.name;
+                    const isRec = recommendedSet.has(ex.name.toLowerCase());
                     return (
                       <button
                         key={ex.name}
@@ -167,7 +219,12 @@ export function ExercisePickerTabs({
                             : "text-foreground",
                         )}
                       >
-                        <span className="min-w-0 flex-1 truncate">{ex.name}</span>
+                        <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
+                          {tab === "Recommended" || isRec ? (
+                            <Sparkles className="h-3 w-3 shrink-0 text-primary" />
+                          ) : null}
+                          <span className="truncate">{ex.name}</span>
+                        </span>
                         {alreadyLogged ? (
                           <span className="shrink-0 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
                             Done
@@ -188,7 +245,9 @@ export function ExercisePickerTabs({
                 )}
               </div>
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Scroll and tap to select
+                {tab === "Recommended"
+                  ? "From your mood & energy — tap to select"
+                  : "Scroll and tap to select"}
                 {value ? ` · selected: ${value}` : ""}
               </p>
             </TabsContent>

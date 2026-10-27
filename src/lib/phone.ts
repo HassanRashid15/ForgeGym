@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger";
+
 /** Digits-only phone key for comparison (ignores spaces, +, dashes). */
 export function phoneDigits(value: string | null | undefined): string {
   return String(value || "").replace(/\D/g, "");
@@ -42,7 +44,7 @@ export async function findDuplicatePhone(
     .select("user_id, phone")
     .not("phone", "is", null);
   if (error) {
-    console.warn("findDuplicatePhone:", error.message);
+    logger.warn("findDuplicatePhone error", { error: error.message });
     return false;
   }
   return (data || []).some((p) => {

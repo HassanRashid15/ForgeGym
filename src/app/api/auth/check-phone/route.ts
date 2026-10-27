@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ exists: null, warning: "unavailable" });
   }
 
-  const taken = await findDuplicatePhone(service as any, phone, excludeUserId || null);
+  const taken = await findDuplicatePhone(service, phone, excludeUserId || null);
 
   return NextResponse.json({
     exists: taken,

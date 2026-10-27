@@ -20,6 +20,8 @@ export function addOneMonth(from = new Date()): Date {
 export function computeTrialInfo(input: {
   isSuperAdmin?: boolean | null;
   isGymOwnerAdmin?: boolean;
+  /** Self-training platform member with platform fee / access month */
+  isPlatformMember?: boolean;
   adminApproved?: boolean | null;
   trialOffered?: boolean | null;
   trialStartsAt?: string | null;
@@ -27,8 +29,9 @@ export function computeTrialInfo(input: {
   now?: Date;
 }): TrialInfo {
   const now = input.now || new Date();
+  const eligible = input.isGymOwnerAdmin === true || input.isPlatformMember === true;
 
-  if (input.isSuperAdmin || !input.isGymOwnerAdmin) {
+  if (input.isSuperAdmin || !eligible) {
     return {
       offered: false,
       status: "none",
@@ -50,7 +53,9 @@ export function computeTrialInfo(input: {
       startsAt: null,
       endsAt: null,
       daysLeft: null,
-      label: "1-month free trial starts after super admin approval",
+      label: input.isPlatformMember
+        ? "1-month access starts after fee acceptance"
+        : "1-month free trial starts after super admin approval",
     };
   }
 
@@ -62,7 +67,9 @@ export function computeTrialInfo(input: {
       endsAt,
       daysLeft: null,
       label: offered
-        ? "Trial pending activation"
+        ? input.isPlatformMember
+          ? "Accept your platform fee to unlock 1-month access"
+          : "Trial pending activation"
         : "No active trial",
     };
   }
@@ -79,7 +86,7 @@ export function computeTrialInfo(input: {
       startsAt,
       endsAt,
       daysLeft: 0,
-      label: "Free trial ended",
+      label: input.isPlatformMember ? "Access month ended" : "Free trial ended",
     };
   }
 
@@ -91,8 +98,12 @@ export function computeTrialInfo(input: {
     daysLeft,
     label:
       daysLeft === 1
-        ? "1 day left on free trial"
-        : `${daysLeft} days left on free trial`,
+        ? input.isPlatformMember
+          ? "1 day left on access"
+          : "1 day left on free trial"
+        : input.isPlatformMember
+          ? `${daysLeft} days left on access`
+          : `${daysLeft} days left on free trial`,
   };
 }
 
@@ -104,5 +115,49 @@ export function trialActivationPatch(now = new Date()) {
     trial_offered: true,
     trial_starts_at: starts.toISOString(),
     trial_ends_at: ends.toISOString(),
+  };
+}
+
+export type TrialRenewalPatch = {
+  trial_offered: true;
+  trial_starts_at: string;
+  trial_ends_at: string;
+  is_frozen: false;
+  frozen_until: null;
+  freeze_reason: null;
+};
+
+/** Fields to set when restarting a trial (renewal after expiration). */
+export function trialRenewalPatch(now = new Date()): TrialRenewalPatch {
+  const starts = now;
+  const ends = addOneMonth(starts);
+  return {
+    trial_offered: true,
+    trial_starts_at: starts.toISOString(),
+    trial_ends_at: ends.toISOString(),
+    is_frozen: false,
+    frozen_until: null,
+    freeze_reason: null,
+  };
+}
+
+export type MembershipTrialRenewalPatch = {
+  membership_trial_starts_at: string;
+  membership_trial_ends_at: string;
+  is_frozen: false;
+  frozen_until: null;
+  freeze_reason: null;
+};
+
+/** Fields to set when restarting a membership trial (if you have member trials). */
+export function membershipTrialRenewalPatch(now = new Date()): MembershipTrialRenewalPatch {
+  const starts = now;
+  const ends = addOneMonth(starts);
+  return {
+    membership_trial_starts_at: starts.toISOString(),
+    membership_trial_ends_at: ends.toISOString(),
+    is_frozen: false,
+    frozen_until: null,
+    freeze_reason: null,
   };
 }

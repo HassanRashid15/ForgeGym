@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 
 export interface Exercise {
   id: string;
@@ -10,6 +12,12 @@ export interface Exercise {
 }
 
 export async function GET(request: Request) {
+  const requestId = getRequestId(request);
+  const limited = await rateLimit(clientKey(request, "public:exercises"), 120, 60_000);
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited);
+  }
+
   const { searchParams } = new URL(request.url);
   const bodyPart = searchParams.get("bodyPart");
   const equipment = searchParams.get("equipment");

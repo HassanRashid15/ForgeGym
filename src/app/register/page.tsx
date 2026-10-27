@@ -34,7 +34,11 @@ import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
 import { checkPhoneExists, checkGymDuplicate } from "@/api/auth";
 import { listGyms, getGym } from "@/api/gyms";
 import { phonesMatch } from "@/lib/phone";
-import type { AccountType, PublicGym } from "@/components/register/types";
+import type {
+  AccountType,
+  AccountTypeOrEmpty,
+  PublicGym,
+} from "@/components/register/types";
 import { formatCityLocation, placeFromAddressLabel } from "@/lib/geo/place";
 
 const CITY_OPTIONS = [
@@ -55,7 +59,7 @@ const CITY_OPTIONS = [
 // ─── Form Data Type for Persistence ─────────────────────────────────────────────
 type RegistrationFormData = {
   currentStep: number;
-  accountType: AccountType;
+  accountType: AccountTypeOrEmpty;
   firstName: string;
   lastName: string;
   email: string;
@@ -103,7 +107,7 @@ type RegistrationFormData = {
 
 const initialFormData: RegistrationFormData = {
   currentStep: 1,
-  accountType: "customer",
+  accountType: "",
   firstName: "",
   lastName: "",
   email: "",
@@ -161,15 +165,18 @@ function RegisterContent() {
   const [formData, setFormData, hasPersistedData, clearFormData, isLoaded] =
     useFormPersistence<RegistrationFormData>("gym-registration-form", initialFormData);
 
-  // Modal state
+  // Modal state — only prompt once per visit (formData sync must not reopen it)
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const restorePromptedRef = useRef(false);
 
   const [currentStep, setCurrentStep] = useState(formData.currentStep);
   const [isLoading, setIsLoading] = useState(false);
   const [welcomeName, setWelcomeName] = useState<string | null>(null);
 
   // ── Step 1 ──────────────────────────────────────────────────────────────────
-  const [accountType, setAccountType] = useState<AccountType>(formData.accountType);
+  const [accountType, setAccountType] = useState<AccountTypeOrEmpty>(
+    formData.accountType || "",
+  );
   const [firstName, setFirstName] = useState(formData.firstName);
   const [lastName, setLastName] = useState(formData.lastName);
   const [email, setEmail] = useState(queryEmail || formData.email);
@@ -220,25 +227,31 @@ function RegisterContent() {
     }
   }, [queryEmail]);
 
-  // Show restore modal if there's persisted data and it's loaded
+  // Show restore modal once when persisted draft is first loaded
   useEffect(() => {
-    if (isLoaded && hasPersistedData) {
-      setShowRestoreModal(true);
-    }
+    if (!isLoaded || restorePromptedRef.current || !hasPersistedData) return;
+    const hasData =
+      formData.firstName || formData.lastName || formData.email || formData.phone;
+    if (!hasData) return;
+    restorePromptedRef.current = true;
+    setShowRestoreModal(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on initial load, not every formData sync
   }, [isLoaded, hasPersistedData]);
 
   // Handle modal actions
   const handleContinueFromSaved = () => {
+    restorePromptedRef.current = true;
     setShowRestoreModal(false);
     // Data is already loaded from formData
   };
 
   const handleStartFresh = () => {
+    restorePromptedRef.current = true;
     clearFormData();
     setShowRestoreModal(false);
     // Reset all form state to initial values
     setCurrentStep(1);
-    setAccountType("customer");
+    setAccountType("");
     setFirstName("");
     setLastName("");
     setEmail(queryEmail);
@@ -946,10 +959,11 @@ function RegisterContent() {
   // ── Step 1 validation & submit ───────────────────────────────────────────────
   const validateStep1 = () => {
     const e: typeof errors = {};
-    if (!accountType) e.accountType = "Please select Admin or Customer";
+    if (!accountType) e.accountType = "Please select an account type";
     if (accountType === "customer" && !selectedGymOwnerId) {
       e.gymOwnerId = "Please select a gym to join";
     }
+    // platform_member doesn't need gym selection
     if (!firstName.trim()) e.firstName = "First name is required";
     if (!lastName.trim()) e.lastName = "Last name is required";
     if (!email.trim()) e.email = "Email is required";
@@ -1201,11 +1215,13 @@ function RegisterContent() {
       );
 
       // Same welcome beat as login — then success / verification step
-      setWelcomeName(firstName.trim() || fullName || "Athlete");
+      setWelcomeName(firstName.trim() || fullName || "there");
       toast.success(
         isAdminAccount
           ? "Admin account created! Verify email, then wait for platform owner approval — your 1-month free trial starts when they approve."
-          : "Account created! Verify your email, then wait for gym admin approval.",
+          : accountType === "customer"
+            ? "Account created! Verify your email, then wait for gym admin approval."
+            : "Account created! Verify your email, then wait for platform owner approval.",
       );
       if (isAdminAccount) {
         toast.message(
@@ -1264,7 +1280,10 @@ function RegisterContent() {
     <RegisterShell>
       <FormRestoreModal
         open={showRestoreModal}
-        onOpenChange={setShowRestoreModal}
+        onOpenChange={(open) => {
+          if (!open) restorePromptedRef.current = true;
+          setShowRestoreModal(open);
+        }}
         onContinue={handleContinueFromSaved}
         onStartFresh={handleStartFresh}
         stepNumber={formData.currentStep}
@@ -2462,7 +2481,9 @@ function RegisterContent() {
                 <p className="text-sm text-zinc-400">
                   {accountType === "admin"
                     ? "Your admin account was created — next: verify email, then wait for approval"
-                    : "Next: verify your email, then wait for gym admin approval to join"}
+                    : accountType === "customer"
+                      ? "Next: verify your email, then wait for gym admin approval to join"
+                      : "Next: verify your email, then wait for platform owner approval"}
                 </p>
               </div>
 
@@ -2480,8 +2501,10 @@ function RegisterContent() {
                   : [
                       {
                         label: "Gym",
-                        value:
-                          gyms.find((g) => g.ownerId === selectedGymOwnerId)?.gymName || "—",
+                        value: selectedGymOwnerId
+                          ? gyms.find((g) => g.ownerId === selectedGymOwnerId)?.gymName ||
+                            "Selected"
+                          : "None · Self-training",
                       },
                       {
                         label: "Trainer",

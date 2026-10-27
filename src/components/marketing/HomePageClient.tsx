@@ -225,28 +225,7 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* Soft launch — set expectations early */}
-      <section className="py-16 md:py-20">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
-              Soft launch
-            </p>
-            <h2 className="font-display mb-4 text-4xl tracking-normal md:text-5xl">
-              Built with real gyms
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Forge is opening with partner gyms first — honest numbers, real coaches, and room to
-              grow. Join early and help shape what comes next.
-            </p>
-          </ScrollAnimate>
-        </div>
-      </section>
-
-      {/* Testimonials section */}
-      <TestimonialSection />
-
-      {/* Featured gyms — core product */}
+      {/* 1) Featured gyms — product first */}
       {gyms.length > 0 && (
         <section className="bg-gradient-to-b from-background to-card/50 py-24">
           <div className="container mx-auto px-4">
@@ -288,7 +267,8 @@ export default function HomePageClient({
                             <Building2 className="h-10 w-10 text-primary/70" />
                           </div>
                         )}
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card via-card/70 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/80 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 shadow-[0_18px_36px_12px_hsl(var(--card))]" />
                         {gym.gymType && (
                           <span className="absolute left-3 top-3 rounded-md bg-background/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground backdrop-blur-sm">
                             {gym.gymType}
@@ -369,7 +349,25 @@ export default function HomePageClient({
         </section>
       )}
 
-      {/* Why Forge */}
+      {/* 2) Soft launch — short context after product */}
+      <section className="py-12 md:py-14">
+        <div className="container mx-auto px-4">
+          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
+              Soft launch
+            </p>
+            <h2 className="font-display mb-3 text-3xl tracking-normal md:text-4xl">
+              Built with real gyms
+            </h2>
+            <p className="text-base text-muted-foreground md:text-lg">
+              Forge is opening with partner gyms first — honest numbers, real coaches, and room to
+              grow. Join early and help shape what comes next.
+            </p>
+          </ScrollAnimate>
+        </div>
+      </section>
+
+      {/* 3) Why Forge */}
       <section id="features" className="scroll-mt-20 bg-background py-24">
         <div className="container mx-auto px-4">
           <ScrollAnimate animation="fade-up" className="mb-16 text-center">
@@ -399,16 +397,51 @@ export default function HomePageClient({
         </div>
       </section>
 
-      {/* Social proof — numbers */}
+      {/* 4) Stats */}
       <HomeStatsSection stats={liveStats} />
 
-      {/* Social proof — people */}
+      {/* 5) Social proof — reviews + testimonials */}
       <ReviewSection />
+      <TestimonialSection />
 
-      {/* Live offers */}
+      {/* 6) Promotions */}
       <HomePromotionsSection />
 
-      {/* Future — classes */}
+      {/* 7) Convert CTA */}
+      <section className="relative overflow-hidden bg-card py-24">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-primary blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-primary blur-3xl" />
+        </div>
+        <div className="container relative z-10 mx-auto px-4">
+          <ScrollAnimate animation="scale" className="mx-auto max-w-3xl text-center">
+            <h2 className="font-display mb-6 text-5xl md:text-7xl">
+              READY TO <span className="text-gradient">TRANSFORM</span>?
+            </h2>
+            <p className="mb-8 text-lg text-muted-foreground">
+              Find a partner gym near you and start training with Forge. New members get a clear path
+              from signup to approval — no inflated promises.
+            </p>
+            <Button variant="hero" size="xl" asChild>
+              <Link href="/gyms">
+                Browse gyms
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+          </ScrollAnimate>
+        </div>
+      </section>
+
+      {/* 8) FAQ */}
+      <HomePageFaq />
+
+      {/* 9) Blog */}
+      <BlogSection limit={3} showViewAll />
+
+      {/* 10) Newsletter */}
+      <NewsletterSection />
+
+      {/* 11) Classes coming soon — lowest priority */}
       <section className="py-24">
         <div className="container mx-auto px-4">
           <ComingSoonOverlay
@@ -467,40 +500,6 @@ export default function HomePageClient({
           </ComingSoonOverlay>
         </div>
       </section>
-
-      {/* Convert */}
-      <section className="relative overflow-hidden bg-card py-24">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-primary blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-primary blur-3xl" />
-        </div>
-        <div className="container relative z-10 mx-auto px-4">
-          <ScrollAnimate animation="scale" className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display mb-6 text-5xl md:text-7xl">
-              READY TO <span className="text-gradient">TRANSFORM</span>?
-            </h2>
-            <p className="mb-8 text-lg text-muted-foreground">
-              Find a partner gym near you and start training with Forge. New members get a clear path
-              from signup to approval — no inflated promises.
-            </p>
-            <Button variant="hero" size="xl" asChild>
-              <Link href="/gyms">
-                Browse gyms
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-            </Button>
-          </ScrollAnimate>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <HomePageFaq />
-
-      {/* Blog Section */}
-      <BlogSection />
-
-      {/* Capture leads last */}
-      <NewsletterSection />
 
       <Footer />
 

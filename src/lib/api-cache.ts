@@ -1,4 +1,6 @@
 import { Redis } from "@upstash/redis";
+import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 type MemoryEntry = {
   value: string;
@@ -27,9 +29,11 @@ function getRedis(): Redis | null {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
     redisClient = null;
+    logger.info("API Cache: Using in-memory cache (Upstash Redis not configured)");
     return null;
   }
   redisClient = new Redis({ url, token });
+  logger.info("API Cache: Connected to Upstash Redis");
   return redisClient;
 }
 
@@ -91,7 +95,6 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
       }
       return raw as T;
     } catch (error) {
-      console.warn("api-cache redis get failed:", error);
       return memoryGet<T>(key);
     }
   }
@@ -110,7 +113,7 @@ export async function cacheSet(
       await redis.set(key, JSON.stringify(value), { ex: ttlSec });
       return;
     } catch (error) {
-      console.warn("api-cache redis set failed:", error);
+      // Fall back to memory cache on Redis error
     }
   }
   memorySet(key, value, ttlMs);
@@ -122,7 +125,7 @@ export async function cacheDel(key: string): Promise<void> {
     try {
       await redis.del(key);
     } catch (error) {
-      console.warn("api-cache redis del failed:", error);
+      // Fall back to memory cache on Redis error
     }
   }
   memoryDel(key);
@@ -179,7 +182,7 @@ export async function cacheInvalidate(
         if (keys?.length) await redis.del(...keys);
       } while (cursor !== 0 && cursor !== "0");
     } catch (error) {
-      console.warn("api-cache redis invalidate prefix failed:", error);
+      logger.warn("api-cache redis invalidate prefix failed", { error });
     }
   }
 }
@@ -230,4 +233,38 @@ export function withCacheHeaders(
 export function __resetApiCacheForTests() {
   memoryStore.clear();
   redisClient = undefined;
+}
+
+/**
+ * Wrapper for GET routes that caches responses.
+ * Use this for read-only endpoints to reduce database load.
+ *
+ * @param keyFn - Function to generate cache key from request
+ * @param ttlMs - Cache duration in milliseconds
+ * @param handler - The actual route handler function
+ */
+export function withCache<T>(
+  keyFn: (request: Request) => string,
+  ttlMs: number,
+  handler: (request: Request) => Promise<NextResponse>
+): (request: Request) => Promise<NextResponse> {
+  return async (request: Request) => {
+    const key = keyFn(request);
+    const { data, hit } = await cacheAside(key, ttlMs, async () => {
+      const response = await handler(request);
+      const json = await response.json().catch(() => ({}));
+      return json;
+    });
+
+    const maxAgeSec = Math.max(1, Math.ceil(ttlMs / 1000));
+    return NextResponse.json(data, withCacheHeaders(undefined, maxAgeSec, hit));
+  };
+}
+
+/**
+ * Helper to invalidate multiple cache prefixes after write operations.
+ * Call this in POST/PATCH/DELETE routes after successful data changes.
+ */
+export async function invalidateCacheOnWrite(prefixes: string[]): Promise<void> {
+  await cacheInvalidate({ prefixes: prefixes.map((p) => `api-cache:${p}:`) });
 }

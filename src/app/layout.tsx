@@ -11,6 +11,7 @@ import { PublicTrafficBeacon } from "@/components/marketing/PublicTrafficBeacon"
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { RegisterServiceWorker } from "@/components/pwa/RegisterServiceWorker";
 import { TopProgressBar } from "@/components/layout/TopProgressBar";
+import { ErrorBoundary } from "@/components/errors/ErrorBoundary";
 import { Suspense } from "react";
 import {
   DEFAULT_DESCRIPTION,
@@ -248,14 +249,16 @@ export default function RootLayout({
             <QueryProvider>
               <TooltipProvider>
                 <SplashProvider>
-                  <RegisterServiceWorker />
-                  <PublicTrafficBeacon />
-                  <Suspense fallback={null}>
-                    <TopProgressBar />
-                  </Suspense>
-                  <Toaster />
-                  <Sonner />
-                  {children}
+                  <ErrorBoundary>
+                    <RegisterServiceWorker />
+                    <PublicTrafficBeacon />
+                    <Suspense fallback={null}>
+                      <TopProgressBar />
+                    </Suspense>
+                    <Toaster />
+                    <Sonner />
+                    {children}
+                  </ErrorBoundary>
                 </SplashProvider>
               </TooltipProvider>
             </QueryProvider>

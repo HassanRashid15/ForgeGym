@@ -132,29 +132,30 @@ export async function POST(request: Request) {
   else if (roleNames.includes("user")) role = "user";
   else role = roleNames[0];
 
-  // Same ownership rules as /api/auth/me — never promote on gym_name alone.
-  // Members often carry a display gym_name while gym_owner_id points at the owner.
+  // Same ownership rules as /api/auth/me — heal admin role from gyms ownership + signup meta.
   if (!role || role === "user") {
     const metaRequested = String(
       (data.user.user_metadata as { requested_role?: string } | null)?.requested_role || "",
     ).toLowerCase();
-    const { data: ownerProfile } = await supabase
-      .from("profiles")
-      .select("gym_name, gym_owner_id")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const [{ data: ownerProfile }, { data: ownGym }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("gym_owner_id")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("gyms")
+        .select("name")
+        .eq("owner_user_id", userId)
+        .maybeSingle(),
+    ]);
 
-    const typedOwner = ownerProfile as {
-      gym_name?: string | null;
-      gym_owner_id?: string | null;
-    } | null;
+    const typedOwner = ownerProfile as { gym_owner_id?: string | null } | null;
+    const ownsOwnGym =
+      Boolean(ownGym?.name?.trim()) ||
+      (typedOwner?.gym_owner_id != null && typedOwner.gym_owner_id === userId);
 
-    const ownsOwnGymProfile =
-      Boolean(typedOwner?.gym_name?.trim()) &&
-      (!typedOwner?.gym_owner_id || typedOwner.gym_owner_id === userId);
-
-    const looksLikeGymOwnerSignup =
-      metaRequested === "admin" && ownsOwnGymProfile;
+    const looksLikeGymOwnerSignup = metaRequested === "admin" && ownsOwnGym;
 
     if (looksLikeGymOwnerSignup) {
       role = "admin";
@@ -186,14 +187,25 @@ export async function POST(request: Request) {
     });
   }
 
+  if (role === "user" && !gymOwnerId && !isApproved) {
+    await cookieClient.auth.signOut();
+    return jsonError(
+      "Your account is pending platform owner approval",
+      403,
+      {
+        code: "platform_member_approval_pending",
+        requestId,
+      },
+    );
+  }
+
   trackEvent("auth.login", { userId, requestId });
 
   void notify.loginSuccess(userId, new Date().toLocaleString());
 
   // Auto-subscribe members & gym admins (not superadmin) to newsletter
   const loginEmail = (data.user.email || email || "").toLowerCase();
-  const isSuperAdminUser =
-    accessProfile?.is_super_admin === true || email === "superadmin@forge.test";
+  const isSuperAdminUser = accessProfile?.is_super_admin === true;
 
   if (loginEmail && !isSuperAdminUser) {
     const { subscribeEmail } = await import("@/lib/newsletter");

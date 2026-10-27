@@ -1,4 +1,6 @@
-export type AccountType = "customer" | "admin";
+export type AccountType = "customer" | "admin" | "platform_member";
+/** Unset until the user picks a role on step 1. */
+export type AccountTypeOrEmpty = AccountType | "";
 
 export type PublicGym = {
   ownerId: string;

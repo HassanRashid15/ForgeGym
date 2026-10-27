@@ -72,6 +72,11 @@
       "path": "/api/admin/pending-members",
       "description": "Get pending members for approval (optimized for polling)"
     },
+    "pendingMembersAction": {
+      "method": "POST",
+      "path": "/api/admin/pending-members",
+      "description": "Approve, reject, or renew pending members"
+    },
     "contactMessages": {
       "method": "GET",
       "path": "/api/admin/contact-messages",
@@ -116,6 +121,16 @@
       "method": "PATCH",
       "path": "/api/admin/platform-settings",
       "description": "Save platform facility fee to database"
+    },
+    "platformFeeConcessions": {
+      "method": "GET",
+      "path": "/api/admin/platform-fee",
+      "description": "List pending platform fee concession requests for super admin"
+    },
+    "respondPlatformFee": {
+      "method": "POST",
+      "path": "/api/admin/platform-fee",
+      "description": "Accept fee, request concession, or resolve concession"
     },
     "membershipFees": {
       "method": "GET",
@@ -486,13 +501,6 @@
       "method": "POST",
       "path": "/api/geo/distance",
       "description": "Google Distance Matrix from user to gyms"
-    }
-  },
-  "dev": {
-    "testNotifications": {
-      "method": "POST",
-      "path": "/api/test-notifications",
-      "description": "Sample notifications (non-production, super admin only)"
     }
   }
 }

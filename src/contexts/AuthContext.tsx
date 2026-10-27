@@ -16,7 +16,7 @@ import {
 import { updateMyProfile } from "@/api/profiles";
 import { pickAllowedProfileFields } from "@/lib/profiles/allowlist";
 import { ApiError } from "@/api/client";
-import { isSeededSuperAdmin, resolveRole } from "@/lib/auth/roles";
+import { resolveRole } from "@/lib/auth/roles";
 import {
   MePayload,
   MeCacheEntry,
@@ -46,6 +46,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const syncedUserIdRef = useRef<string | null>(null);
   const meCacheRef = useRef<MeCacheEntry | null>(null);
   const meInflightRef = useRef<Promise<MePayload | null> | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_DEBOUNCE_MS = 1000;
 
   useEffect(() => {
     userRef.current = user;
@@ -56,7 +58,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cached = readMeCache(meCacheRef.current, userId);
       if (cached) return cached;
       if (meInflightRef.current) return meInflightRef.current;
+
+      // Debounce: if we fetched recently, wait before allowing another request
+      const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current;
+      if (timeSinceLastFetch < FETCH_DEBOUNCE_MS) {
+        await new Promise((resolve) => setTimeout(resolve, FETCH_DEBOUNCE_MS - timeSinceLastFetch));
+        // Check cache again after debounce
+        const cachedAfterDebounce = readMeCache(meCacheRef.current, userId);
+        if (cachedAfterDebounce) return cachedAfterDebounce;
+      }
     }
+
+    lastFetchTimeRef.current = Date.now();
 
     const request = withTimeout(
       fetchCurrentUser()
@@ -95,81 +108,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (sessionUser.user_metadata?.full_name as string | undefined) ||
       userEmail.split("@")[0] ||
       "User";
-    const isSeededSuper = isSeededSuperAdmin(userEmail);
-    const keepAdmin =
-      userRef.current?.id === userId && userRef.current.role === "admin";
 
-    if (!userRef.current || userRef.current.id !== userId) {
-      setUser({
-        id: userId,
-        email: userEmail,
-        name: fallbackName,
-        role: isSeededSuper || keepAdmin ? "admin" : "customer",
-        isSuperAdmin:
-          isSeededSuper ||
-          (userRef.current?.id === userId ? !!userRef.current.isSuperAdmin : false),
-        isVisitor: false,
-        avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
-      });
-    }
+    // Do not set an optimistic user before /me — login would redirect to /dashboard
+    // and bounce (refresh loop) when the account is still pending approval.
 
     try {
       const me = await getMeOnce(userId, force);
       if (gen !== syncGenRef.current) return fallbackName;
 
       if (!me) {
-        // /api/auth/me failed (timeout/network) — do not force customer.
-        // Prefer JWT requested_role for gym owners until a successful me sync.
-        const metaRole = String(
-          sessionUser.user_metadata?.requested_role || "",
-        ).toLowerCase();
-        const fallbackRole =
-          isSeededSuper || metaRole === "admin" || metaRole === "super_admin"
-            ? "admin"
-            : keepAdmin
-              ? "admin"
-              : "customer";
-        setUser({
-          id: userId,
-          email: userEmail,
-          name: fallbackName,
-          role: fallbackRole,
-          isSuperAdmin: isSeededSuper,
-          isVisitor: false,
-          avatar:
-            (sessionUser.user_metadata?.avatar_url as string | undefined) ||
-            undefined,
-        });
-        syncedUserIdRef.current = userId;
-        return fallbackName;
+        // Session without a usable /me — clear so auth pages don't redirect-loop
+        meCacheRef.current = null;
+        syncedUserIdRef.current = null;
+        if (!userRef.current || userRef.current.id !== userId) {
+          setUser(null);
+        }
+        return null;
       }
 
       let appRole = resolveRole(
         me.role,
         sessionUser.user_metadata?.requested_role as string | undefined,
       );
-      if (isSeededSuper) appRole = "admin";
 
-      const isSuperAdmin = me.isSuperAdmin === true || isSeededSuper;
-      const apiApproved = me.admin_approved !== false;
-      const needsGymMemberApproval =
-        appRole === "customer" && !!me.gymOwnerId && !apiApproved;
+      const isSuperAdmin = me.isSuperAdmin === true;
+      const apiApproved = me.admin_approved === true;
 
       if (!isSuperAdmin && me.is_verified !== true) {
         meCacheRef.current = null;
         syncedUserIdRef.current = null;
-        await supabase.auth.signOut({ scope: "local" });
+        await supabase.auth.signOut();
         setUser(null);
         return null;
       }
 
-      if (
-        ((appRole === "admin" && !apiApproved) || needsGymMemberApproval) &&
-        !isSuperAdmin
-      ) {
+      // Gym owners, gym customers, and platform members all need approval before dashboard
+      if (!isSuperAdmin && !apiApproved) {
         meCacheRef.current = null;
         syncedUserIdRef.current = null;
-        await supabase.auth.signOut({ scope: "local" });
+        await supabase.auth.signOut();
         setUser(null);
         return null;
       }
@@ -195,6 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         featureScheduleEnabled: me.featureScheduleEnabled === true,
         featureMembershipEnabled: me.featureMembershipEnabled === true,
         trial: me.trial || null,
+        platformFeeStatus: me.platformFeeStatus || null,
+        platformMonthlyFee: me.platformMonthlyFee || null,
       };
       const prev = userRef.current;
       const unchanged =
@@ -216,8 +195,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.featureClassesEnabled === nextUser.featureClassesEnabled &&
         prev.featureScheduleEnabled === nextUser.featureScheduleEnabled &&
         prev.featureMembershipEnabled === nextUser.featureMembershipEnabled &&
+        prev.platformFeeStatus === nextUser.platformFeeStatus &&
+        prev.platformMonthlyFee === nextUser.platformMonthlyFee &&
         prev.trial?.status === nextUser.trial?.status &&
-        prev.trial?.daysLeft === nextUser.trial?.daysLeft;
+        prev.trial?.daysLeft === nextUser.trial?.daysLeft &&
+        prev.trial?.endsAt === nextUser.trial?.endsAt;
       if (!unchanged) setUser(nextUser);
       return resolvedName;
     } catch (error) {
@@ -227,8 +209,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userId,
           email: userEmail,
           name: fallbackName,
-          role: isSeededSuper ? "admin" : "customer",
-          isSuperAdmin: isSeededSuper,
+          role: "customer",
+          isSuperAdmin: false,
           isVisitor: false,
           avatar: (sessionUser.user_metadata?.avatar_url as string | undefined) || undefined,
         });
@@ -296,6 +278,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           syncedUserIdRef.current = null;
           meCacheRef.current = null;
           meInflightRef.current = null;
+          lastFetchTimeRef.current = 0;
           setIsLoading(false);
           return;
         }
@@ -334,6 +317,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (event === "SIGNED_IN") {
+          // Skip sync if we already have the user loaded for this session
           if (
             bootDone &&
             syncedUserIdRef.current === session.user.id &&
@@ -373,6 +357,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       trackEvent("auth.login_failed");
       setIsLoading(false);
       if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "email_not_confirmed") {
+        // Clear any leftover client session so /verification does not auto-mark verified
+        try {
+          await supabase.auth.signOut({ scope: "local" });
+        } catch {
+          /* ignore */
+        }
+        setUser(null);
+        syncedUserIdRef.current = null;
+        meCacheRef.current = null;
         throw new Error("Email not confirmed");
       }
       if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "admin_approval_pending") {
@@ -380,6 +373,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (err instanceof ApiError && err.details && (err.details as { code?: string }).code === "member_approval_pending") {
         throw new Error("Membership approval pending");
+      }
+      if (
+        err instanceof ApiError &&
+        err.details &&
+        (err.details as { code?: string }).code === "platform_member_approval_pending"
+      ) {
+        throw new Error("Platform owner approval pending");
       }
       throw new Error(err instanceof Error ? err.message : "Login failed");
     }
@@ -466,7 +466,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // always clear local state
     } finally {
       await tipsHold;
-      setFarewellName(name || "Athlete");
+      setFarewellName(name || "there");
       await delay(1600);
 
       setUser(null);
@@ -494,6 +494,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = async () => {
     meCacheRef.current = null;
     meInflightRef.current = null;
+    lastFetchTimeRef.current = 0;
     const {
       data: { session },
     } = await supabase.auth.getSession();

@@ -1,12 +1,5 @@
 import type { UserRole } from "@/types/auth";
 
-/** Seeded platform super-admin used in local/dev bootstrap scripts. */
-export const SEEDED_SUPER_ADMIN_EMAIL = "superadmin@forge.test";
-
-export function isSeededSuperAdmin(email: string | null | undefined): boolean {
-  return (email || "").trim().toLowerCase() === SEEDED_SUPER_ADMIN_EMAIL;
-}
-
 /**
  * Resolve app role.
  * Trust the database role from /api/auth/me when present.

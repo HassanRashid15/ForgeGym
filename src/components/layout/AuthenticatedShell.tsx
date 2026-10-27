@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtimeNotifications, NotificationsRealtimeProvider } from "@/hooks/useRealtimeNotifications";
 import { AdminPresenceProvider } from "@/hooks/useAdminPresence";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -90,6 +91,8 @@ type NavItem = {
   featureKey?: "classes" | "schedule" | "membership";
   /** When set, link only shows if user is an approved gym member */
   requiresMembership?: boolean;
+  /** When set, link only shows if AI Speed is enabled in platform settings */
+  requiresAiSpeedEnabled?: boolean;
 };
 
 const trainItemsBase: NavItem[] = [
@@ -107,6 +110,15 @@ const accountItems: NavItem[] = [
   { title: "Settings", url: "/profile?tab=settings", icon: Settings, requiresMembership: true },
   { title: "Site Home", url: "/", icon: Home },
 ];
+
+/** Nav titles kept for self-training platform members (unlocked). */
+const PLATFORM_MEMBER_HOME_TITLES = new Set([
+  "Overview",
+  "Progress",
+  "Attendance",
+  "Feedback",
+  "Notifications",
+]);
 
 const gymOwnerItems: NavItem[] = [
   { title: "Users", url: "/dashboard/users", icon: Users },
@@ -126,6 +138,7 @@ const superAdminItems: NavItem[] = [
   { title: "Public Traffic", url: "/dashboard/traffic", icon: Globe },
   { title: "Newsletter", url: "/dashboard/newsletter", icon: Mail },
   { title: "Promotions", url: "/dashboard/promotions", icon: Megaphone },
+  { title: "AI Speed", url: "/dashboard/ai-speed", icon: Zap, requiresAiSpeedEnabled: true },
 ];
 
 function isActivePath(pathname: string, url: string) {
@@ -140,11 +153,13 @@ function NavGroup({
   items,
   pathname,
   requiresMembership,
+  aiSpeedEnabled,
 }: {
   label: string;
   items: NavItem[];
   pathname: string;
   requiresMembership?: boolean;
+  aiSpeedEnabled?: boolean;
 }) {
   return (
     <SidebarGroup>
@@ -155,6 +170,12 @@ function NavGroup({
             const active = isActivePath(pathname, item.url);
             const Icon = item.icon;
             const isLockedDueToMembership = item.requiresMembership && !requiresMembership;
+            const isLockedDueToAiSpeed = item.requiresAiSpeedEnabled && !aiSpeedEnabled;
+
+            // Hide AI Speed menu item if it's disabled
+            if (item.requiresAiSpeedEnabled && !aiSpeedEnabled) {
+              return null;
+            }
 
             if (item.comingSoon) {
               return (
@@ -249,20 +270,25 @@ function getNotificationLabel(type: string): string {
   return labelMap[type] || "Notification";
 }
 
-function formatNotificationTime(timestamp: string): string {
+function formatNotificationDayDate(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfThatDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDiff = Math.round(
+    (startOfToday.getTime() - startOfThatDay.getTime()) / 86_400_000,
+  );
 
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return date.toLocaleDateString();
+  const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
+  const fullDate = date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+  if (dayDiff === 0) return `Today · ${weekday}, ${fullDate}`;
+  if (dayDiff === 1) return `Yesterday · ${weekday}, ${fullDate}`;
+  return `${weekday}, ${fullDate}`;
 }
 
 function formatNotificationClock(timestamp: string): string {
@@ -278,6 +304,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
   const { unreadCount, isConnected, notifications } = useRealtimeNotifications({
     enabled: !!user?.id,
   });
+  const [aiSpeedEnabled, setAiSpeedEnabled] = useState(true);
 
   // Lock document scroll so only the shell content scrolls (fixes double scrollbar + sticky nav)
   useEffect(() => {
@@ -286,6 +313,40 @@ function ShellChrome({ children }: { children: ReactNode }) {
       document.documentElement.classList.remove("dashboard-scroll-lock");
     };
   }, []);
+
+  // Check AI Speed enabled status from database (default ON if unset / missing row)
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    const checkAiSpeedEnabled = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("platform_settings")
+          .select("value")
+          .eq("key", "ai_speed_enabled")
+          .maybeSingle();
+
+        if (error) {
+          console.error("Error checking AI Speed enabled status:", error);
+          setAiSpeedEnabled(true);
+          return;
+        }
+
+        // Missing key → treat as enabled so the sidelink stays visible for superadmins
+        if (!data) {
+          setAiSpeedEnabled(true);
+          return;
+        }
+
+        setAiSpeedEnabled(String(data.value).toLowerCase() === "true");
+      } catch (error) {
+        console.error("Error checking AI Speed enabled status:", error);
+        setAiSpeedEnabled(true);
+      }
+    };
+
+    checkAiSpeedEnabled();
+  }, [isSuperAdmin]);
 
   const featureClassesEnabled = user?.featureClassesEnabled === true;
   const featureScheduleEnabled = user?.featureScheduleEnabled === true;
@@ -303,7 +364,17 @@ function ShellChrome({ children }: { children: ReactNode }) {
     user?.membershipStatus === "active"
   );
 
+  // Self-training platform member (no gym) — limited unlocked nav
+  const isPlatformMember = Boolean(
+    isCustomer && !isVisitor && !user?.gymOwnerId,
+  );
+
   const trainItems = useMemo(() => {
+    if (isPlatformMember) {
+      return trainItemsBase
+        .filter((item) => PLATFORM_MEMBER_HOME_TITLES.has(item.title))
+        .map((item) => ({ ...item, comingSoon: false }));
+    }
     return trainItemsBase.map((item) => {
       // Only apply membership locks for customers
       if (isCustomer && item.requiresMembership && !isApprovedMember) {
@@ -321,9 +392,19 @@ function ShellChrome({ children }: { children: ReactNode }) {
       }
       return item;
     });
-  }, [featureClassesEnabled, featureScheduleEnabled, featureMembershipEnabled, isApprovedMember, isCustomer]);
+  }, [
+    featureClassesEnabled,
+    featureScheduleEnabled,
+    featureMembershipEnabled,
+    isApprovedMember,
+    isCustomer,
+    isPlatformMember,
+  ]);
 
   const filteredAccountItems = useMemo(() => {
+    if (isPlatformMember) {
+      return accountItems.map((item) => ({ ...item, comingSoon: false }));
+    }
     return accountItems.map((item) => {
       // Only apply membership locks for customers
       if (isCustomer && item.requiresMembership && !isApprovedMember) {
@@ -331,7 +412,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
       }
       return item;
     });
-  }, [isApprovedMember, isCustomer]);
+  }, [isApprovedMember, isCustomer, isPlatformMember]);
 
   const gymBrand =
     user?.gymName?.trim() ||
@@ -344,9 +425,11 @@ function ShellChrome({ children }: { children: ReactNode }) {
 
   const panelLabel = isAdmin || isTrainer || isSuperAdmin
     ? `${formatRoleName(user?.role, isSuperAdmin)} panel`
-    : isApprovedMember
-      ? "Member panel"
-      : "Visitor panel";
+    : isPlatformMember
+      ? "Platform member"
+      : isApprovedMember
+        ? "Member panel"
+        : "Visitor panel";
 
   const managementItems = isSuperAdmin
     ? superAdminItems
@@ -438,14 +521,29 @@ function ShellChrome({ children }: { children: ReactNode }) {
         </SidebarHeader>
 
         <SidebarContent>
-          <NavGroup label="Home" items={trainItems} pathname={pathname} requiresMembership={isCustomer ? isApprovedMember : true} />
-          <NavGroup label="Account" items={filteredAccountItems} pathname={pathname} requiresMembership={isCustomer ? isApprovedMember : true} />
+          <NavGroup
+            label="Home"
+            items={trainItems}
+            pathname={pathname}
+            requiresMembership={
+              isPlatformMember ? true : isCustomer ? isApprovedMember : true
+            }
+          />
+          <NavGroup
+            label="Account"
+            items={filteredAccountItems}
+            pathname={pathname}
+            requiresMembership={
+              isPlatformMember ? true : isCustomer ? isApprovedMember : true
+            }
+          />
           {managementItems.length > 0 && (
             <NavGroup
               label={isSuperAdmin || isAdmin ? "Platform" : isTrainer ? "Fees" : "Gym"}
               items={managementItems}
               pathname={pathname}
               requiresMembership={true}
+              aiSpeedEnabled={aiSpeedEnabled}
             />
           )}
         </SidebarContent>
@@ -549,7 +647,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
       </Sidebar>
 
       <SidebarInset className="h-svh max-h-svh min-h-0 min-w-0 overflow-hidden">
-        <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm">
+        <header className="sticky top-0 z-50 flex h-14 shrink-0 w-full items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 shadow-sm">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
 
@@ -580,7 +678,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="relative size-8"
+                  className="relative size-8 hover:bg-transparent active:bg-transparent focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:outline-none border-0"
                   aria-label="Notifications"
                 >
                   <Bell className="size-4" />
@@ -654,8 +752,8 @@ function ShellChrome({ children }: { children: ReactNode }) {
                                 {notification.message}
                               </p>
                               <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground group-hover:text-primary-foreground/70">
-                                <span>
-                                  {formatNotificationTime(notification.created_at)}
+                                <span className="min-w-0 truncate">
+                                  {formatNotificationDayDate(notification.created_at)}
                                 </span>
                                 <span className="shrink-0 tabular-nums">
                                   {formatNotificationClock(notification.created_at)}
@@ -748,7 +846,7 @@ function ShellChrome({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-4 md:p-6 lg:p-8">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-4 py-4 md:px-6 md:py-6 lg:px-8 lg:py-8">{children}</div>
       </SidebarInset>
     </>
   );

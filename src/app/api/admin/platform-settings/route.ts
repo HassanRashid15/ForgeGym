@@ -3,7 +3,13 @@ import {
   createSupabaseServiceClient,
   requireAuth,
 } from "@/lib/supabase/server";
-import { cacheInvalidate } from "@/lib/api-cache";
+import {
+  cacheAside,
+  apiCacheKey,
+  CacheTTL,
+  withCacheHeaders,
+  cacheInvalidate,
+} from "@/lib/api-cache";
 
 const FEE_KEY = "platform_facility_fee";
 
@@ -33,10 +39,8 @@ async function requireApprovedAdminReader(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
   const isSuperAdmin =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   if (!isSuperAdmin && profile?.admin_approved !== true) {
     return {
@@ -70,45 +74,72 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
 
   const { supabase, user } = auth;
+  const cacheKey = apiCacheKey("admin-platform-settings", user.id);
 
-  const [{ data: globalRow, error }, { data: profile }] = await Promise.all([
-    supabase
-      .from("platform_settings")
-      .select("key, value, updated_at")
-      .eq("key", FEE_KEY)
-      .maybeSingle(),
-    supabase
-      .from("profiles")
-      .select("platform_monthly_fee")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ]);
+  // Short TTL so fee / concession status stays near real-time
+  const feeTtlMs = 2_000;
+  const { data, hit } = await cacheAside(
+    cacheKey,
+    feeTtlMs,
+    async () => {
+      const [{ data: globalRow, error }, { data: profile }] = await Promise.all([
+        supabase
+          .from("platform_settings")
+          .select("key, value, updated_at")
+          .eq("key", FEE_KEY)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select(
+            "platform_monthly_fee, platform_fee_status, platform_fee_concession_amount, platform_fee_concession_note, platform_fee_responded_at",
+          )
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
 
-  if (error) {
-    return NextResponse.json({
-      platformFacilityFee: "",
-      personalMonthlyFee: null as string | null,
-      updatedAt: null as string | null,
-      stored: false,
-      warning: error.message,
-    });
-  }
+      if (error) {
+        return {
+          platformFacilityFee: "",
+          personalMonthlyFee: null as string | null,
+          platformFeeStatus: null as string | null,
+          concessionAmount: null as string | null,
+          concessionNote: null as string | null,
+          updatedAt: null as string | null,
+          stored: false,
+          warning: error.message,
+        };
+      }
 
-  const globalFee = (globalRow?.value || "").trim();
-  const personalFee = (
-    (profile as { platform_monthly_fee?: string | null } | null)
-      ?.platform_monthly_fee || ""
-  ).trim();
-  // Gym admins: personal fee first, else global default. Super admin: same for display.
-  const effective = personalFee || globalFee;
+      const globalFee = (globalRow?.value || "").trim();
+      const personalFee = (
+        (profile as { platform_monthly_fee?: string | null } | null)
+          ?.platform_monthly_fee || ""
+      ).trim();
+      // Gym admins: personal fee first, else global default. Super admin: same for display.
+      const effective = personalFee || globalFee;
+      const p = profile as {
+        platform_fee_status?: string | null;
+        platform_fee_concession_amount?: string | null;
+        platform_fee_concession_note?: string | null;
+      } | null;
 
-  return NextResponse.json({
-    platformFacilityFee: effective,
-    globalFacilityFee: globalFee,
-    personalMonthlyFee: personalFee || null,
-    updatedAt: globalRow?.updated_at || null,
-    stored: Boolean(effective),
-  });
+      return {
+        platformFacilityFee: effective,
+        globalFacilityFee: globalFee,
+        personalMonthlyFee: personalFee || null,
+        platformFeeStatus: p?.platform_fee_status || null,
+        concessionAmount: p?.platform_fee_concession_amount || null,
+        concessionNote: p?.platform_fee_concession_note || null,
+        updatedAt: globalRow?.updated_at || null,
+        stored: Boolean(effective),
+      };
+    }
+  );
+
+  return NextResponse.json(
+    data,
+    withCacheHeaders(undefined, Math.floor(feeTtlMs / 1000), hit),
+  );
 }
 
 /** PATCH /api/admin/platform-settings — save facility fee to DB (super admin only) */
@@ -155,7 +186,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  cacheInvalidate("settings:platform_facility_fee");
+  await cacheInvalidate({ prefixes: ["api-cache:admin-platform-settings:"] });
 
   return NextResponse.json({
     platformFacilityFee: data?.value || fee,

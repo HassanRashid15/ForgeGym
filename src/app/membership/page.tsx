@@ -11,6 +11,7 @@ import FitnessAssessment from "@/components/fitness/FitnessAssessment";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import { ComingSoonOverlay } from "@/components/ComingSoonOverlay";
+import { MembershipPageFaq } from "@/components/marketing/FaqAccordion";
 
 const plans = [
   {
@@ -66,32 +67,8 @@ const plans = [
   },
 ];
 
-const faqs = [
-  {
-    question: "Can I freeze my membership?",
-    answer: "Yes, you can freeze your membership for up to 3 months per year. Contact our front desk to arrange this.",
-  },
-  {
-    question: "Is there a joining fee?",
-    answer: "We occasionally waive the joining fee during promotions. Currently, we're offering $0 enrollment for all new members.",
-  },
-  {
-    question: "Can I upgrade or downgrade my plan?",
-    answer: "Absolutely! You can change your plan at any time. Changes take effect at the start of your next billing cycle.",
-  },
-  {
-    question: "Do you offer corporate rates?",
-    answer: "Yes, we offer special rates for companies with 10+ employees. Contact us for a custom quote.",
-  },
-  {
-    question: "What's your cancellation policy?",
-    answer: "You can cancel anytime with 30 days notice. No hidden fees or penalties.",
-  },
-];
-
 export default function MembershipPage() {
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly");
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
   // const isLoading = usePageLoading(500);
 
   // Preloader commented out for now
@@ -262,42 +239,7 @@ export default function MembershipPage() {
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="py-24">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto">
-            <ScrollAnimate animation="fade-up">
-              <h2 className="font-display text-5xl text-center mb-12">FAQ</h2>
-            </ScrollAnimate>
-            <div className="space-y-4">
-              {faqs.map((faq, index) => (
-                <ScrollAnimate
-                  key={index}
-                  animation="fade-up"
-                  delay={index * 0.1}
-                >
-                  <div className="glass-card rounded-xl overflow-hidden">
-                    <button
-                      className="w-full p-6 text-left flex items-center justify-between"
-                      onClick={() => setOpenFaq(openFaq === index ? null : index)}
-                    >
-                      <span className="font-semibold">{faq.question}</span>
-                      <span className={`transition-transform duration-300 ${openFaq === index ? "rotate-45" : ""}`}>
-                        +
-                      </span>
-                    </button>
-                    {openFaq === index && (
-                      <div className="px-6 pb-6 animate-fade-in">
-                        <p className="text-muted-foreground">{faq.answer}</p>
-                      </div>
-                    )}
-                  </div>
-                </ScrollAnimate>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <MembershipPageFaq />
 
       {/* CTA */}
       <section className="py-24 bg-card">

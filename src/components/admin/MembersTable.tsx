@@ -37,8 +37,22 @@ function hasTrainer(row: ManagedUser): boolean {
 }
 
 function feeLabel(row: ManagedUser): string {
-  if (row.role !== "user") return "—";
-  return row.monthly_fee_label || "Not set";
+  if (row.role === "user") {
+    return row.monthly_fee_label || "Not set";
+  }
+
+  // For admins/gym owners, show platform fee or trial status
+  if (row.is_super_admin) return "—";
+
+  const now = new Date();
+  const trialEnd = row.trial_ends_at ? new Date(row.trial_ends_at) : null;
+  const trialActive = trialEnd && trialEnd > now;
+
+  if (trialActive) {
+    return row.platform_monthly_fee ? `Trial → ${row.platform_monthly_fee}` : "Trial";
+  }
+
+  return row.platform_monthly_fee || "Not set";
 }
 
 function memberStatus(row: ManagedUser): MemberStatusFilter {
@@ -487,12 +501,12 @@ export function MembersTable({
                               <img
                                 src={row.avatar_url}
                                 alt=""
-                                className={`h-9 w-9 rounded-full object-cover ${
+                                className={`h-11 w-11 shrink-0 aspect-square rounded-full object-cover ${
                                   isFrozen ? "opacity-50 grayscale" : ""
                                 }`}
                               />
                             ) : (
-                              <div className={`flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary ${
+                              <div className={`flex h-11 w-11 shrink-0 aspect-square items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary ${
                                 isFrozen ? "opacity-50" : ""
                               }`}>
                                 {(row.full_name || row.email || "?")
@@ -570,8 +584,19 @@ export function MembersTable({
                                 {row.trainer_request_pending ? " · pending request" : ""}
                               </p>
                             </div>
-                          ) : (
+                          ) : row.is_super_admin ? (
                             "—"
+                          ) : (
+                            <div className="leading-tight">
+                              <span className="font-medium">{feeLabel(row)}</span>
+                              <p className="text-[10px] text-muted-foreground">
+                                {row.trial_offered && row.trial_ends_at
+                                  ? `Trial ends ${new Date(row.trial_ends_at).toLocaleDateString()}`
+                                  : row.platform_monthly_fee
+                                    ? `${row.platform_monthly_fee}/mo`
+                                    : "Not set"}
+                              </p>
+                            </div>
                           )}
                         </TableCell>
                         <TableCell>
@@ -605,7 +630,7 @@ export function MembersTable({
                             <Badge
                               className={
                                 row.is_super_admin
-                                  ? "bg-violet-600 text-white capitalize"
+                                  ? "bg-violet-600 text-white capitalize whitespace-nowrap"
                                   : row.role === "admin"
                                     ? "bg-red-600 text-white capitalize"
                                     : row.role === "trainer"
@@ -660,7 +685,7 @@ export function MembersTable({
                                 )}
                               </>
                             )}
-                            {status === "active" && (
+                            {status === "active" && !isSelf && (
                               <Button
                                 size="icon"
                                 variant="ghost"

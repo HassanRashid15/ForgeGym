@@ -31,14 +31,12 @@ async function requireApprovedAdmin(request: Request) {
 
   const { data: profile } = await db
     .from("profiles")
-    .select("admin_approved, is_super_admin, email, gym_name, gym_owner_id, gym_city")
+    .select("admin_approved, is_super_admin, email, gym_owner_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
   const isSuperAdmin =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   const { data: roleRows } = await db
     .from("user_roles")
@@ -73,8 +71,13 @@ async function requireApprovedAdmin(request: Request) {
 
   const gymOwnerId =
     (profile as { gym_owner_id?: string | null } | null)?.gym_owner_id || user.id;
-  const gymName = (profile as { gym_name?: string | null } | null)?.gym_name || null;
-  const gymCity = (profile as { gym_city?: string | null } | null)?.gym_city || null;
+  const { data: gymRow } = await db
+    .from("gyms")
+    .select("name, city")
+    .eq("owner_user_id", gymOwnerId)
+    .maybeSingle();
+  const gymName = (gymRow as { name?: string | null } | null)?.name || null;
+  const gymCity = (gymRow as { city?: string | null } | null)?.city || null;
 
   // Ensure primary gym owner is stamped on their own profile
   if (!isSuperAdmin && !(profile as { gym_owner_id?: string | null })?.gym_owner_id) {
@@ -225,8 +228,7 @@ function buildProfilePayload(
       : null,
     login_enabled: loginEnabled,
     gym_owner_id: gym.gymOwnerId,
-    gym_name: gym.gymName,
-    gym_city: gym.gymCity,
+    // gym catalog (name/city/fees/media) lives in public.gyms — not stamped on profiles
     account_status: accountStatus,
     membership_status: accountStatus,
     membership_type:
@@ -276,7 +278,7 @@ export async function GET(request: Request) {
   const auth = await requireApprovedAdmin(request);
   if ("error" in auth) return auth.error;
 
-  const { supabase, isSuperAdmin, gymOwnerId, user } = auth;
+  const { supabase, isSuperAdmin, gymOwnerId, gymName: authGymName, user } = auth;
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim().toLowerCase();
   const cacheKey = `admin:users:${user.id}:${isSuperAdmin ? "sa" : "a"}:${gymOwnerId || "x"}:${q}`;
@@ -296,8 +298,14 @@ export async function GET(request: Request) {
   const gym = !isSuperAdmin && gymOwnerId ? await getGymByOwnerId(gymOwnerId) : null;
   const baseMonthlyFee = gym?.monthlyFee || null;
   const trainerFee = gym?.trainerFee || null;
+  const scopedGymName = gym?.gymName || authGymName || null;
 
-  let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
+  let query = supabase
+    .from("profiles")
+    .select(
+      "user_id, full_name, email, phone, address, avatar_url, membership_status, membership_type, account_status, join_date, created_at, admin_approved, is_super_admin, is_frozen, frozen_until, specialization, employment_type, branch_department, staff_type, department, login_enabled, gym_owner_id, gender, date_of_birth, emergency_contact, trainer_bio, bio, instagram_url, facebook_url, twitter_url, youtube_url, tiktok_url, certifications, certification_number, years_experience, education, skills, languages, salary, commission_percentage, working_days, working_hours, max_client_capacity, assigned_members, availability, pt_sessions, leave_info, supervisor, shift, overtime_rate, responsibilities, system_permissions, preferred_trainer_id, pending_trainer_id, trainer_request_pending, fee_concession, platform_monthly_fee, trial_starts_at, trial_ends_at, trial_offered, is_visitor",
+    )
+    .order("created_at", { ascending: false });
 
   if (!isSuperAdmin) {
     // Gym-scoped: everyone linked to this gym owner, plus the owner row itself
@@ -323,6 +331,24 @@ export async function GET(request: Request) {
     rolesByUser.set(row.user_id, list);
   }
 
+  // Resolve gym catalog names for owners (super-admin list) and linked members
+  const ownerIdsForGym = [
+    ...new Set(
+      (profiles || [])
+        .flatMap((p) => [p.user_id, p.gym_owner_id].filter(Boolean) as string[]),
+    ),
+  ];
+  const { data: gymRows } = await supabase
+    .from("gyms")
+    .select("owner_user_id, name")
+    .in(
+      "owner_user_id",
+      ownerIdsForGym.length > 0 ? ownerIdsForGym : ["00000000-0000-0000-0000-000000000000"],
+    );
+  const gymNameByOwner = new Map(
+    (gymRows || []).map((g) => [g.owner_user_id, g.name] as const),
+  );
+
   let users = (profiles || []).map((p) => {
     const role = mapRole(rolesByUser.get(p.user_id));
     const row = p as Record<string, unknown>;
@@ -335,6 +361,12 @@ export async function GET(request: Request) {
       role === "user"
         ? formatMemberFee(baseMonthlyFee, trainerFee, hasTrainer, feeConcession)
         : null;
+    const ownerKey = (row.gym_owner_id as string | null) || p.user_id;
+    const resolvedGymName =
+      scopedGymName ||
+      gymNameByOwner.get(p.user_id) ||
+      (ownerKey ? gymNameByOwner.get(ownerKey) : null) ||
+      null;
     return {
       user_id: p.user_id,
       full_name: p.full_name,
@@ -356,7 +388,7 @@ export async function GET(request: Request) {
       staff_type: row.staff_type as string | null,
       department: row.department as string | null,
       login_enabled: row.login_enabled !== false,
-      gym_name: row.gym_name as string | null,
+      gym_name: resolvedGymName,
       gym_owner_id: row.gym_owner_id as string | null,
       gender: row.gender as string | null,
       date_of_birth: row.date_of_birth as string | null,
@@ -394,6 +426,10 @@ export async function GET(request: Request) {
       monthly_fee_label: monthlyFeeLabel,
       gym_monthly_fee: baseMonthlyFee,
       gym_trainer_fee: trainerFee,
+      platform_monthly_fee: (row.platform_monthly_fee as string | null) || null,
+      trial_starts_at: (row.trial_starts_at as string | null) || null,
+      trial_ends_at: (row.trial_ends_at as string | null) || null,
+      trial_offered: row.trial_offered === true,
       is_frozen: row.is_frozen === true,
       frozen_until: (row.frozen_until as string | null) || null,
       is_visitor: row.is_visitor === true,
@@ -528,8 +564,8 @@ export async function POST(request: Request) {
 
   // Block duplicate emails for every create path (trainer / staff / member / admin)
   {
-    const anon = createSupabaseServerClient();
-    const { data: exists } = await (anon.rpc as any)("check_user_exists", {
+    const serviceClient = createSupabaseServiceClient() ?? createSupabaseServerClient();
+    const { data: exists } = await serviceClient.rpc("check_user_exists", {
       check_email: email,
     });
     if (exists === true) {
@@ -554,7 +590,7 @@ export async function POST(request: Request) {
     );
   }
   if (phone) {
-    const phoneTaken = await findDuplicatePhone(supabase as any, phone);
+    const phoneTaken = await findDuplicatePhone(supabase, phone);
     if (phoneTaken) {
       return NextResponse.json(
         {
@@ -644,10 +680,8 @@ export async function POST(request: Request) {
       ? userId
       : gymOwnerId;
 
-  // Only gym owners / co-admins carry gym_name on their profile.
   // Members, trainers, and staff link only through gym_owner_id.
-  const stampsGymIdentity = role === "admin" && !creatingSuperAdmin && !creatingPlatformAdmin;
-
+  // Gym catalog lives in public.gyms (not profiles.gym_*).
   const profilePayload = {
     ...buildProfilePayload(
       { ...body, role: dbRole, login_enabled: loginEnabled, is_visitor: isVisitor },
@@ -655,13 +689,11 @@ export async function POST(request: Request) {
       email,
       {
         gymOwnerId: targetGymOwnerId || userId,
-        gymName: stampsGymIdentity ? gymName : null,
-        gymCity: stampsGymIdentity ? gymCity : null,
+        gymName: null,
+        gymCity: null,
       },
     ),
     gym_owner_id: targetGymOwnerId,
-    gym_name: stampsGymIdentity ? gymName : null,
-    gym_city: stampsGymIdentity ? gymCity : null,
     admin_approved: true,
     is_super_admin: creatingSuperAdmin,
     is_verified: creatingSuperAdmin || creatingPlatformAdmin || role !== "admin",
@@ -823,8 +855,8 @@ export async function PATCH(request: Request) {
     }
 
     await supabase
-      .from("admin_notifications" as any)
-      .update({ read_at: new Date().toISOString() } as any)
+      .from("admin_notifications")
+      .update({ read_at: new Date().toISOString() })
       .eq("from_user_id", targetId)
       .eq("type", "member_approval_request")
       .is("read_at", null);
@@ -1129,7 +1161,7 @@ export async function PATCH(request: Request) {
     );
   }
   if (body.phone !== undefined && nextPhone) {
-    const phoneTaken = await findDuplicatePhone(supabase as any, nextPhone, targetId);
+    const phoneTaken = await findDuplicatePhone(supabase, nextPhone, targetId);
     if (phoneTaken) {
       return NextResponse.json(
         {

@@ -6,9 +6,17 @@ import {
   CacheTTL,
   withCacheHeaders,
 } from "@/lib/api-cache";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 
 /** GET /api/gyms — public list of approved gyms (cached) */
-export async function GET() {
+export async function GET(request: Request) {
+  const requestId = getRequestId(request);
+  const limited = await rateLimit(clientKey(request, "public:gyms"), 60, 60_000);
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited);
+  }
+
   try {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return jsonError("Server misconfigured", 500);

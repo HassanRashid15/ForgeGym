@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 
 export interface BlogPost {
   id: string;
@@ -6,40 +8,97 @@ export interface BlogPost {
   excerpt: string;
   content: string;
   author: string;
+  authorAvatar: string | null;
   publishedAt: string;
   imageUrl: string | null;
   category: string;
   readTime: string;
 }
 
-export async function GET() {
+type DevToArticle = {
+  id: number;
+  title: string;
+  description: string;
+  body_html?: string;
+  body_markdown?: string;
+  user: { name: string; profile_image: string };
+  published_at: string;
+  cover_image: string | null;
+  social_image: string | null;
+  tag_list: string[] | string;
+  reading_time_minutes: number;
+};
+
+const BLOG_TAGS = [
+  "fitness",
+  "health",
+  "wellness",
+  "nutrition",
+  "workout",
+  "webdev",
+  "javascript",
+  "productivity",
+];
+
+function toBlogPost(article: DevToArticle): BlogPost {
+  const tags = Array.isArray(article.tag_list)
+    ? article.tag_list
+    : String(article.tag_list || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+  return {
+    id: article.id.toString(),
+    title: article.title,
+    excerpt: article.description || article.title,
+    content: article.body_html || article.body_markdown || "",
+    author: article.user?.name || "Author",
+    authorAvatar: article.user?.profile_image || null,
+    publishedAt: article.published_at,
+    imageUrl: article.cover_image || article.social_image || null,
+    category: tags[0] || "Article",
+    readTime: `${article.reading_time_minutes || 5} min read`,
+  };
+}
+
+export async function GET(request: Request) {
+  const limited = await rateLimit(clientKey(request, "public:blog"), 30, 60_000);
+  if (!limited.allowed) {
+    return rateLimitedResponse(limited);
+  }
+
   try {
-    // Fetch fitness-related articles from Dev.to
-    const response = await fetch(
-      "https://dev.to/api/articles?tag=fitness&per_page=9&top=7",
-      {
-        next: { revalidate: 3600 }, // Cache for 1 hour
-      }
+    const responses = await Promise.all(
+      BLOG_TAGS.map((tag) =>
+        fetch(`https://dev.to/api/articles?tag=${encodeURIComponent(tag)}&per_page=100`, {
+          next: { revalidate: 3600 },
+        })
+      )
     );
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch articles from Dev.to");
+    const articlesNested = await Promise.all(
+      responses.map(async (res) => {
+        if (!res.ok) return [] as DevToArticle[];
+        return (await res.json()) as DevToArticle[];
+      })
+    );
+
+    const seen = new Set<string>();
+    const blogPosts: BlogPost[] = [];
+
+    for (const article of articlesNested.flat()) {
+      if (!article?.id) continue;
+      const id = article.id.toString();
+      if (seen.has(id)) continue;
+      seen.add(id);
+      blogPosts.push(toBlogPost(article));
     }
 
-    const devToArticles = await response.json();
-
-    // Transform Dev.to data to our BlogPost format
-    const blogPosts: BlogPost[] = devToArticles.map((article: any) => ({
-      id: article.id.toString(),
-      title: article.title,
-      excerpt: article.description || article.title,
-      content: article.body_html || article.body_markdown || "",
-      author: article.user.name,
-      publishedAt: article.published_at,
-      imageUrl: article.cover_image || article.social_image || null,
-      category: article.tag_list[0] || "Fitness",
-      readTime: `${article.reading_time_minutes || 5} min read`,
-    }));
+    blogPosts.sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    );
 
     return NextResponse.json(blogPosts);
   } catch (error) {

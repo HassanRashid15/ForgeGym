@@ -437,8 +437,22 @@ export const actionTemplates = {
         ? "Your gym owner signup is pending platform approval. We'll notify you when it's reviewed."
         : gymName
           ? `Thanks for joining ${gymName}. Verify your email and wait for gym admin approval.`
-          : "Thanks for signing up. Verify your email to continue.",
+          : "Thanks for signing up. Verify your email, then wait for platform owner approval.",
     metadata: { icon: "waving_hand", priority: "high", action_url: "/dashboard" },
+  }),
+
+  platformMemberApproved: (): NotificationTemplate => ({
+    type: "approval",
+    title: "Account approved",
+    message: "A platform owner approved your account. You can sign in and start self-training.",
+    metadata: { icon: "verified", priority: "high", action_url: "/dashboard" },
+  }),
+
+  platformMemberRejected: (): NotificationTemplate => ({
+    type: "approval",
+    title: "Account not approved",
+    message: "Your platform member signup was not approved. Contact support if you think this is a mistake.",
+    metadata: { icon: "cancel", priority: "high", action_url: "/contact" },
   }),
 
   loginSuccess: (when: string): NotificationTemplate => ({
@@ -562,12 +576,50 @@ export const actionTemplates = {
     type: "payment",
     title: "Done: Platform fee updated",
     message: feeLabel
-      ? `Your platform monthly fee is now ${feeLabel}.`
+      ? `Your platform monthly fee is now ${feeLabel}. Accept it on your dashboard to unlock 1 month of access, or request a concession.`
       : "Your platform monthly fee was cleared.",
     metadata: {
       icon: "payments",
       priority: "high",
-      action_url: "/dashboard/membership",
+      action_url: "/dashboard",
+    },
+  }),
+
+  platformFeeConcessionResolved: (
+    accepted: boolean,
+    feeLabel: string | null,
+  ): NotificationTemplate => ({
+    type: accepted ? "confirmation" : "alert",
+    title: accepted
+      ? "Done: Concession approved"
+      : "Concession declined",
+    message: accepted
+      ? feeLabel
+        ? `Super admin approved your concession. Platform monthly fee is now ${feeLabel}.`
+        : "Super admin approved your concession."
+      : feeLabel
+        ? `Your concession request was declined. Original fee ${feeLabel} still applies — accept it or request again.`
+        : "Your concession request was declined. You can accept the fee or request again.",
+    metadata: {
+      icon: accepted ? "check_circle" : "warning",
+      priority: "high",
+      action_url: "/dashboard",
+    },
+  }),
+
+  platformFeeAccessGranted: (
+    feeLabel: string | null,
+    endsAt: string,
+  ): NotificationTemplate => ({
+    type: "confirmation",
+    title: "Done: 1-month access started",
+    message: feeLabel
+      ? `Fee ${feeLabel} accepted. Your dashboard access runs until ${new Date(endsAt).toLocaleDateString()}.`
+      : `Dashboard access started and runs until ${new Date(endsAt).toLocaleDateString()}.`,
+    metadata: {
+      icon: "check_circle",
+      priority: "high",
+      action_url: "/dashboard",
     },
   }),
 

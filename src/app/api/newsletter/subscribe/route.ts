@@ -27,11 +27,18 @@ export async function POST(request: Request) {
     const supabase = createSupabaseServerClient();
 
     // First check if email is already subscribed
-    const { data: existingSubscription } = await (supabase.rpc as any)("check_newsletter_subscription", {
-      p_email: email,
-    });
+    const { data: existingSubscription } = await supabase.rpc(
+      "check_newsletter_subscription",
+      {
+        p_email: email,
+      },
+    );
+    const subscription = (existingSubscription || {}) as {
+      is_subscribed?: boolean;
+      is_active?: boolean;
+    };
 
-    if (existingSubscription?.is_subscribed && existingSubscription?.is_active) {
+    if (subscription.is_subscribed && subscription.is_active) {
       return NextResponse.json({
         success: true,
         already_subscribed: true,
@@ -42,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     // Call the Supabase function to handle subscription
-    const { data, error } = await (supabase.rpc as any)("subscribe_to_newsletter", {
+    const { data, error } = await supabase.rpc("subscribe_to_newsletter", {
       p_email: email,
     });
 
@@ -54,7 +61,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = data as any;
+    const result = (data || {}) as {
+      success?: boolean;
+      message?: string;
+      already_subscribed?: boolean;
+      reactivated?: boolean;
+      new_subscription?: boolean;
+    };
 
     if (result.success) {
       trackEvent("newsletter.subscribed", { 

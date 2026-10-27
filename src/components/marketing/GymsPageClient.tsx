@@ -357,7 +357,8 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                             <Building2 className="h-10 w-10 text-primary/70" />
                           </div>
                         )}
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-card/90 via-card/40 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-card via-card/80 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 shadow-[0_18px_36px_12px_hsl(var(--card))]" />
                         <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
                           {gym.gymType ? (
                             <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">

@@ -24,6 +24,7 @@ import {
   Clock,
 } from "lucide-react";
 import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
+import { PlatformMemberDashboardHome } from "@/components/customer/PlatformMemberDashboardHome";
 import { CheckInButton } from "@/components/customer/CheckInButton";
 import { VisitorCountdown } from "@/components/customer/VisitorCountdown";
 
@@ -75,9 +76,13 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
   }
 
   // Customer dashboard (fallback)
-  const firstName = (user?.name || "Athlete").trim().split(/\s+/)[0];
+  const firstName = (user?.name || "there").trim().split(/\s+/)[0];
   const isCustomer = user?.role === "customer" || user?.role === "user";
   const hasGym = Boolean(user?.gymOwnerId && user?.gymName);
+  const isPlatformMember = isCustomer && !hasGym && !isVisitor;
+  if (isPlatformMember) {
+    return <PlatformMemberDashboardHome />;
+  }
   const isApprovedMember = isCustomer && hasGym && user?.membershipStatus === "active" && !isVisitor;
   const membershipLabel = (user?.membershipStatus || "active").replace(/_/g, " ");
   const planLabel = user?.membershipType || "Basic";
@@ -93,7 +98,7 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
         }}
       />
 
-      <div className="relative mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
+      <div className="relative w-full space-y-8 p-4 sm:p-6 lg:p-8">
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div
             className="absolute inset-0 bg-cover bg-center opacity-20"

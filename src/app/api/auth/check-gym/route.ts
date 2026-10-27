@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { jsonError, rateLimitedResponse, getRequestId } from "@/lib/api/errors";
+import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
 
 function normalize(value: string) {
@@ -19,7 +19,6 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const gymName = typeof body?.gym_name === "string" ? body.gym_name.trim() : "";
-  const gymCity = typeof body?.gym_city === "string" ? body.gym_city.trim() : "";
   const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
 
   if (!gymName && !phone) {
@@ -31,27 +30,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ duplicate: false, reason: null, warning: "unavailable" });
   }
 
-  const { data: roles } = await service.from("user_roles").select("user_id").eq("role", "admin");
-  const adminIds = Array.from(new Set((roles || []).map((r) => r.user_id).filter(Boolean)));
-
-  if (adminIds.length === 0) {
-    return NextResponse.json({ duplicate: false, reason: null });
-  }
-
-  const { data: profiles } = await service
-    .from("profiles")
-    .select("user_id, gym_name, gym_city, phone, is_super_admin, email")
-    .in("user_id", adminIds);
-
-  const rows = (profiles || []).filter((p) => !(p as any).is_super_admin);
-
   if (gymName) {
     const nameKey = normalize(gymName);
-    const hit = rows.find((p) => {
-      const existingName = normalize(p.gym_name || "");
-      return existingName === nameKey;
-    });
+    const { data: gymRows } = await service
+      .from("gyms")
+      .select("owner_user_id, name");
 
+    const hit = (gymRows || []).find((g) => normalize(g.name || "") === nameKey);
     if (hit) {
       return NextResponse.json({
         duplicate: true,
@@ -64,16 +49,30 @@ export async function POST(request: Request) {
   if (phone) {
     const phoneDigits = phone.replace(/\D/g, "");
     if (phoneDigits.length >= 7) {
-      const hit = rows.find((p) => {
-        const existing = (p.phone || "").replace(/\D/g, "");
-        return existing.length >= 7 && existing === phoneDigits;
-      });
-      if (hit) {
-        return NextResponse.json({
-          duplicate: true,
-          reason: "phone",
-          message: "This phone number is already used by another gym owner account.",
+      const { data: roles } = await service.from("user_roles").select("user_id").eq("role", "admin");
+      const adminIds = Array.from(new Set((roles || []).map((r) => r.user_id).filter(Boolean)));
+
+      if (adminIds.length > 0) {
+        const { data: profiles } = await service
+          .from("profiles")
+          .select("user_id, phone, is_super_admin")
+          .in("user_id", adminIds);
+
+        const rows = (profiles || []).filter(
+          (p: { is_super_admin?: boolean }) => !p.is_super_admin,
+        );
+
+        const hit = rows.find((p) => {
+          const existing = (p.phone || "").replace(/\D/g, "");
+          return existing.length >= 7 && existing === phoneDigits;
         });
+        if (hit) {
+          return NextResponse.json({
+            duplicate: true,
+            reason: "phone",
+            message: "This phone number is already used by another gym owner account.",
+          });
+        }
       }
     }
   }

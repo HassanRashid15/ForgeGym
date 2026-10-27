@@ -4,6 +4,13 @@ import {
   requireAuth,
 } from "@/lib/supabase/server";
 import { jsonError } from "@/lib/api/errors";
+import {
+  cacheAside,
+  apiCacheKey,
+  CacheTTL,
+  withCacheHeaders,
+  cacheInvalidate,
+} from "@/lib/api-cache";
 
 async function requireAdminViewer(request: Request) {
   const auth = await requireAuth(request);
@@ -24,14 +31,8 @@ async function requireAdminViewer(request: Request) {
   ]);
 
   const isAdmin = (roleRows || []).some((r) => r.role === "admin");
-  const email = (
-    (profile as { email?: string } | null)?.email ||
-    auth.user.email ||
-    ""
-  ).toLowerCase();
   const isSuper =
-    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true ||
-    email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   if (!isAdmin && !isSuper) {
     return { error: jsonError("Forbidden", 403) };
@@ -59,81 +60,99 @@ export async function GET(request: Request) {
     100,
   );
 
-  let query = auth.service
-    .from("contact_messages" as never)
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const cacheKey = apiCacheKey(
+    "admin-contact-messages",
+    auth.isSuper ? "superadmin" : auth.user.id,
+    status || "default",
+    limit,
+  );
 
-  // Superadmin: messages addressed to platform. Gym admin: only their gym inbox.
-  if (auth.isSuper) {
-    query = query.eq("recipient_type", "superadmin");
-  } else {
-    query = query
-      .eq("recipient_type", "gym_admin")
-      .eq("recipient_user_id", auth.user.id);
-  }
+  const { data, hit } = await cacheAside(
+    cacheKey,
+    CacheTTL.adminList,
+    async () => {
+      let query = auth.service
+        .from("contact_messages" as never)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
 
-  if (status === "new" || status === "read" || status === "replied" || status === "archived") {
-    query = query.eq("status", status);
-  } else if (status !== "all") {
-    query = query.in("status", ["new", "read"]);
-  }
+      // Superadmin: messages addressed to platform. Gym admin: only their gym inbox.
+      if (auth.isSuper) {
+        query = query.eq("recipient_type", "superadmin");
+      } else {
+        query = query
+          .eq("recipient_type", "gym_admin")
+          .eq("recipient_user_id", auth.user.id);
+      }
 
-  let { data, error } = await query;
+      if (status === "new" || status === "read" || status === "replied" || status === "archived") {
+        query = query.eq("status", status);
+      } else if (status !== "all") {
+        query = query.in("status", ["new", "read"]);
+      }
 
-  // Legacy rows without recipient columns — superadmin sees all; gym admins see none until SQL applied
-  if (
-    error &&
-    (error.message?.includes("recipient_type") ||
-      error.message?.includes("recipient_user_id"))
-  ) {
-    let legacy = auth.service
-      .from("contact_messages" as never)
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(limit);
+      let { data, error } = await query;
 
-    if (status === "new" || status === "read" || status === "replied" || status === "archived") {
-      legacy = legacy.eq("status", status);
-    } else if (status !== "all") {
-      legacy = legacy.in("status", ["new", "read"]);
+      // Legacy rows without recipient columns — superadmin sees all; gym admins see none until SQL applied
+      if (
+        error &&
+        (error.message?.includes("recipient_type") ||
+          error.message?.includes("recipient_user_id"))
+      ) {
+        let legacy = auth.service
+          .from("contact_messages" as never)
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(limit);
+
+        if (status === "new" || status === "read" || status === "replied" || status === "archived") {
+          legacy = legacy.eq("status", status);
+        } else if (status !== "all") {
+          legacy = legacy.in("status", ["new", "read"]);
+        }
+
+        const legacyResult = await legacy;
+        data = auth.isSuper ? legacyResult.data : [];
+        error = legacyResult.error;
+      }
+
+      if (error) throw error;
+
+      let newCountQuery = auth.service
+        .from("contact_messages" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "new");
+
+      if (auth.isSuper) {
+        newCountQuery = newCountQuery.eq("recipient_type", "superadmin");
+      } else {
+        newCountQuery = newCountQuery
+          .eq("recipient_type", "gym_admin")
+          .eq("recipient_user_id", auth.user.id);
+      }
+
+      let { count: newCount } = await newCountQuery;
+
+      if (newCount == null && auth.isSuper) {
+        const fallback = await auth.service
+          .from("contact_messages" as never)
+          .select("id", { count: "exact", head: true })
+          .eq("status", "new");
+        newCount = fallback.count ?? 0;
+      }
+
+      return {
+        messages: data || [],
+        newCount: newCount ?? 0,
+      };
     }
+  );
 
-    const legacyResult = await legacy;
-    data = auth.isSuper ? legacyResult.data : [];
-    error = legacyResult.error;
-  }
-
-  if (error) return jsonError(error.message, 400);
-
-  let newCountQuery = auth.service
-    .from("contact_messages" as never)
-    .select("id", { count: "exact", head: true })
-    .eq("status", "new");
-
-  if (auth.isSuper) {
-    newCountQuery = newCountQuery.eq("recipient_type", "superadmin");
-  } else {
-    newCountQuery = newCountQuery
-      .eq("recipient_type", "gym_admin")
-      .eq("recipient_user_id", auth.user.id);
-  }
-
-  let { count: newCount } = await newCountQuery;
-
-  if (newCount == null && auth.isSuper) {
-    const fallback = await auth.service
-      .from("contact_messages" as never)
-      .select("id", { count: "exact", head: true })
-      .eq("status", "new");
-    newCount = fallback.count ?? 0;
-  }
-
-  return NextResponse.json({
-    messages: data || [],
-    newCount: newCount ?? 0,
-  });
+  return NextResponse.json(
+    data,
+    withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), hit),
+  );
 }
 
 /** PATCH /api/admin/contact-messages — mark read / archive */
@@ -189,5 +208,9 @@ export async function PATCH(request: Request) {
   }
 
   if (!data) return jsonError("Message not found", 404);
+
+  // Invalidate cache
+  await cacheInvalidate({ prefixes: ["api-cache:admin-contact-messages:"] });
+
   return NextResponse.json({ success: true, message: data });
 }

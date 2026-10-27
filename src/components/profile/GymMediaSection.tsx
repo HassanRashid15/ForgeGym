@@ -282,7 +282,7 @@ export function GymMediaSection({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-2">
         <Label>Gym logo</Label>
         <p className="text-xs text-muted-foreground">
@@ -361,7 +361,7 @@ export function GymMediaSection({
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 sm:col-span-1 lg:col-span-2">
         <Label>Main gym image</Label>
 
         {readOnly ? (
@@ -445,9 +445,9 @@ export function GymMediaSection({
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 sm:col-span-2 lg:col-span-3">
         <Label>Optional images (max 5)</Label>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {optionalPreviews.map((url, index) => (
             <div
               key={`${url}-${index}`}
@@ -497,7 +497,7 @@ export function GymMediaSection({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 sm:col-span-2 lg:col-span-3">
         <Label>Video link (optional)</Label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
@@ -542,7 +542,7 @@ export function GymMediaSection({
       </div>
 
       {uploading && (
-        <p className="flex items-center gap-2 text-sm text-zinc-400">
+        <p className="flex items-center gap-2 text-sm text-zinc-400 sm:col-span-2 lg:col-span-3">
           <Loader2 className="h-4 w-4 animate-spin text-[#EF1111]" />
           Uploading to gym-media bucket…
         </p>

@@ -111,7 +111,6 @@ export async function apiRequest<T>(
         action === "createSession" ||
         action === "updateSession")) ||
     group === "notifications" ||
-    group === "dev" ||
     (group === "newsletter" && (action === "me" || action === "updateMe")) ||
     (group === "gyms" && action === "submitReview") ||
     (group === "reviews" &&

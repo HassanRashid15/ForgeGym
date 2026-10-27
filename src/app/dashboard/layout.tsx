@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { createSupabaseCookieClient } from "@/lib/supabase/server";
+import {
+  createSupabaseCookieClient,
+  createSupabaseServiceClient,
+} from "@/lib/supabase/server";
 import DashboardClientLayout from "./DashboardClientLayout";
 import { buildPageMetadata } from "@/lib/seo";
 
@@ -32,15 +35,41 @@ export default async function DashboardLayout({
     redirect(`/verification${q}`);
   }
 
-  const { data: profile } = await supabase
+  // Prefer service role for the gate — cookie RLS can fail if a policy still
+  // references dropped columns (e.g. profiles.role), which falsely looks "unverified".
+  const service = createSupabaseServiceClient();
+  const db = service || supabase;
+  const { data: profile, error: profileError } = await db
     .from("profiles")
-    .select("is_verified, is_frozen, frozen_until")
+    .select(
+      "is_verified, is_frozen, frozen_until, admin_approved, is_super_admin, gym_owner_id",
+    )
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (profile?.is_verified !== true) {
+  if (profileError) {
+    console.warn("dashboard layout profile gate error:", profileError.message);
+  }
+
+  if (profile && profile.is_verified !== true) {
     const q = user.email ? `?email=${encodeURIComponent(user.email)}` : "";
     redirect(`/verification${q}`);
+  }
+
+  // Block dashboard until approved (super admin is always allowed)
+  if (
+    profile &&
+    profile.is_super_admin !== true &&
+    profile.admin_approved !== true
+  ) {
+    await supabase.auth.signOut();
+    const reason =
+      profile.gym_owner_id === user.id
+        ? "admin_approval_pending"
+        : profile.gym_owner_id
+          ? "member_approval_pending"
+          : "platform_member_approval_pending";
+    redirect(`/login?error=${encodeURIComponent(reason)}`);
   }
 
   // Check if account is frozen

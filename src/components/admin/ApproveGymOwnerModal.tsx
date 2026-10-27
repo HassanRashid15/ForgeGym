@@ -43,9 +43,8 @@ function defaultFee(admin: AdminListItem | null): string {
 }
 
 /**
- * Opens immediately when super admin clicks Approve.
- * Shows gym + owner info, lets them set platform monthly fee, then
- * confirm → approve + fee + 1-month free trial.
+ * Opens when super admin clicks Approve.
+ * Shows account info, sets platform monthly fee, then confirm.
  */
 export function ApproveGymOwnerModal({
   admin,
@@ -55,10 +54,13 @@ export function ApproveGymOwnerModal({
   onConfirm,
 }: ApproveGymOwnerModalProps) {
   const [fee, setFee] = useState("");
+  const isMember = admin?.kind === "platform_member";
 
   useEffect(() => {
     if (open) setFee(defaultFee(admin));
   }, [open, admin]);
+
+  const feeReady = fee.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,41 +72,48 @@ export function ApproveGymOwnerModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-primary" />
-            Approve gym owner
+            {isMember ? "Approve platform member" : "Approve gym owner"}
           </DialogTitle>
           <DialogDescription>
-            Review gym details, set the platform monthly fee, then confirm.
-            Confirmation starts a <strong>1-month free trial</strong>.
+            Review details, set the monthly amount, then confirm. They accept the
+            fee on their dashboard to unlock <strong>1 month of access</strong>
+            , or request a concession.
           </DialogDescription>
         </DialogHeader>
 
         {admin ? (
           <div className="space-y-4">
-            {admin.gym_main_image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={admin.gym_main_image_url}
-                alt={admin.gym_name || "Gym"}
-                className="h-36 w-full rounded-lg object-cover ring-1 ring-border"
-              />
-            ) : (
-              <div className="flex h-28 items-center justify-center rounded-lg bg-muted/50 ring-1 ring-border">
-                <Building2 className="h-10 w-10 text-muted-foreground/40" />
-              </div>
-            )}
+            {!isMember ? (
+              admin.gym_main_image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={admin.gym_main_image_url}
+                  alt={admin.gym_name || "Gym"}
+                  className="h-36 w-full rounded-lg object-cover ring-1 ring-border"
+                />
+              ) : (
+                <div className="flex h-28 items-center justify-center rounded-lg bg-muted/50 ring-1 ring-border">
+                  <Building2 className="h-10 w-10 text-muted-foreground/40" />
+                </div>
+              )
+            ) : null}
 
             <div className="space-y-2 rounded-lg border bg-card/50 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold text-foreground">
-                  {admin.gym_name || "Unnamed gym"}
+                  {isMember
+                    ? admin.full_name || "Platform member"
+                    : admin.gym_name || "Unnamed gym"}
                 </p>
-                {admin.gym_type ? (
+                {isMember ? (
+                  <Badge variant="outline">Self-training</Badge>
+                ) : admin.gym_type ? (
                   <Badge variant="outline" className="capitalize">
                     {admin.gym_type}
                   </Badge>
                 ) : null}
               </div>
-              {admin.gym_city ? (
+              {!isMember && admin.gym_city ? (
                 <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <MapPin className="h-3.5 w-3.5 shrink-0" />
                   {admin.gym_city}
@@ -128,25 +137,29 @@ export function ApproveGymOwnerModal({
               </div>
             </div>
 
-            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
-              <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Fee set by gym owner
-              </p>
-              <p className="text-muted-foreground">
-                Member monthly fee:{" "}
-                <span className="font-semibold text-foreground">
-                  {admin.gym_monthly_fee?.trim() || "Not set"}
-                </span>
-                {admin.gym_trainer_fee?.trim()
-                  ? ` · Trainer fee: ${admin.gym_trainer_fee}`
-                  : ""}
-              </p>
-            </div>
+            {!isMember ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Fee set by gym owner
+                </p>
+                <p className="text-muted-foreground">
+                  Member monthly fee:{" "}
+                  <span className="font-semibold text-foreground">
+                    {admin.gym_monthly_fee?.trim() || "Not set"}
+                  </span>
+                  {admin.gym_trainer_fee?.trim()
+                    ? ` · Trainer fee: ${admin.gym_trainer_fee}`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="platform-monthly-fee">
-                Platform monthly fee (after trial)
+                {isMember
+                  ? "Platform monthly fee"
+                  : "Platform monthly fee (after trial)"}
               </Label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -160,17 +173,18 @@ export function ApproveGymOwnerModal({
                   value={fee}
                   onChange={(e) => setFee(e.target.value)}
                   disabled={confirming}
+                  required
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Charged to this gym after the free trial ends. Prefilled from their
-                registration fee when available.
+                Required. Sent to their dashboard to accept or request a concession.
               </p>
             </div>
 
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
-              Confirming will approve this admin and start a <strong>1-month free trial</strong>{" "}
-              immediately.
+              Confirming approves the account and sends this fee.{" "}
+              <strong>1-month dashboard access</strong> starts when they accept
+              (or when you approve their concession).
             </div>
           </div>
         ) : null}
@@ -186,7 +200,7 @@ export function ApproveGymOwnerModal({
           </Button>
           <Button
             type="button"
-            disabled={!admin || confirming}
+            disabled={!admin || confirming || !feeReady}
             onClick={() => onConfirm(fee.trim())}
             className="gap-2"
           >
@@ -195,7 +209,7 @@ export function ApproveGymOwnerModal({
             ) : (
               <CheckCircle2 className="h-4 w-4" />
             )}
-            Confirm & start trial
+            Confirm & send fee
           </Button>
         </DialogFooter>
       </DialogContent>

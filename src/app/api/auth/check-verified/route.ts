@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = createSupabaseServerClient();
-  const { data: rpcData, error: rpcError } = await (supabase.rpc as any)(
+  const { data: rpcData, error: rpcError } = await supabase.rpc(
     "check_user_verified",
     { user_email: email },
   );

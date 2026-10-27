@@ -28,6 +28,8 @@ export type MePayload = {
     daysLeft: number | null;
     label: string;
   } | null;
+  platformFeeStatus?: string | null;
+  platformMonthlyFee?: string | null;
 };
 
 export function withTimeout<T>(
@@ -49,7 +51,7 @@ export function withTimeout<T>(
   });
 }
 
-const ME_CACHE_TTL_MS = 5 * 60 * 1000;
+const ME_CACHE_TTL_MS = 2 * 60 * 1000;
 
 export type MeCacheEntry = {
   userId: string;

@@ -70,6 +70,9 @@ export function useSuperAdminPlatformStats(enabled = true) {
     queryKey: queryKeys.pendingAdmins,
     queryFn: fetchPendingAdmins,
     enabled: active,
+    // Keep Needs approval live without a full page refresh
+    refetchInterval: active ? 4_000 : false,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -81,13 +84,16 @@ export function useSuperAdminPlatformStats(enabled = true) {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = () => {
-      // Debounce realtime storms — one refetch per 8s window
-      if (timer) return;
+      // Short debounce so signup → pending appears in near real time
+      if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
         void queryClient.invalidateQueries({ queryKey: queryKeys.managedUsers });
         void queryClient.invalidateQueries({ queryKey: queryKeys.pendingAdmins });
-      }, 8000);
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.platformFeeConcessions,
+        });
+      }, 400);
     };
 
     channel
@@ -104,6 +110,11 @@ export function useSuperAdminPlatformStats(enabled = true) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "user_roles" },
+        refresh,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "admin_notifications" },
         refresh,
       )
       .subscribe();
@@ -165,6 +176,7 @@ export function useSuperAdminPlatformStats(enabled = true) {
     const maxJoin = Math.max(1, ...buckets.map((b) => b.count));
 
     const recentOwners = [...(pendingData?.admins ?? [])]
+      .filter((owner) => owner.status === "approved")
       .sort((a, b) => {
         const da = new Date(a.created_at || 0).getTime();
         const db = new Date(b.created_at || 0).getTime();

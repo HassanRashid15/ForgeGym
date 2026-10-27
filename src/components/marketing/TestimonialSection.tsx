@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Autoplay from "embla-carousel-autoplay";
 import {
@@ -7,6 +8,7 @@ import {
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
+import { TextType } from "@/components/marketing/TextType";
 
 const images = [
   {
@@ -35,16 +37,64 @@ const images = [
   }
 ];
 
+const focusHeadings = [
+  "Real Members",
+  "Gym Owners",
+  "Daily Grind",
+  "Community Wins",
+  "Partner Gyms",
+];
+
+const focusDescriptions = [
+  "Stories from people training on Forge every week.",
+  "How gym owners run memberships, approvals, and growth.",
+  "Honest progress — not hype — from the floor up.",
+  "A community that shows up, checks in, and levels up.",
+  "Partner facilities shaping Forge with real feedback.",
+];
+
 export function TestimonialSection() {
+  const [focusIndex, setFocusIndex] = useState(0);
+
   return (
     <section className="bg-gradient-to-b from-card/30 to-background py-16 md:py-24">
-      <div className="px-0a">
-        <div className="mb-8 md:mb-12 text-center">
-          <h2 className="font-display text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-3 md:mb-4">
-            What Our Members Says
+      <div className="px-0">
+        <div className="mb-8 md:mb-12 px-4 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary md:text-sm">
+            What we focus on
+          </p>
+          <h2 className="font-display mb-3 text-2xl font-bold text-foreground md:mb-4 md:text-3xl lg:text-4xl">
+            <span className="block text-muted-foreground">Built around</span>
+            <span className="relative mx-auto mt-1 block min-h-[1.15em] text-primary">
+              <span className="invisible block whitespace-nowrap" aria-hidden>
+                Community Wins
+              </span>
+              <span className="absolute inset-x-0 top-0">
+                <TextType
+                  as="span"
+                  text={focusHeadings}
+                  typingSpeed={48}
+                  deletingSpeed={28}
+                  pauseDuration={2600}
+                  initialDelay={200}
+                  loop
+                  showCursor
+                  cursorCharacter="|"
+                  cursorClassName="text-primary"
+                  className="inline whitespace-nowrap"
+                  startOnVisible
+                  onSentenceComplete={(_sentence, index) =>
+                    setFocusIndex((index + 1) % focusHeadings.length)
+                  }
+                />
+              </span>
+            </span>
           </h2>
-          <p className="text-sm md:text-base lg:text-lg text-muted-foreground max-w-2xl mx-auto">
-            Real experiences from our growing community of fitness enthusiasts and gym owners
+          <p
+            key={focusIndex}
+            className="mx-auto max-w-2xl animate-in fade-in duration-500 text-sm text-muted-foreground md:text-base lg:text-lg"
+          >
+            {focusDescriptions[focusIndex]}
           </p>
         </div>
 

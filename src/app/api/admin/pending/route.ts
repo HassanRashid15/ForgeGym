@@ -5,7 +5,6 @@ import {
   cacheGet,
   cacheSet,
   cacheInvalidate,
-  CacheTTL,
   withCacheHeaders,
 } from "@/lib/api-cache";
 import { trialActivationPatch, computeTrialInfo } from "@/lib/admin-trial";
@@ -36,9 +35,8 @@ async function requireSuperAdmin(request: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const email = (profile?.email || user.email || "").toLowerCase();
   const isSuperAdmin =
-    (profile as any)?.is_super_admin === true || email === "superadmin@forge.test";
+    (profile as { is_super_admin?: boolean } | null)?.is_super_admin === true;
 
   if (!isSuperAdmin) {
     return {
@@ -52,43 +50,76 @@ async function requireSuperAdmin(request: Request) {
   return { supabase: db, user };
 }
 
-function mapAdmin(p: any) {
+type AdminProfile = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  created_at: string | null;
+  admin_approved: boolean | null;
+  admin_rejected_at: string | null;
+  is_verified: boolean | null;
+  approval_requested_at: string | null;
+  gym_name: string | null;
+  gym_type: string | null;
+  gym_city: string | null;
+  gym_main_image_url: string | null;
+  gym_avatar_url: string | null;
+  gym_monthly_fee: string | null;
+  gym_trainer_fee: string | null;
+  platform_monthly_fee: string | null;
+  is_super_admin: boolean | null;
+  trial_offered: boolean | null;
+  trial_starts_at: string | null;
+  trial_ends_at: string | null;
+};
+
+function mapAdmin(
+  p: AdminProfile,
+  kind: "gym_owner" | "platform_member" = "gym_owner",
+) {
   const approved = p.admin_approved === true;
   const rejected = !approved && !!p.admin_rejected_at;
   const status = approved ? "approved" : rejected ? "rejected" : "pending";
   const trial = computeTrialInfo({
-    isGymOwnerAdmin: true,
+    isGymOwnerAdmin: kind === "gym_owner",
     isSuperAdmin: p.is_super_admin === true,
     adminApproved: approved,
-    trialOffered: p.trial_offered === true || status !== "rejected",
+    trialOffered:
+      kind === "gym_owner"
+        ? p.trial_offered === true || status !== "rejected"
+        : false,
     trialStartsAt: p.trial_starts_at || null,
     trialEndsAt: p.trial_ends_at || null,
   });
 
   return {
-    user_id: p.user_id as string,
-    full_name: (p.full_name as string | null) ?? null,
-    email: (p.email as string | null) ?? null,
-    phone: (p.phone as string | null) ?? null,
-    created_at: (p.created_at as string | null) ?? null,
+    user_id: p.user_id,
+    full_name: p.full_name ?? null,
+    email: p.email ?? null,
+    phone: p.phone ?? null,
+    avatar_url: p.avatar_url || p.gym_avatar_url || p.gym_main_image_url || null,
+    created_at: p.created_at ?? null,
     admin_approved: approved,
-    admin_rejected_at: (p.admin_rejected_at as string | null) ?? null,
+    admin_rejected_at: p.admin_rejected_at ?? null,
     is_verified: p.is_verified === true,
-    approval_requested_at: (p.approval_requested_at as string | null) ?? null,
-    gym_name: (p.gym_name as string | null) ?? null,
-    gym_type: (p.gym_type as string | null) ?? null,
-    gym_city: (p.gym_city as string | null) ?? null,
-    gym_main_image_url: (p.gym_main_image_url as string | null) ?? null,
-    gym_monthly_fee: (p.gym_monthly_fee as string | null) ?? null,
-    gym_trainer_fee: (p.gym_trainer_fee as string | null) ?? null,
+    approval_requested_at: p.approval_requested_at ?? null,
+    gym_name: p.gym_name ?? null,
+    gym_type: p.gym_type ?? null,
+    gym_city: p.gym_city ?? null,
+    gym_main_image_url: p.gym_main_image_url ?? null,
+    gym_monthly_fee: p.gym_monthly_fee ?? null,
+    gym_trainer_fee: p.gym_trainer_fee ?? null,
     status: status as "pending" | "approved" | "rejected",
+    kind,
     trial_offered: trial.offered,
     trial_starts_at: trial.startsAt,
     trial_ends_at: trial.endsAt,
     trial_status: trial.status,
     trial_days_left: trial.daysLeft,
     trial_label: trial.label,
-    platform_monthly_fee: (p.platform_monthly_fee as string | null) || null,
+    platform_monthly_fee: p.platform_monthly_fee || null,
   };
 }
 
@@ -97,12 +128,13 @@ export async function GET(request: Request) {
   const auth = await requireSuperAdmin(request);
   if ("error" in auth) return auth.error;
 
-  const cacheKey = `admin:pending:${auth.user.id}`;
+  const cacheKey = `admin:pending:v4:${auth.user.id}`;
+  const pendingTtlMs = 2_000;
   const cached = await cacheGet<Record<string, unknown>>(cacheKey);
   if (cached && Array.isArray(cached.admins)) {
     return NextResponse.json(
       cached,
-      withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), true),
+      withCacheHeaders(undefined, Math.floor(pendingTtlMs / 1000), true),
     );
   }
 
@@ -110,14 +142,21 @@ export async function GET(request: Request) {
 
   const { data: roles, error: rolesError } = await supabase
     .from("user_roles")
-    .select("user_id")
-    .eq("role", "admin");
+    .select("user_id, role");
 
   if (rolesError) {
     return NextResponse.json({ error: rolesError.message }, { status: 400 });
   }
 
-  const adminIds = Array.from(new Set((roles || []).map((r) => r.user_id)));
+  const adminIds = Array.from(
+    new Set(
+      (roles || [])
+        .filter((r) => r.role === "admin")
+        .map((r) => r.user_id)
+        .filter(Boolean),
+    ),
+  );
+  const adminIdSet = new Set(adminIds);
 
   // Also include previously rejected admins who may have been demoted (older reject flow)
   const { data: rejectedOnly } = await supabase
@@ -127,12 +166,32 @@ export async function GET(request: Request) {
     .eq("admin_approved", false);
 
   for (const row of rejectedOnly || []) {
-    if (row.user_id && !adminIds.includes(row.user_id)) {
+    if (row.user_id && !adminIdSet.has(row.user_id)) {
       adminIds.push(row.user_id);
+      adminIdSet.add(row.user_id);
     }
   }
 
-  if (adminIds.length === 0) {
+  // Platform members (self-training): no gym, not super admin, not approved
+  // Do not require a user_roles row — signup finalize can lag; still show for approval
+  const { data: platformMemberRows } = await supabase
+    .from("profiles")
+    .select("user_id, admin_approved, admin_rejected_at")
+    .is("gym_owner_id", null)
+    .eq("is_super_admin", false);
+
+  const platformMemberIds = Array.from(
+    new Set(
+      (platformMemberRows || [])
+        .filter((r) => r.admin_approved !== true)
+        .map((r) => r.user_id)
+        .filter((id): id is string => !!id && !adminIdSet.has(id)),
+    ),
+  );
+
+  const allIds = [...adminIds, ...platformMemberIds];
+
+  if (allIds.length === 0) {
     return NextResponse.json({
       pending: [],
       approved: [],
@@ -144,24 +203,87 @@ export async function GET(request: Request) {
 
   const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("*")
-    .in("user_id", adminIds)
+    .select(
+      "user_id, full_name, email, phone, avatar_url, created_at, admin_approved, admin_rejected_at, is_verified, approval_requested_at, platform_monthly_fee, is_super_admin, trial_offered, trial_starts_at, trial_ends_at, gym_owner_id",
+    )
+    .in("user_id", allIds)
     .order("created_at", { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  // Gym-owner admins only — hide platform super admins from this list
+  const { data: gymRows } =
+    adminIds.length > 0
+      ? await supabase
+          .from("gyms")
+          .select(
+            "owner_user_id, name, gym_type, city, main_image_url, avatar_url, monthly_fee, trainer_fee",
+          )
+          .in("owner_user_id", adminIds)
+      : { data: [] as Array<{
+          owner_user_id: string;
+          name: string | null;
+          gym_type: string | null;
+          city: string | null;
+          main_image_url: string | null;
+          avatar_url: string | null;
+          monthly_fee: number | null;
+          trainer_fee: number | null;
+        }> };
+
+  const gymByOwner = new Map(
+    (gymRows || []).map((g) => [g.owner_user_id, g] as const),
+  );
+
+  // Gym-owner admins + platform members — hide platform super admins
   const admins = (profiles || [])
-    .filter((p: any) => p.is_super_admin !== true)
-    .map(mapAdmin);
+    .filter((p) => (p as { is_super_admin?: boolean | null }).is_super_admin !== true)
+    .map((p) => {
+      const isPlatformMember =
+        platformMemberIds.includes(p.user_id) ||
+        (!(p as { gym_owner_id?: string | null }).gym_owner_id &&
+          !adminIds.includes(p.user_id));
+      const gym = gymByOwner.get(p.user_id);
+      return mapAdmin(
+        {
+          ...(p as Omit<
+            AdminProfile,
+            | "gym_name"
+            | "gym_type"
+            | "gym_city"
+            | "gym_main_image_url"
+            | "gym_avatar_url"
+            | "gym_monthly_fee"
+            | "gym_trainer_fee"
+          >),
+          gym_name: isPlatformMember ? null : (gym?.name ?? null),
+          gym_type: isPlatformMember ? null : (gym?.gym_type ?? null),
+          gym_city: isPlatformMember ? null : (gym?.city ?? null),
+          gym_main_image_url: isPlatformMember
+            ? null
+            : (gym?.main_image_url ?? null),
+          gym_avatar_url: isPlatformMember ? null : (gym?.avatar_url ?? null),
+          gym_monthly_fee:
+            !isPlatformMember && gym?.monthly_fee != null
+              ? String(gym.monthly_fee)
+              : null,
+          gym_trainer_fee:
+            !isPlatformMember && gym?.trainer_fee != null
+              ? String(gym.trainer_fee)
+              : null,
+        },
+        isPlatformMember ? "platform_member" : "gym_owner",
+      );
+    });
   const pending = admins.filter((a) => a.status === "pending");
-  const approved = admins.filter((a) => a.status === "approved");
+  const approved = admins.filter(
+    (a) => a.status === "approved" && a.kind === "gym_owner",
+  );
   const rejected = admins.filter((a) => a.status === "rejected");
 
   const { data: notifications } = await supabase
-    .from("admin_notifications" as any)
+    .from("admin_notifications")
     .select("*")
     .eq("recipient_user_id", auth.user.id)
     .is("read_at", null)
@@ -175,10 +297,10 @@ export async function GET(request: Request) {
     admins,
     notifications: notifications || [],
   };
-  await cacheSet(cacheKey, payload, CacheTTL.adminList);
+  await cacheSet(cacheKey, payload, pendingTtlMs);
   return NextResponse.json(
     payload,
-    withCacheHeaders(undefined, Math.floor(CacheTTL.adminList / 1000), false),
+    withCacheHeaders(undefined, Math.floor(pendingTtlMs / 1000), false),
   );
 }
 
@@ -203,15 +325,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: targetProfile } = await supabase
-    .from("profiles")
-    .select("is_super_admin, email, gym_name")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const [{ data: targetProfile }, { data: targetGym }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("is_super_admin, email, gym_owner_id")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase
+      .from("gyms")
+      .select("name")
+      .eq("owner_user_id", userId)
+      .maybeSingle(),
+  ]);
 
   if (
-    (targetProfile as any)?.is_super_admin === true ||
-    (targetProfile?.email || "").toLowerCase() === "superadmin@forge.test"
+    (targetProfile as { is_super_admin?: boolean } | null)?.is_super_admin === true
   ) {
     return NextResponse.json(
       { error: "Cannot modify a platform super admin" },
@@ -219,33 +347,113 @@ export async function POST(request: Request) {
     );
   }
 
-  // Ensure admin role exists (needed to re-approve after older demote-reject)
   const { data: roleRows } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId);
 
   const roles = (roleRows || []).map((r) => r.role);
-  if (!roles.includes("admin")) {
-    if (action === "approve") {
-      const { error: roleErr } = await supabase.from("user_roles").upsert(
-        { user_id: userId, role: "admin" } as any,
-        { onConflict: "user_id,role" },
-      );
-      if (roleErr) {
-        return NextResponse.json({ error: roleErr.message }, { status: 400 });
-      }
-    } else {
-      return NextResponse.json({ error: "Target user is not an admin" }, { status: 400 });
+  const hasGymRecord = !!(targetGym as { name?: string | null } | null)?.name;
+  let isGymOwnerAdmin = roles.includes("admin") || hasGymRecord;
+  const isPlatformMember =
+    !isGymOwnerAdmin &&
+    roles.includes("user") &&
+    !(targetProfile as { gym_owner_id?: string | null } | null)?.gym_owner_id;
+
+  if (!isGymOwnerAdmin && !isPlatformMember) {
+    return NextResponse.json(
+      { error: "Target user is not awaiting platform approval" },
+      { status: 400 },
+    );
+  }
+
+  // Re-attach admin role when re-approving a gym owner after older demote-reject
+  if (isGymOwnerAdmin && !roles.includes("admin") && action === "approve") {
+    const { error: roleErr } = await supabase.from("user_roles").upsert(
+      { user_id: userId, role: "admin" },
+      { onConflict: "user_id,role" },
+    );
+    if (roleErr) {
+      return NextResponse.json({ error: roleErr.message }, { status: 400 });
     }
+    isGymOwnerAdmin = true;
   }
 
   if (action === "approve") {
-    const trial = trialActivationPatch();
     const hasFee = body?.platformMonthlyFee !== undefined;
     const platformFee = hasFee
       ? String(body.platformMonthlyFee ?? "").trim() || null
       : undefined;
+    const feePatch =
+      hasFee && platformFee
+        ? {
+            platform_monthly_fee: platformFee,
+            platform_fee_status: "pending_acceptance",
+            platform_fee_concession_amount: null,
+            platform_fee_concession_note: null,
+            platform_fee_responded_at: null,
+          }
+        : hasFee
+          ? {
+              platform_monthly_fee: null,
+              platform_fee_status: null,
+              platform_fee_concession_amount: null,
+              platform_fee_concession_note: null,
+              platform_fee_responded_at: null,
+            }
+          : {};
+
+    if (isPlatformMember) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          admin_approved: true,
+          admin_rejected_at: null,
+          approval_requested_at: null,
+          is_super_admin: false,
+          account_status: "active",
+          membership_status: "active",
+          ...feePatch,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .select(
+          "user_id, full_name, email, admin_approved, admin_rejected_at, platform_monthly_fee, platform_fee_status",
+        )
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      if (!data) {
+        return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+      }
+
+      await supabase
+        .from("admin_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("from_user_id", userId)
+        .is("read_at", null);
+
+      void notify.platformMemberApproved(userId);
+      if (platformFee) {
+        void notify.platformFeeUpdated(userId, `$${platformFee}`);
+      }
+      cacheInvalidate("admin:pending");
+      cacheInvalidate("admin:users:");
+      cacheInvalidate("settings:platform_facility_fee");
+
+      return NextResponse.json({
+        approved: data,
+        action: "approve",
+        kind: "platform_member",
+        platformMonthlyFee: platformFee ?? null,
+      });
+    }
+
+    // 1-month access starts when they accept the fee (not on approve)
+    const startTrialNow = !platformFee;
+    const trial = startTrialNow ? trialActivationPatch() : null;
 
     const { data, error } = await supabase
       .from("profiles")
@@ -257,56 +465,79 @@ export async function POST(request: Request) {
         account_status: "active",
         membership_status: "active",
         trial_offered: true,
-        trial_starts_at: trial.trial_starts_at,
-        trial_ends_at: trial.trial_ends_at,
-        ...(hasFee ? { platform_monthly_fee: platformFee } : {}),
+        ...(trial
+          ? {
+              trial_starts_at: trial.trial_starts_at,
+              trial_ends_at: trial.trial_ends_at,
+            }
+          : {
+              trial_starts_at: null,
+              trial_ends_at: null,
+            }),
+        ...feePatch,
         updated_at: new Date().toISOString(),
-      } as any)
+      })
       .eq("user_id", userId)
       .select(
-        "user_id, full_name, email, admin_approved, admin_rejected_at, trial_starts_at, trial_ends_at, platform_monthly_fee, gym_name, gym_city, gym_monthly_fee",
+        "user_id, full_name, email, admin_approved, admin_rejected_at, trial_starts_at, trial_ends_at, platform_monthly_fee, platform_fee_status",
       )
       .maybeSingle();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    // Publish gym catalog when owner is approved
+    await supabase
+      .from("gyms")
+      .update({ is_published: true, updated_at: new Date().toISOString() })
+      .eq("owner_user_id", userId);
     if (!data) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     await supabase
-      .from("admin_notifications" as any)
-      .update({ read_at: new Date().toISOString() } as any)
+      .from("admin_notifications")
+      .update({ read_at: new Date().toISOString() })
       .eq("from_user_id", userId)
       .is("read_at", null);
 
-    const gymName =
-      (data as { gym_name?: string | null }).gym_name ||
-      (targetProfile as { gym_name?: string | null } | null)?.gym_name;
+    const gymName = (targetGym as { name?: string | null } | null)?.name || null;
     void notify.gymOwnerApproved(userId, gymName);
 
     if (platformFee) {
       void notify.platformFeeUpdated(userId, `$${platformFee}`);
     }
 
-    // Extra in-app notice that trial started
     try {
       const { createNotification } = await import("@/lib/notifications");
-      await createNotification({
-        user_id: userId,
-        type: "welcome",
-        title: "1-month free trial started",
-        message: `Your gym is approved. Free trial runs until ${new Date(trial.trial_ends_at).toLocaleDateString()}.${
-          platformFee ? ` Platform monthly fee after trial: $${platformFee}.` : ""
-        }`,
-        metadata: {
-          related_id: userId,
-          related_type: "trial",
-          action_url: "/dashboard",
-          priority: "high",
-        },
-      });
+      if (trial) {
+        await createNotification({
+          user_id: userId,
+          type: "welcome",
+          title: "1-month free trial started",
+          message: `Your gym is approved. Free trial runs until ${new Date(trial.trial_ends_at).toLocaleDateString()}.`,
+          metadata: {
+            related_id: userId,
+            related_type: "trial",
+            action_url: "/dashboard",
+            priority: "high",
+          },
+        });
+      } else if (platformFee) {
+        await createNotification({
+          user_id: userId,
+          type: "welcome",
+          title: "Gym approved — accept your fee",
+          message: `Your gym is approved. Accept the $${platformFee}/mo platform fee on your dashboard to unlock 1 month of access.`,
+          metadata: {
+            related_id: userId,
+            related_type: "trial",
+            action_url: "/dashboard",
+            priority: "high",
+          },
+        });
+      }
     } catch {
       /* ignore */
     }
@@ -318,16 +549,20 @@ export async function POST(request: Request) {
     return NextResponse.json({
       approved: data,
       action: "approve",
-      trial: {
-        startsAt: trial.trial_starts_at,
-        endsAt: trial.trial_ends_at,
-      },
+      kind: "gym_owner",
+      trial: trial
+        ? {
+            startsAt: trial.trial_starts_at,
+            endsAt: trial.trial_ends_at,
+          }
+        : null,
       platformMonthlyFee:
-        (data as { platform_monthly_fee?: string | null }).platform_monthly_fee || null,
+        (data as { platform_monthly_fee?: string | null }).platform_monthly_fee ||
+        null,
     });
   }
 
-  // Reject: keep admin role so they stay in the list and can be approved later
+  // Reject
   const { data, error } = await supabase
     .from("profiles")
     .update({
@@ -337,7 +572,7 @@ export async function POST(request: Request) {
       account_status: "rejected",
       membership_status: "rejected",
       updated_at: new Date().toISOString(),
-    } as any)
+    })
     .eq("user_id", userId)
     .select("user_id, full_name, email, admin_approved, admin_rejected_at")
     .maybeSingle();
@@ -346,16 +581,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  if (isGymOwnerAdmin) {
+    await supabase
+      .from("gyms")
+      .update({ is_published: false, updated_at: new Date().toISOString() })
+      .eq("owner_user_id", userId);
+  }
+
   await supabase
-    .from("admin_notifications" as any)
-    .update({ read_at: new Date().toISOString() } as any)
+    .from("admin_notifications")
+    .update({ read_at: new Date().toISOString() })
     .eq("from_user_id", userId)
     .is("read_at", null);
 
-  void notify.gymOwnerRejected(userId);
+  if (isPlatformMember) {
+    void notify.platformMemberRejected(userId);
+  } else {
+    void notify.gymOwnerRejected(userId);
+  }
 
   cacheInvalidate("admin:pending");
   cacheInvalidate("admin:users:");
 
-  return NextResponse.json({ rejected: data, action: "reject" });
+  return NextResponse.json({
+    rejected: data,
+    action: "reject",
+    kind: isPlatformMember ? "platform_member" : "gym_owner",
+  });
 }

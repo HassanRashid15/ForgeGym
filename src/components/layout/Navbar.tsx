@@ -38,6 +38,13 @@ const Navbar = () => {
   // Pages that should use light theme styling
   const lightThemePages = ['/gyms', '/trainers', '/exercises', '/contact', '/about'];
   const isLightThemePage = lightThemePages.some(page => pathname === page || pathname.startsWith(`${page}/`)) && theme === 'light';
+  // Detail/hero pages need a solid nav bg at the top (floating pill still only after scroll)
+  const forceNavBg =
+    pathname === "/blog" ||
+    pathname.startsWith("/blog/") ||
+    pathname.startsWith("/gyms/");
+  const showNavBg = scrolled || isOpen || forceNavBg;
+  const showFloatingChrome = scrolled && !isOpen;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -73,12 +80,16 @@ const Navbar = () => {
       >
         <div
           className={`pointer-events-auto w-full max-w-none origin-top rounded-none transition-[width,max-width,margin,padding,padding-left,padding-right,border-radius,background-color,border-color,backdrop-filter,box-shadow] duration-300 ease-out will-change-[width,border-radius,margin,padding] ${
-            scrolled || isOpen
-              ? "border-b border-white/10 bg-black/40 backdrop-blur-md xl:mt-5 xl:w-[min(92%,72rem)] xl:rounded-full xl:border xl:border-white/10 xl:px-6 xl:shadow-lg xl:shadow-black/20"
+            showNavBg
+              ? "border-b border-white/10 bg-black/40 backdrop-blur-md"
               : "mt-0 border-b border-transparent bg-transparent backdrop-blur-none"
+          } ${
+            showFloatingChrome
+              ? "xl:mt-5 xl:w-[min(92%,72rem)] xl:rounded-full xl:border xl:border-white/10 xl:px-6 xl:shadow-lg xl:shadow-black/20"
+              : ""
           } ${isOpen ? "!mt-0 !w-full !max-w-none !rounded-none !border-b !border-white/10 !px-0" : ""}`}
         >
-          <div className={`mx-auto flex h-16 w-full max-w-7xl items-center transition-all duration-500 ease-out ${scrolled ? 'px-4' : 'px-0'} sm:h-20 ${scrolled ? 'sm:px-6' : 'sm:px-0'}`}>
+          <div className={`mx-auto flex h-16 w-full max-w-7xl items-center transition-all duration-500 ease-out ${showNavBg ? "px-4" : "px-0"} sm:h-20 ${showNavBg ? "sm:px-6" : "sm:px-0"}`}>
             <div className="relative flex h-full w-full min-w-0 items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
@@ -200,7 +211,7 @@ const Navbar = () => {
                   <>
                     <Button
                       variant="ghost"
-                      size={scrolled ? "default" : "lg"}
+                      size={showNavBg ? "default" : "lg"}
                       asChild
                       className={`hidden transition-all duration-300 lg:inline-flex ${
                         isLightThemePage
@@ -215,7 +226,7 @@ const Navbar = () => {
                     </Button>
                     <Button
                       variant="default"
-                      size={scrolled ? "default" : "lg"}
+                      size={showNavBg ? "default" : "lg"}
                       asChild
                       className="transition-all duration-300 hidden lg:inline-flex"
                       suppressHydrationWarning

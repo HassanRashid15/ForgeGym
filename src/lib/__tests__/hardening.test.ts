@@ -3,7 +3,7 @@ import {
   rateLimit,
   __resetRateLimitForTests,
 } from "@/lib/rate-limit";
-import { resolveRole, isSeededSuperAdmin } from "@/lib/auth/roles";
+import { resolveRole } from "@/lib/auth/roles";
 import { readMeCache, writeMeCache } from "@/lib/auth/me-cache";
 import { isPasswordValid, passwordStrengthLabel } from "@/lib/validation/password";
 import { pickAllowedProfileFields } from "@/lib/profiles/allowlist";
@@ -35,13 +35,6 @@ describe("resolveRole", () => {
     expect(resolveRole("trainer")).toBe("trainer");
     expect(resolveRole(null, "staff")).toBe("staff");
     expect(resolveRole(null, null)).toBe("customer");
-  });
-});
-
-describe("isSeededSuperAdmin", () => {
-  it("detects the bootstrap super admin email", () => {
-    expect(isSeededSuperAdmin("superadmin@forge.test")).toBe(true);
-    expect(isSeededSuperAdmin("other@forge.test")).toBe(false);
   });
 });
 

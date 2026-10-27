@@ -62,6 +62,10 @@ export type ManagedUser = {
   monthly_fee_label?: string | null;
   gym_monthly_fee?: string | null;
   gym_trainer_fee?: string | null;
+  platform_monthly_fee?: string | null;
+  trial_starts_at?: string | null;
+  trial_ends_at?: string | null;
+  trial_offered?: boolean;
   is_visitor?: boolean;
 };
 

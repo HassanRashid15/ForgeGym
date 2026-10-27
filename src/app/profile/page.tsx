@@ -715,156 +715,255 @@ export default function ProfilePage() {
     return <ProfileSkeleton />;
   }
 
+  const heroImage =
+    profileData.gymMainImageUrl ||
+    "/images/hero-gym.jpg";
+  const displayName =
+    profileData.fullName ||
+    user?.name ||
+    (isAdmin ? formatRoleName(user?.role, isSuperAdmin) : "Fitness Member");
+
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-6 lg:p-8">
-      {/* Profile Header */}
-      <div className="bg-gradient-to-r from-red-600/15 via-red-900/10 to-background border border-border/40 rounded-lg p-6">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="relative">
-              <Avatar className="h-24 w-24 border-4 border-background ring-2 ring-primary/20 shadow-xl">
-                <AvatarImage
-                  src={avatarPreview || profileData.avatarUrl || undefined}
-                  alt={profileData.fullName || user?.name}
+    <div className="relative min-h-full -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
+      {/* Profile hero */}
+      <section className="relative isolate w-full overflow-hidden bg-muted">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={heroImage}
+          alt=""
+          className="block h-[42vh] w-full object-cover object-center sm:h-[46vh] md:h-[50vh]"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/20" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/80 via-background/30 to-transparent" />
+
+        <div className="absolute inset-0 flex flex-col justify-end px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-end sm:gap-5">
+              <div className="relative shrink-0">
+                <Avatar className="h-24 w-24 border-4 border-background shadow-xl ring-2 ring-primary/30 sm:h-28 sm:w-28 md:h-32 md:w-32">
+                  <AvatarImage
+                    src={avatarPreview || profileData.avatarUrl || undefined}
+                    alt={displayName}
+                  />
+                  <AvatarFallback className="bg-primary/20 text-2xl font-bold tracking-wide text-primary sm:text-3xl">
+                    {getNameInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAvatarPick}
                 />
-                <AvatarFallback className="text-2xl font-bold bg-primary/20 text-primary tracking-wide">
-                  {getNameInitials(profileData.fullName || user?.name)}
-                </AvatarFallback>
-              </Avatar>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={handleAvatarPick}
-              />
-              <div className="absolute bottom-0 right-0 flex flex-col gap-1.5">
-                {(avatarPreview || profileData.avatarUrl) && (
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="h-8 w-8 rounded-full bg-destructive hover:bg-destructive/90 shadow-md disabled:opacity-40"
-                    disabled={!isEditing || isSaving || isUploadingAvatar}
-                    onClick={handleAvatarRemove}
-                    title={isEditing ? "Remove profile photo" : "Click Edit Profile to remove photo"}
-                  >
-                    <X className="h-4 w-4 text-white" strokeWidth={2.5} />
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90 shadow-md disabled:opacity-40"
-                  disabled={!isEditing || isSaving || isUploadingAvatar}
-                  onClick={() => {
-                    if (!isEditing) return;
-                    avatarInputRef.current?.click();
-                  }}
-                  title={isEditing ? "Upload profile photo" : "Click Edit Profile to change photo"}
-                >
-                  {isUploadingAvatar ? (
-                    <Loader2 className="h-4 w-4 text-white animate-spin" />
-                  ) : (
-                    <Camera className="h-4 w-4 text-white" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            <div className="text-center md:text-left flex-1">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                {profileData.fullName || user?.name || (isAdmin ? formatRoleName(user?.role, isSuperAdmin) : "Fitness Member")}
-              </h1>
-              <p className="text-muted-foreground">{profileData.email || user?.email}</p>
-              <div className="flex flex-wrap items-center gap-2 mt-3 justify-center md:justify-start">
-                {isAdmin ? (
-                  <>
-                    <Badge className="bg-red-600 text-white">{formatRoleName(user?.role, isSuperAdmin)}</Badge>
-                    <Badge
-                      className={
-                        profileData.adminApproved
-                          ? "bg-emerald-500 text-white"
-                          : "bg-amber-500/90 text-white"
-                      }
+                {isEditing ? (
+                  <div className="absolute bottom-0 right-0 flex flex-col gap-1.5">
+                    {(avatarPreview || profileData.avatarUrl) && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-destructive shadow-md hover:bg-destructive/90 disabled:opacity-40"
+                        disabled={isSaving || isUploadingAvatar}
+                        onClick={handleAvatarRemove}
+                        title="Remove profile photo"
+                      >
+                        <X className="h-4 w-4 text-white" strokeWidth={2.5} />
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="icon"
+                      className="h-8 w-8 rounded-full bg-primary shadow-md hover:bg-primary/90 disabled:opacity-40"
+                      disabled={isSaving || isUploadingAvatar}
+                      onClick={() => avatarInputRef.current?.click()}
+                      title="Upload profile photo"
                     >
-                      {profileData.adminApproved ? "Approved" : "Pending Approval"}
-                    </Badge>
-                    {profileData.isSuperAdmin && (
-                      <Badge variant="outline" className="border-red-500/40 text-red-400">
-                        Platform Owner
+                      {isUploadingAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      ) : (
+                        <Camera className="h-4 w-4 text-white" />
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="min-w-0 text-center sm:pb-1 sm:text-left">
+                <h1 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl md:text-5xl">
+                  {displayName}
+                </h1>
+                <p className="mt-1 truncate text-sm text-muted-foreground sm:text-base">
+                  {profileData.email || user?.email}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  {isAdmin ? (
+                    <>
+                      <Badge className="bg-red-600 text-white">
+                        {formatRoleName(user?.role, isSuperAdmin)}
                       </Badge>
-                    )}
-                    {profileData.gymName && (
-                      <Badge variant="secondary" className="bg-zinc-800 text-zinc-300">
-                        <Building2 className="h-3 w-3 mr-1 text-primary" />
-                        {profileData.gymName}
+                      <Badge
+                        className={
+                          profileData.adminApproved
+                            ? "bg-emerald-500 text-white"
+                            : "bg-amber-500/90 text-white"
+                        }
+                      >
+                        {profileData.adminApproved
+                          ? "Approved"
+                          : "Pending Approval"}
                       </Badge>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Badge className={profileData.membershipStatus === "active" ? "bg-emerald-500 text-white" : "bg-zinc-700"}>
-                      {profileData.membershipStatus === "active" ? "Active Member" : profileData.membershipStatus}
-                    </Badge>
-                    <Badge variant="outline" className="border-red-500/40 text-red-400 capitalize">
-                      {profileData.membershipType} Plan
-                    </Badge>
-                    {profileData.fitnessGoal && (
-                      <Badge variant="secondary" className="bg-zinc-800 text-zinc-300">
-                        <Target className="h-3 w-3 mr-1 text-primary" />
-                        {profileData.fitnessGoal}
+                      {profileData.isSuperAdmin && (
+                        <Badge
+                          variant="outline"
+                          className="whitespace-nowrap border-red-500/40 text-red-400"
+                        >
+                          Platform Owner
+                        </Badge>
+                      )}
+                      {profileData.gymName && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-background/60 text-foreground backdrop-blur-sm"
+                        >
+                          <Building2 className="mr-1 h-3 w-3 text-primary" />
+                          {profileData.gymName}
+                        </Badge>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Badge
+                        className={
+                          profileData.membershipStatus === "active"
+                            ? "bg-emerald-500 text-white"
+                            : "bg-zinc-700"
+                        }
+                      >
+                        {profileData.membershipStatus === "active"
+                          ? "Active Member"
+                          : profileData.membershipStatus}
                       </Badge>
-                    )}
-                  </>
-                )}
+                      <Badge
+                        variant="outline"
+                        className="capitalize border-red-500/40 text-red-400"
+                      >
+                        {profileData.membershipType} Plan
+                      </Badge>
+                      {profileData.fitnessGoal && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-background/60 text-foreground backdrop-blur-sm"
+                        >
+                          <Target className="mr-1 h-3 w-3 text-primary" />
+                          {profileData.fitnessGoal}
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button 
+
+            <div className="flex w-full flex-wrap justify-center gap-2 sm:w-auto sm:justify-end">
+              <Button
                 variant={isEditing ? "outline" : "default"}
-                onClick={() => (isEditing ? handleCancel() : setIsEditing(true))}
+                className={
+                  isEditing
+                    ? "border-border/80 bg-background/40 backdrop-blur-sm"
+                    : undefined
+                }
+                onClick={() =>
+                  isEditing ? handleCancel() : setIsEditing(true)
+                }
                 disabled={isSaving || isUploadingAvatar}
               >
-                {isEditing ? "Cancel" : <><Edit className="h-4 w-4 mr-2" /> Edit Profile</>}
+                {isEditing ? (
+                  "Cancel"
+                ) : (
+                  <>
+                    <Edit className="mr-2 h-4 w-4" /> Edit Profile
+                  </>
+                )}
               </Button>
               {isEditing && (
-                <Button 
-                  onClick={handleSave} 
+                <Button
+                  onClick={handleSave}
                   disabled={isSaving || isUploadingAvatar}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
                 >
                   {isUploadingAvatar ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading avatar...</>
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading
+                      avatar...
+                    </>
                   ) : isSaving ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                    </>
                   ) : (
-                    <><Save className="h-4 w-4 mr-2" /> Save Changes</>
+                    <>
+                      <Save className="mr-2 h-4 w-4" /> Save Changes
+                    </>
                   )}
                 </Button>
               )}
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
+      <div className="space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <div className="max-w-6xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className={`grid w-full bg-zinc-900 border border-zinc-800 ${isAdmin ? "grid-cols-4" : "grid-cols-4"}`}>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            {isAdmin ? (
-              <>
-                <TabsTrigger value="gym">{isSuperAdmin ? "Platform Settings" : "Platform Settings"}</TabsTrigger>
-                <TabsTrigger value="account">Account Status</TabsTrigger>
-              </>
-            ) : (
-              <>
-                <TabsTrigger value="fitness">Fitness & Routine</TabsTrigger>
-                <TabsTrigger value="membership">
-                  {profileData.gymName ? `Gym: ${profileData.gymName}` : "Membership"}
-                </TabsTrigger>
-              </>
-            )}
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+          <div className="-mx-1 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList className="inline-flex h-auto w-max min-w-full gap-1 border border-zinc-800 bg-zinc-900 p-1 sm:grid sm:w-full sm:grid-cols-4 sm:gap-0">
+              <TabsTrigger
+                value="profile"
+                className="shrink-0 px-3 py-2 text-xs sm:px-3 sm:text-sm"
+              >
+                Profile
+              </TabsTrigger>
+              {isAdmin ? (
+                <>
+                  <TabsTrigger
+                    value="gym"
+                    className="shrink-0 px-3 py-2 text-xs sm:px-3 sm:text-sm"
+                  >
+                    Platform Settings
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="account"
+                    className="shrink-0 px-3 py-2 text-xs sm:px-3 sm:text-sm"
+                  >
+                    Account Status
+                  </TabsTrigger>
+                </>
+              ) : (
+                <>
+                  <TabsTrigger
+                    value="fitness"
+                    className="shrink-0 px-3 py-2 text-xs sm:px-3 sm:text-sm"
+                  >
+                    Fitness & Routine
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="membership"
+                    className="shrink-0 max-w-[11rem] truncate px-3 py-2 text-xs sm:max-w-none sm:px-3 sm:text-sm"
+                  >
+                    {profileData.gymName
+                      ? `Gym: ${profileData.gymName}`
+                      : "Membership"}
+                  </TabsTrigger>
+                </>
+              )}
+              <TabsTrigger
+                value="settings"
+                className="shrink-0 px-3 py-2 text-xs sm:px-3 sm:text-sm"
+              >
+                Settings
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* ════════════ Tab 1: Profile ════════════ */}
           <TabsContent value="profile" className="space-y-6">
@@ -1210,9 +1309,8 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
               ) : (
-                // Regular admins see platform settings
-                <div className="grid gap-6 md:grid-cols-2">
-              <div className="grid gap-6 md:grid-cols-2">
+                // Regular admins see platform settings — single column stack
+                <div className="grid grid-cols-1 gap-6">
                 <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-3 text-xl">
@@ -1232,19 +1330,19 @@ export default function ProfilePage() {
                     </CardTitle>
                     <CardDescription>Saved from platform owner registration</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="gymName">Gym Name</Label>
-                      <Input
-                        id="gymName"
-                        value={profileData.gymName}
-                        onChange={(e) => setProfileData({ ...profileData, gymName: e.target.value })}
-                        disabled={!isEditing}
-                        placeholder="Not specified"
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+                  <CardContent className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                        <Label htmlFor="gymName">Gym Name</Label>
+                        <Input
+                          id="gymName"
+                          value={profileData.gymName}
+                          onChange={(e) => setProfileData({ ...profileData, gymName: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Not specified"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="gymType">Gym Type</Label>
                         <Input
@@ -1267,19 +1365,17 @@ export default function ProfilePage() {
                           className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gymYearsOperating">Years Operating</Label>
-                      <Input
-                        id="gymYearsOperating"
-                        value={profileData.gymYearsOperating}
-                        onChange={(e) => setProfileData({ ...profileData, gymYearsOperating: e.target.value })}
-                        disabled={!isEditing}
-                        placeholder="Not specified"
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymYearsOperating">Years Operating</Label>
+                        <Input
+                          id="gymYearsOperating"
+                          value={profileData.gymYearsOperating}
+                          onChange={(e) => setProfileData({ ...profileData, gymYearsOperating: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Not specified"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="gymMonthlyFee">Monthly Gym Fee</Label>
                         <Input
@@ -1306,66 +1402,64 @@ export default function ProfilePage() {
                           className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      These fees are yours to set. Members with a trainer are billed monthly + trainer.
-                    </p>
-
-                    <div className="space-y-2 rounded-lg border border-border/60 bg-zinc-950/40 p-4">
-                      <Label>Gym check-in location (GPS)</Label>
-                      <p className="text-[11px] text-muted-foreground">
-                        Set your gym pin so members can check in by GPS (~50m).
-                        Check-in requires GPS — no desk code.
+                      <p className="text-[11px] text-muted-foreground sm:col-span-2 lg:col-span-3">
+                        These fees are yours to set. Members with a trainer are billed monthly + trainer.
                       </p>
-                      {isEditing ? (
-                        <AddressAutocomplete
-                          value={profileData.gymLocationLabel || profileData.address}
-                          lat={
-                            profileData.gymLatitude
-                              ? Number(profileData.gymLatitude)
-                              : null
-                          }
-                          lon={
-                            profileData.gymLongitude
-                              ? Number(profileData.gymLongitude)
-                              : null
-                          }
-                          onChange={(next) => {
-                            setProfileData((prev) => ({
-                              ...prev,
-                              gymLocationLabel: next.address,
-                              address: next.address || prev.address,
-                              gymLatitude:
-                                next.lat != null ? String(next.lat) : "",
-                              gymLongitude:
-                                next.lon != null ? String(next.lon) : "",
-                              gymCity: next.city?.trim()
-                                ? next.city
-                                : prev.gymCity,
-                            }));
-                          }}
-                          placeholder="Search gym address or use locate"
-                          showMap
-                        />
-                      ) : (
-                        <p className="text-sm text-foreground">
-                          {profileData.gymLatitude && profileData.gymLongitude
-                            ? `${Number(profileData.gymLatitude).toFixed(5)}, ${Number(profileData.gymLongitude).toFixed(5)}`
-                            : "Not set — members cannot check in until GPS is saved"}
-                        </p>
-                      )}
-                      {profileData.gymLatitude && profileData.gymLongitude ? (
-                        <p className="text-[11px] text-emerald-500">
-                          Location saved — GPS check-in enabled for members.
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-amber-500">
-                          No GPS pin yet. Edit profile and search/locate your gym.
-                        </p>
-                      )}
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2 rounded-lg border border-border/60 bg-zinc-950/40 p-4 sm:col-span-2 lg:col-span-3">
+                        <Label>Gym check-in location (GPS)</Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Set your gym pin so members can check in by GPS (~50m).
+                          Check-in requires GPS — no desk code.
+                        </p>
+                        {isEditing ? (
+                          <AddressAutocomplete
+                            value={profileData.gymLocationLabel || profileData.address}
+                            lat={
+                              profileData.gymLatitude
+                                ? Number(profileData.gymLatitude)
+                                : null
+                            }
+                            lon={
+                              profileData.gymLongitude
+                                ? Number(profileData.gymLongitude)
+                                : null
+                            }
+                            onChange={(next) => {
+                              setProfileData((prev) => ({
+                                ...prev,
+                                gymLocationLabel: next.address,
+                                address: next.address || prev.address,
+                                gymLatitude:
+                                  next.lat != null ? String(next.lat) : "",
+                                gymLongitude:
+                                  next.lon != null ? String(next.lon) : "",
+                                gymCity: next.city?.trim()
+                                  ? next.city
+                                  : prev.gymCity,
+                              }));
+                            }}
+                            placeholder="Search gym address or use locate"
+                            showMap
+                          />
+                        ) : (
+                          <p className="text-sm text-foreground">
+                            {profileData.gymLatitude && profileData.gymLongitude
+                              ? `${Number(profileData.gymLatitude).toFixed(5)}, ${Number(profileData.gymLongitude).toFixed(5)}`
+                              : "Not set — members cannot check in until GPS is saved"}
+                          </p>
+                        )}
+                        {profileData.gymLatitude && profileData.gymLongitude ? (
+                          <p className="text-[11px] text-emerald-500">
+                            Location saved — GPS check-in enabled for members.
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-amber-500">
+                            No GPS pin yet. Edit profile and search/locate your gym.
+                          </p>
+                        )}
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="gymOperatingDays">Operating Days / Week</Label>
                         <Input
@@ -1391,71 +1485,68 @@ export default function ProfilePage() {
                           className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
                         />
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="gymPeakHours">Peak Hours (Auto-calculated)</Label>
-                      <Input
-                        id="gymPeakHours"
-                        value={profileData.gymPeakHours}
-                        onChange={(e) => setProfileData({ ...profileData, gymPeakHours: e.target.value })}
-                        disabled={!isEditing}
-                        placeholder="Automatically calculated based on operating days and hours"
-                        className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
-                      />
-                      {isEditing && (
-                        <p className="text-xs text-zinc-500">
-                          Automatically calculated based on operating days and opening/closing times
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
-                        Operating Days
-                      </Label>
-                      {isEditing ? (
-                        <div className="flex flex-wrap gap-2">
-                          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                            <button
-                              key={day}
-                              type="button"
-                              onClick={() => {
-                                const currentDays = profileData.gymOperatingDaysSpecific || [];
-                                const newDays = currentDays.includes(day)
-                                  ? currentDays.filter((d) => d !== day)
-                                  : [...currentDays, day];
-                                
-                                // Auto-calculate peak hours based on selected days and opening/closing times
-                                const calculatedPeakHours = calculatePeakHours(
-                                  newDays,
-                                  profileData.gymOpeningTime,
-                                  profileData.gymClosingTime
-                                );
-                                
-                                setProfileData({ 
-                                  ...profileData, 
-                                  gymOperatingDaysSpecific: newDays,
-                                  gymPeakHours: calculatedPeakHours
-                                });
-                              }}
-                              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                                (profileData.gymOperatingDaysSpecific || []).includes(day)
-                                  ? "bg-primary text-primary-foreground"
-                                  : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                              }`}
-                            >
-                              {day}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-zinc-400">
-                          {profileData.gymOperatingDaysSpecific?.length
-                            ? profileData.gymOperatingDaysSpecific.join(", ")
-                            : "Not specified"}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="gymPeakHours">Peak Hours (Auto-calculated)</Label>
+                        <Input
+                          id="gymPeakHours"
+                          value={profileData.gymPeakHours}
+                          onChange={(e) => setProfileData({ ...profileData, gymPeakHours: e.target.value })}
+                          disabled={!isEditing}
+                          placeholder="Automatically calculated based on operating days and hours"
+                          className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                        />
+                        {isEditing && (
+                          <p className="text-xs text-zinc-500">
+                            Automatically calculated based on operating days and opening/closing times
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+                        <Label className="text-zinc-400 font-bold text-[11px] uppercase tracking-wide">
+                          Operating Days
+                        </Label>
+                        {isEditing ? (
+                          <div className="flex flex-wrap gap-2">
+                            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => {
+                                  const currentDays = profileData.gymOperatingDaysSpecific || [];
+                                  const newDays = currentDays.includes(day)
+                                    ? currentDays.filter((d) => d !== day)
+                                    : [...currentDays, day];
+
+                                  const calculatedPeakHours = calculatePeakHours(
+                                    newDays,
+                                    profileData.gymOpeningTime,
+                                    profileData.gymClosingTime
+                                  );
+
+                                  setProfileData({
+                                    ...profileData,
+                                    gymOperatingDaysSpecific: newDays,
+                                    gymPeakHours: calculatedPeakHours
+                                  });
+                                }}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                  (profileData.gymOperatingDaysSpecific || []).includes(day)
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                                }`}
+                              >
+                                {day}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-zinc-400">
+                            {profileData.gymOperatingDaysSpecific?.length
+                              ? profileData.gymOperatingDaysSpecific.join(", ")
+                              : "Not specified"}
+                          </p>
+                        )}
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="gymOpeningTime">Opening Time</Label>
                         <Input
@@ -1463,14 +1554,13 @@ export default function ProfilePage() {
                           value={profileData.gymOpeningTime}
                           onChange={(e) => {
                             const newOpeningTime = e.target.value;
-                            // Recalculate peak hours when opening time changes
                             const calculatedPeakHours = calculatePeakHours(
                               profileData.gymOperatingDaysSpecific,
                               newOpeningTime,
                               profileData.gymClosingTime
                             );
-                            setProfileData({ 
-                              ...profileData, 
+                            setProfileData({
+                              ...profileData,
                               gymOpeningTime: newOpeningTime,
                               gymPeakHours: calculatedPeakHours
                             });
@@ -1487,14 +1577,13 @@ export default function ProfilePage() {
                           value={profileData.gymClosingTime}
                           onChange={(e) => {
                             const newClosingTime = e.target.value;
-                            // Recalculate peak hours when closing time changes
                             const calculatedPeakHours = calculatePeakHours(
                               profileData.gymOperatingDaysSpecific,
                               profileData.gymOpeningTime,
                               newClosingTime
                             );
-                            setProfileData({ 
-                              ...profileData, 
+                            setProfileData({
+                              ...profileData,
                               gymClosingTime: newClosingTime,
                               gymPeakHours: calculatedPeakHours
                             });
@@ -1515,64 +1604,66 @@ export default function ProfilePage() {
                           Control which optional links appear in your sidebar
                         </p>
                       </div>
-                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <Dumbbell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <Label htmlFor="feature-classes" className="text-sm font-medium">
-                              Classes
-                            </Label>
-                            <p className="text-xs text-muted-foreground">Show Classes in the sidebar</p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Dumbbell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label htmlFor="feature-classes" className="text-sm font-medium">
+                                Classes
+                              </Label>
+                              <p className="text-xs text-muted-foreground">Show Classes in the sidebar</p>
+                            </div>
                           </div>
+                          <Switch
+                            id="feature-classes"
+                            checked={profileData.featureClassesEnabled}
+                            onCheckedChange={(checked) =>
+                              setProfileData({ ...profileData, featureClassesEnabled: checked })
+                            }
+                            disabled={!isEditing}
+                          />
                         </div>
-                        <Switch
-                          id="feature-classes"
-                          checked={profileData.featureClassesEnabled}
-                          onCheckedChange={(checked) =>
-                            setProfileData({ ...profileData, featureClassesEnabled: checked })
-                          }
-                          disabled={!isEditing}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <Calendar className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <Label htmlFor="feature-schedule" className="text-sm font-medium">
-                              Schedules
-                            </Label>
-                            <p className="text-xs text-muted-foreground">Show Schedule in the sidebar</p>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Calendar className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label htmlFor="feature-schedule" className="text-sm font-medium">
+                                Schedules
+                              </Label>
+                              <p className="text-xs text-muted-foreground">Show Schedule in the sidebar</p>
+                            </div>
                           </div>
+                          <Switch
+                            id="feature-schedule"
+                            checked={profileData.featureScheduleEnabled}
+                            onCheckedChange={(checked) =>
+                              setProfileData({ ...profileData, featureScheduleEnabled: checked })
+                            }
+                            disabled={!isEditing}
+                          />
                         </div>
-                        <Switch
-                          id="feature-schedule"
-                          checked={profileData.featureScheduleEnabled}
-                          onCheckedChange={(checked) =>
-                            setProfileData({ ...profileData, featureScheduleEnabled: checked })
-                          }
-                          disabled={!isEditing}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <Wallet className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <Label htmlFor="feature-membership" className="text-sm font-medium">
-                              Memberships
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Show Membership when you&apos;re ready for plans & billing
-                            </p>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <Wallet className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <Label htmlFor="feature-membership" className="text-sm font-medium">
+                                Memberships
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                Show Membership when you&apos;re ready for plans & billing
+                              </p>
+                            </div>
                           </div>
+                          <Switch
+                            id="feature-membership"
+                            checked={profileData.featureMembershipEnabled}
+                            onCheckedChange={(checked) =>
+                              setProfileData({ ...profileData, featureMembershipEnabled: checked })
+                            }
+                            disabled={!isEditing}
+                          />
                         </div>
-                        <Switch
-                          id="feature-membership"
-                          checked={profileData.featureMembershipEnabled}
-                          onCheckedChange={(checked) =>
-                            setProfileData({ ...profileData, featureMembershipEnabled: checked })
-                          }
-                          disabled={!isEditing}
-                        />
                       </div>
                     </div>
                   </CardContent>
@@ -1586,83 +1677,83 @@ export default function ProfilePage() {
                     </CardTitle>
                     <CardDescription>From your onboarding submission</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-5">
-                    <div className="space-y-2">
-                      <Label>Facilities</Label>
-                      {isEditing ? (
-                        <Textarea
-                          value={profileData.gymFacilities.join(", ")}
-                          onChange={(e) =>
-                            setProfileData({
-                              ...profileData,
-                              gymFacilities: e.target.value
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          rows={3}
-                          placeholder="Comma-separated facilities"
-                          className="bg-zinc-900 border-zinc-700"
-                        />
-                      ) : (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {profileData.gymFacilities.length > 0 ? (
-                            profileData.gymFacilities.map((item) => (
-                              <Badge
-                                key={item}
-                                variant="secondary"
-                                className="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1"
-                              >
-                                {item}
-                              </Badge>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No facilities listed</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <Separator />
-                    <div className="space-y-2">
-                      <Label>Services</Label>
-                      {isEditing ? (
-                        <Textarea
-                          value={profileData.gymServices.join(", ")}
-                          onChange={(e) =>
-                            setProfileData({
-                              ...profileData,
-                              gymServices: e.target.value
-                                .split(",")
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          rows={3}
-                          placeholder="Comma-separated services"
-                          className="bg-zinc-900 border-zinc-700"
-                        />
-                      ) : (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {profileData.gymServices.length > 0 ? (
-                            profileData.gymServices.map((item) => (
-                              <Badge
-                                key={item}
-                                variant="secondary"
-                                className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1"
-                              >
-                                {item}
-                              </Badge>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No services listed</p>
-                          )}
-                        </div>
-                      )}
+                  <CardContent>
+                    <div className="grid gap-6 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Facilities</Label>
+                        {isEditing ? (
+                          <Textarea
+                            value={profileData.gymFacilities.join(", ")}
+                            onChange={(e) =>
+                              setProfileData({
+                                ...profileData,
+                                gymFacilities: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            rows={3}
+                            placeholder="Comma-separated facilities"
+                            className="bg-zinc-900 border-zinc-700"
+                          />
+                        ) : (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {profileData.gymFacilities.length > 0 ? (
+                              profileData.gymFacilities.map((item) => (
+                                <Badge
+                                  key={item}
+                                  variant="secondary"
+                                  className="bg-red-500/10 text-red-400 border border-red-500/20 px-3 py-1"
+                                >
+                                  {item}
+                                </Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No facilities listed</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Services</Label>
+                        {isEditing ? (
+                          <Textarea
+                            value={profileData.gymServices.join(", ")}
+                            onChange={(e) =>
+                              setProfileData({
+                                ...profileData,
+                                gymServices: e.target.value
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            rows={3}
+                            placeholder="Comma-separated services"
+                            className="bg-zinc-900 border-zinc-700"
+                          />
+                        ) : (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {profileData.gymServices.length > 0 ? (
+                              profileData.gymServices.map((item) => (
+                                <Badge
+                                  key={item}
+                                  variant="secondary"
+                                  className="bg-zinc-800 text-zinc-300 border border-zinc-700 px-3 py-1"
+                                >
+                                  {item}
+                                </Badge>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No services listed</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              </div>
 
               <Card className="border-zinc-800 bg-zinc-900/40 backdrop-blur-sm">
                 <CardHeader>
@@ -1739,7 +1830,7 @@ export default function ProfilePage() {
                       </p>
                     </div>
                     <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                      <span className="text-xs text-muted-foreground font-medium">Platform Owner</span>
+                      <span className="text-xs text-muted-foreground font-medium whitespace-nowrap">Platform Owner</span>
                       <p className="text-lg font-bold mt-1 text-foreground">
                         {profileData.isSuperAdmin ? "Yes" : "No"}
                       </p>
@@ -2094,6 +2185,7 @@ export default function ProfilePage() {
             />
           </TabsContent>
         </Tabs>
+      </div>
       </div>
     </div>
   );

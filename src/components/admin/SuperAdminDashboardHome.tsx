@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { ContactMessagesCard } from "@/components/admin/ContactMessagesCard";
 import { ApproveGymOwnerModal } from "@/components/admin/ApproveGymOwnerModal";
+import { SuperAdminFeeConcessions } from "@/components/admin/SuperAdminFeeConcessions";
 import type { AdminListItem } from "@/api/auth";
 
 /**
@@ -58,15 +59,14 @@ export function SuperAdminDashboardHome() {
   const handleConfirmApprove = async (platformMonthlyFee: string) => {
     if (!approveTarget) return;
     const userId = approveTarget.user_id;
+    const isMember = approveTarget.kind === "platform_member";
     setActingId(userId);
     try {
       await approveAdminAccount(userId, {
         platformMonthlyFee: platformMonthlyFee || null,
       });
       toast.success(
-        platformMonthlyFee
-          ? `Approved — fee $${platformMonthlyFee}/mo + 1-month free trial started.`
-          : "Gym owner approved — 1-month free trial started.",
+        `Approved — fee $${platformMonthlyFee}/mo sent. 1-month access starts when they accept.`,
       );
       setApproveTarget(null);
       await refresh();
@@ -77,11 +77,19 @@ export function SuperAdminDashboardHome() {
     }
   };
 
-  const handleReject = async (userId: string) => {
+  const handleApproveClick = (row: AdminListItem) => {
+    setApproveTarget(row);
+  };
+
+  const handleReject = async (userId: string, kind?: AdminListItem["kind"]) => {
     setActingId(userId);
     try {
       await rejectAdminAccount(userId);
-      toast.success("Gym owner rejected — saved in database.");
+      toast.success(
+        kind === "platform_member"
+          ? "Platform member rejected — saved in database."
+          : "Gym owner rejected — saved in database.",
+      );
       await refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to reject");
@@ -109,7 +117,7 @@ export function SuperAdminDashboardHome() {
         }}
       />
 
-      <div className="relative mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
+      <div className="relative w-full space-y-8 p-4 sm:p-6 lg:p-8">
         <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
           <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-primary/5" />
           <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
@@ -277,7 +285,7 @@ export function SuperAdminDashboardHome() {
                     <div>
                       <h3 className="font-semibold text-foreground">Recent gym owners</h3>
                       <p className="text-xs text-muted-foreground">
-                        Latest accounts from the database
+                        Latest approved accounts from the database
                       </p>
                     </div>
                     <Button asChild variant="ghost" size="sm" className="gap-1">
@@ -331,6 +339,12 @@ export function SuperAdminDashboardHome() {
                       title: "Users",
                       body: "Approve, edit, or delete gym owners — including rejected.",
                       href: "/dashboard/users",
+                      badge: "Live",
+                    },
+                    {
+                      title: "Platform settings",
+                      body: "Configure platform membership pricing and global settings.",
+                      href: "/dashboard/platform-settings",
                       badge: "Live",
                     },
                     {
@@ -412,6 +426,8 @@ export function SuperAdminDashboardHome() {
                   </Button>
                 </section>
 
+                <SuperAdminFeeConcessions />
+
                 <section className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
                   <div className="mb-3 flex items-center gap-2">
                     <Clock className="h-4 w-4 text-primary" />
@@ -421,32 +437,36 @@ export function SuperAdminDashboardHome() {
                   </div>
                   {stats.pendingList.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No pending gym owners right now.
+                      No pending gym owners or platform members right now.
                     </p>
                   ) : (
                     <ul className="space-y-3">
                       {stats.pendingList.map((row) => {
                         const busy = actingId === row.user_id;
+                        const isMember = row.kind === "platform_member";
                         return (
                           <li key={row.user_id} className="space-y-2">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-foreground">
-                                {row.full_name || row.email || "Owner"}
+                                {row.full_name || row.email || (isMember ? "Member" : "Owner")}
                               </p>
                               <p className="truncate text-xs text-muted-foreground">
-                                {row.gym_name || "Gym"}
-                                {row.gym_city ? ` · ${row.gym_city}` : ""}
+                                {isMember
+                                  ? "Platform member · Self-training"
+                                  : `${row.gym_name || "Gym"}${row.gym_city ? ` · ${row.gym_city}` : ""}`}
                               </p>
-                              <p className="text-[11px] text-primary">
-                                Approving starts 1-month free trial
-                              </p>
+                              {!isMember ? (
+                                <p className="text-[11px] text-primary">
+                                  Approving starts 1-month free trial
+                                </p>
+                              ) : null}
                             </div>
                             <div className="flex gap-1.5">
                               <Button
                                 size="sm"
                                 className="h-8 flex-1 gap-1"
                                 disabled={busy || !!actingId}
-                                onClick={() => setApproveTarget(row)}
+                                onClick={() => void handleApproveClick(row)}
                               >
                                 {busy ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -460,7 +480,7 @@ export function SuperAdminDashboardHome() {
                                 variant="outline"
                                 className="h-8 flex-1 gap-1"
                                 disabled={busy || !!actingId}
-                                onClick={() => void handleReject(row.user_id)}
+                                onClick={() => void handleReject(row.user_id, row.kind)}
                               >
                                 <X className="h-3.5 w-3.5" />
                                 Reject
@@ -482,20 +502,23 @@ export function SuperAdminDashboardHome() {
                   </div>
                   {stats.rejectedList.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No rejected gym owners.
+                      No rejected accounts.
                     </p>
                   ) : (
                     <ul className="space-y-3">
                       {stats.rejectedList.map((row) => {
                         const busy = actingId === row.user_id;
+                        const isMember = row.kind === "platform_member";
                         return (
                           <li key={row.user_id} className="space-y-2">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-foreground">
-                                {row.full_name || row.email || "Owner"}
+                                {row.full_name || row.email || (isMember ? "Member" : "Owner")}
                               </p>
                               <p className="truncate text-xs text-muted-foreground">
-                                {row.gym_name || "Gym"}
+                                {isMember
+                                  ? "Platform member · Self-training"
+                                  : row.gym_name || "Gym"}
                               </p>
                             </div>
                             <div className="flex gap-1.5">
@@ -503,7 +526,7 @@ export function SuperAdminDashboardHome() {
                                 size="sm"
                                 className="h-8 flex-1 gap-1"
                                 disabled={busy || !!actingId}
-                                onClick={() => setApproveTarget(row)}
+                                onClick={() => void handleApproveClick(row)}
                               >
                                 {busy ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

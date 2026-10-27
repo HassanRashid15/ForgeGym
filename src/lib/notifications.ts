@@ -18,8 +18,10 @@ export type NotificationType =
   | "promotion"
   | "feedback"
   | "security"
+  | "approval"
   | "admin_approval_request"
-  | "member_approval_request";
+  | "member_approval_request"
+  | "platform_member_approval_request";
 
 const ADMIN_INBOX_TYPES = new Set<NotificationType>([
   "admin_approval_request",

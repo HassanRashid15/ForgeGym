@@ -21,7 +21,6 @@ import {
   Building2,
   MapPin,
   Dumbbell,
-  Salad,
   LineChart,
 } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
@@ -36,18 +35,18 @@ import { useMemo } from "react";
 const heroHighlights = [
   {
     icon: Dumbbell,
-    title: "Expert Workouts",
-    detail: "For all fitness levels",
+    title: "Partner Gyms",
+    detail: "Real locations near you",
   },
   {
-    icon: Salad,
-    title: "Nutrition Guidance",
-    detail: "Eat better, perform better",
+    icon: Users,
+    title: "Expert Trainers",
+    detail: "Coaches on the floor",
   },
   {
     icon: LineChart,
     title: "Track Progress",
-    detail: "See your results",
+    detail: "Log workouts in-app",
   },
 ] as const;
 
@@ -66,23 +65,23 @@ export type FeaturedGym = {
 const features = [
   {
     icon: Zap,
-    title: "High-Tech Equipment",
-    description: "State-of-the-art machines and free weights for every fitness level.",
+    title: "Partner Facilities",
+    description: "Browse gyms with clear facilities, fees, and photos — what you see is what they offer.",
   },
   {
     icon: Users,
     title: "Expert Trainers",
-    description: "Certified professionals dedicated to helping you reach your goals.",
+    description: "Find coaches at partner gyms and request one after you join.",
   },
   {
     icon: Clock,
-    title: "24/7 Access",
-    description: "Train on your schedule with round-the-clock gym access.",
+    title: "Flexible Hours",
+    description: "Each partner gym sets its own hours — check the gym profile before you visit.",
   },
   {
     icon: Trophy,
-    title: "Results Driven",
-    description: "Proven programs designed to deliver real, lasting results.",
+    title: "Progress Tracking",
+    description: "Log workouts and stay consistent with tools built for real training, not brochure hype.",
   },
 ];
 

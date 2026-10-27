@@ -229,6 +229,16 @@
       "path": "/api/profiles/avatar",
       "description": "Upload profile avatar to Supabase storage bucket"
     },
+    "uploadHero": {
+      "method": "POST",
+      "path": "/api/profiles/hero",
+      "description": "Upload personal dashboard/profile hero for any authenticated role"
+    },
+    "clearHero": {
+      "method": "DELETE",
+      "path": "/api/profiles/hero",
+      "description": "Clear personal dashboard/profile hero"
+    },
     "uploadGymMedia": {
       "method": "POST",
       "path": "/api/gym-media",

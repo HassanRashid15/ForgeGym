@@ -33,7 +33,7 @@ import { FormRestoreModal } from "@/components/register/FormRestoreModal";
 import { AuthBusyOverlay } from "@/components/auth/AuthBusyOverlay";
 import { checkPhoneExists, checkGymDuplicate } from "@/api/auth";
 import { listGyms, getGym } from "@/api/gyms";
-import { phonesMatch } from "@/lib/phone";
+import { isValidE164Phone, phonesMatch } from "@/lib/phone";
 import type {
   AccountType,
   AccountTypeOrEmpty,
@@ -412,7 +412,7 @@ function RegisterContent() {
 
     if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current);
     const clean = value.trim();
-    if (!clean || clean.replace(/\D/g, "").length < 7) {
+    if (!clean || !isValidE164Phone(clean)) {
       setCheckingPhone(false);
       return;
     }
@@ -970,13 +970,17 @@ function RegisterContent() {
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Invalid email format";
     else if (emailTaken) e.email = "An account with this email already exists. Please sign in.";
 
-    if (phone.trim() && phone.replace(/\D/g, "").length < 7) {
-      e.phone = "Enter a valid phone number";
+    if (!phone.trim()) {
+      e.phone = "Phone number is required";
+    } else if (!isValidE164Phone(phone)) {
+      e.phone = "Enter a valid phone with country code (e.g. +92 …)";
     } else if (phoneTaken) {
       e.phone = "This phone number is already used by another account.";
     }
 
-    if (phonesMatch(phone, emergencyContact)) {
+    if (emergencyContact.trim() && !isValidE164Phone(emergencyContact)) {
+      e.emergencyContact = "Enter a valid emergency number with country code";
+    } else if (phonesMatch(phone, emergencyContact)) {
       e.emergencyContact = "Emergency contact cannot be the same as your phone number.";
     }
 

@@ -177,9 +177,9 @@ export function AdminWelcomeModal({
 
             <div className="space-y-3 rounded-xl border border-zinc-700 bg-zinc-800/40 p-3 sm:space-y-4 sm:p-4">
               <div>
-                <p className="text-sm font-semibold text-zinc-100">Optional features</p>
+                <p className="text-sm font-semibold text-zinc-100">Coming-soon teasers</p>
                 <p className="mt-1 text-xs text-zinc-400">
-                  Turn on only what your gym uses. You can change this later in Gym settings.
+                  Show sidebar previews for features still in the next phase — not live booking yet. Change anytime in Gym settings.
                 </p>
               </div>
 
@@ -191,7 +191,7 @@ export function AdminWelcomeModal({
                       Classes
                     </Label>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      Show Classes in the sidebar for group sessions
+                      Sidebar teaser only — class booking ships next phase
                     </p>
                   </div>
                 </div>
@@ -211,7 +211,7 @@ export function AdminWelcomeModal({
                       Schedules
                     </Label>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      Show Schedule in the sidebar for weekly timetables
+                      Sidebar teaser only — weekly timetable ships next phase
                     </p>
                   </div>
                 </div>
@@ -231,7 +231,7 @@ export function AdminWelcomeModal({
                       Memberships
                     </Label>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      Show Membership in the sidebar when you&apos;re ready for plans & billing
+                      Sidebar teaser only — plans & online billing ship next phase
                     </p>
                   </div>
                 </div>

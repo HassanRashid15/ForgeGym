@@ -162,7 +162,7 @@ export function VisitorCountdown() {
 
       <div className="mt-4 border-t border-border/60 pt-4">
         <p className="mb-3 text-xs text-muted-foreground">
-          Join a gym today and unlock exclusive member benefits including progress tracking, class bookings, and personal trainer access.
+          Join a gym today and unlock member benefits — progress tracking, trainer access, and class booking as it rolls out.
         </p>
         <div className="flex items-start gap-2 rounded-lg bg-primary/5 p-3">
           <Target className="h-4 w-4 shrink-0 text-primary mt-0.5" />

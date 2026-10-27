@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
+import { resolveDashboardHeroUrl } from "@/lib/dashboard-hero";
 import {
   ArrowRight,
   Building2,
@@ -25,6 +26,7 @@ export function TrainerDashboardHome() {
   const { user } = useAuth();
   const firstName = (user?.name || "Trainer").trim().split(/\s+/)[0];
   const gymHref = user?.gymOwnerId ? `/gyms/${user.gymOwnerId}` : "/dashboard";
+  const heroUrl = resolveDashboardHeroUrl(user);
 
   const clientsQuery = useQuery({
     queryKey: ["trainer-clients"],
@@ -52,7 +54,7 @@ export function TrainerDashboardHome() {
           <div
             className="absolute inset-0 bg-cover bg-center opacity-20"
             style={{
-              backgroundImage: `url('${user?.gymMainImageUrl || "/images/hero-gym.jpg"}')`,
+              backgroundImage: heroUrl ? `url('${heroUrl}')` : "none",
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />

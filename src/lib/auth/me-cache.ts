@@ -15,6 +15,7 @@ export type MePayload = {
   gymCity?: string | null;
   gymType?: string | null;
   gymMainImageUrl?: string | null;
+  dashboardHeroUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
   featureClassesEnabled?: boolean;

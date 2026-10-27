@@ -60,7 +60,7 @@ export function RegisterShell({ children }: RegisterShellProps) {
         ].join(" ")}
       >
         <div className="flex min-h-full flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
-          <div className="box-border mx-auto w-full max-w-[440px] overflow-x-hidden rounded-2xl border border-red-500/30 bg-zinc-900/50 p-5 shadow-2xl shadow-red-500/10 backdrop-blur-sm sm:p-7">
+          <div className="box-border mx-auto w-full max-w-none overflow-x-hidden rounded-2xl border border-red-500/30 bg-zinc-900/50 p-5 shadow-2xl shadow-red-500/10 backdrop-blur-sm sm:p-7 lg:max-w-full">
             {children}
           </div>
         </div>

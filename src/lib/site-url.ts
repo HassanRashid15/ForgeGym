@@ -37,6 +37,8 @@ export function resolveSiteUrl(request?: Request): string {
     (forwardedHost ? "https" : null);
 
   const candidates: Array<string | null | undefined> = [
+    // Prefer server-only SITE_URL on Vercel (no NEXT_PUBLIC_ browser exposure).
+    process.env.SITE_URL,
     process.env.NEXT_PUBLIC_SITE_URL,
     request?.headers.get("origin"),
     forwardedHost && forwardedProto

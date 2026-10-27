@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getNameInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardHeroMedia } from "@/components/layout/DashboardHeroMedia";
 import {
   ArrowRight,
   Building2,
@@ -99,7 +100,7 @@ export function SuperAdminDashboardHome() {
   };
 
   return (
-    <div className="relative min-h-full">
+    <div className="relative min-h-full -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
       <ApproveGymOwnerModal
         admin={approveTarget}
         open={!!approveTarget}
@@ -109,57 +110,57 @@ export function SuperAdminDashboardHome() {
         }}
         onConfirm={(fee) => void handleConfirmApprove(fee)}
       />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 45% at 0% 0%, hsl(0 90% 50% / 0.1), transparent 55%), radial-gradient(ellipse 50% 35% at 100% 0%, hsl(var(--muted) / 0.8), transparent 50%)",
-        }}
-      />
 
-      <div className="relative w-full space-y-8 p-4 sm:p-6 lg:p-8">
-        <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-primary/5" />
-          <div className="relative flex flex-col gap-6 p-6 sm:p-8 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  Platform
-                </p>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
-                  <Radio className="h-3 w-3 animate-pulse" />
-                  Live
-                </span>
-                {isFetching && !loading ? (
-                  <span className="text-[10px] text-muted-foreground">Syncing…</span>
-                ) : null}
-              </div>
-              <h1 className="font-display text-4xl tracking-wide text-foreground sm:text-5xl md:text-6xl">
-                WELCOME,{" "}
-                <span className="text-gradient">{firstName.toUpperCase()}</span>
-              </h1>
-              <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-                Live gym-owner pipeline from your database — approve, reject, and track
-                growth in realtime.
+      <section className="relative isolate w-full overflow-hidden bg-[#0D0D0D]">
+        <DashboardHeroMedia source={user} />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-background/10" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-transparent" />
+
+        <div className="absolute inset-0 flex flex-col justify-end gap-4 px-4 py-6 sm:px-6 sm:py-8 md:flex-row md:items-end md:justify-between lg:px-8">
+          <div className="space-y-2 sm:space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Platform
               </p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-500">
+                <Radio className="h-3 w-3 animate-pulse" />
+                Live
+              </span>
+              {isFetching && !loading ? (
+                <span className="text-[10px] text-muted-foreground">Syncing…</span>
+              ) : null}
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild className="gap-2">
-                <Link href="/dashboard/progress">
-                  <TrendingUp className="h-4 w-4" />
-                  Platform progress
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="gap-2">
-                <Link href="/dashboard/users">
-                  <Users className="h-4 w-4" />
-                  Manage users
-                </Link>
-              </Button>
-            </div>
+            <h1 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl md:text-5xl lg:text-6xl">
+              WELCOME,{" "}
+              <span className="text-gradient">{firstName.toUpperCase()}</span>
+            </h1>
+            <p className="max-w-md text-sm text-muted-foreground sm:text-base">
+              Live gym-owner pipeline from your database — approve, reject, and track
+              growth in realtime.
+            </p>
           </div>
-        </section>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild className="gap-2">
+              <Link href="/dashboard/progress">
+                <TrendingUp className="h-4 w-4" />
+                Platform progress
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="gap-2 border-border/80 bg-background/40 backdrop-blur-sm"
+            >
+              <Link href="/dashboard/users">
+                <Users className="h-4 w-4" />
+                Manage users
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
+      <div className="relative space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {loading ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {Array.from({ length: 6 }).map((_, i) => (

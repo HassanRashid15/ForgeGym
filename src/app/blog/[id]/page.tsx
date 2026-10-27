@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import BlogDetailClient from "@/components/marketing/BlogDetailClient";
 import { buildPageMetadata } from "@/lib/seo";
+import { resolveSiteUrl } from "@/lib/site-url";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -8,7 +9,7 @@ type PageProps = {
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/blog/${id}`, {
+  const response = await fetch(`${resolveSiteUrl()}/api/blog/${id}`, {
     cache: "no-store",
   });
   const post = await response.json();
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function BlogDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/blog/${id}`, {
+  const response = await fetch(`${resolveSiteUrl()}/api/blog/${id}`, {
     cache: "no-store",
   });
   const post = await response.json();

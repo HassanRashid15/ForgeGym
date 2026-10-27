@@ -5,6 +5,7 @@ import {
   getBrevoConfig,
   sendBrevoEmail,
 } from "@/lib/brevo";
+import { resolveSiteUrl } from "@/lib/site-url";
 
 /**
  * Send promotion emails via Brevo transactional SMTP API.
@@ -54,8 +55,7 @@ export async function sendPromotionEmails(opts: {
     return { sent: 0, skipped: recipients.length, mode: "queued" };
   }
 
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://forge.gym";
+  const site = resolveSiteUrl().replace(/\/$/, "");
   const href = opts.ctaHref
     ? opts.ctaHref.startsWith("http")
       ? opts.ctaHref

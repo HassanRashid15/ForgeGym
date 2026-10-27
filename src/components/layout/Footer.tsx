@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Instagram, Facebook, Twitter, Youtube, MapPin, Phone, Mail } from "lucide-react";
+import { Phone, Mail } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const footerLinks = [
@@ -33,22 +33,8 @@ const Footer = () => {
               />
             </Link>
             <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-              Transform your body and mind at Forge. Premium fitness facilities, expert trainers, and a community that pushes you to be your best.
+              Transform your body and mind at Forge. Partner gyms, expert trainers, and a community that pushes you to be your best.
             </p>
-            <div className="flex gap-4">
-              <a href="#" aria-label="Instagram" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-                <Instagram className="w-5 h-5" />
-              </a>
-              <a href="#" aria-label="Facebook" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-                <Facebook className="w-5 h-5" />
-              </a>
-              <a href="#" aria-label="Twitter" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-                <Twitter className="w-5 h-5" />
-              </a>
-              <a href="#" aria-label="YouTube" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-                <Youtube className="w-5 h-5" />
-              </a>
-            </div>
           </div>
 
           {/* Quick Links */}
@@ -81,18 +67,15 @@ const Footer = () => {
           {/* Hours */}
           <div>
             <h4 className="font-display text-xl mb-4">Hours</h4>
-            <ul className="space-y-3 text-sm">
-              <li className="flex justify-between text-muted-foreground">
-                <span>Monday - Friday</span>
-                <span>5am - 11pm</span>
-              </li>
-              <li className="flex justify-between text-muted-foreground">
-                <span>Saturday</span>
-                <span>6am - 10pm</span>
-              </li>
-              <li className="flex justify-between text-muted-foreground">
-                <span>Sunday</span>
-                <span>7am - 9pm</span>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li>Partner gym hours vary by location.</li>
+              <li>Check each gym&apos;s profile for opening times.</li>
+              <li>
+                Platform support: see{" "}
+                <Link href="/contact" className="text-primary hover:underline">
+                  Contact
+                </Link>
+                .
               </li>
             </ul>
           </div>
@@ -123,12 +106,18 @@ const Footer = () => {
             © 2024 Forge Gym. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
-            <a href="#" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-              Privacy Policy
-            </a>
-            <a href="#" className="text-muted-foreground hover:text-primary transition-colors" suppressHydrationWarning>
-              Terms of Service
-            </a>
+            <Link
+              href="/contact"
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              Contact / support
+            </Link>
+            <Link
+              href="/about"
+              className="text-muted-foreground hover:text-primary transition-colors"
+            >
+              About Forge
+            </Link>
           </div>
         </div>
       </div>

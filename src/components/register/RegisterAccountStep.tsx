@@ -14,7 +14,6 @@ import {
   Eye,
   EyeOff,
   Check,
-  Phone,
   CheckCircle2,
   AlertCircle,
   Shield,
@@ -27,6 +26,7 @@ import type {
   PublicGym,
   RegisterStep1Errors,
 } from "./types";
+import { PhoneInputField } from "@/components/forms/PhoneInputField";
 import { getGymTrainers } from "@/api/gyms";
 import { feeBreakdownLabel, formatCombinedFee } from "@/lib/fees";
 
@@ -395,21 +395,21 @@ export function RegisterAccountStep({
           <Label htmlFor="phone" className="text-zinc-300 font-medium text-sm">
             Phone Number
           </Label>
-          <div className="relative">
-            <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              id="phone"
-              type="tel"
-              placeholder="+1 234 567 8900"
-              value={phone}
-              onChange={(e) =>
-                onPhoneChange ? onPhoneChange(e.target.value) : setPhone(e.target.value)
-              }
-              disabled={isLoading}
-              aria-invalid={!!errors.phone || phoneTaken}
-              className={`${inputCls(!!errors.phone || phoneTaken)} pl-10`}
-            />
-          </div>
+          <PhoneInputField
+            id="phone"
+            tone="register"
+            defaultCountry="PK"
+            value={phone}
+            onChange={(v) =>
+              onPhoneChange ? onPhoneChange(v) : setPhone(v)
+            }
+            disabled={isLoading}
+            invalid={!!errors.phone || phoneTaken}
+            placeholder="300 1234567"
+          />
+          {/* <p className="text-[10px] text-zinc-500">
+            Country flag + dial code (e.g. +92). Enter a valid mobile number.
+          </p> */}
           {checkingPhone && (
             <p className="text-xs text-zinc-500">Checking phone…</p>
           )}
@@ -586,23 +586,20 @@ export function RegisterAccountStep({
         <Label htmlFor="emergencyContact" className="text-zinc-300 font-medium text-sm">
           Emergency Contact <span className="text-zinc-500 font-normal">(Optional)</span>
         </Label>
-        <div className="relative">
-          <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          <Input
-            id="emergencyContact"
-            type="tel"
-            placeholder="+1 234 567 8900"
-            value={emergencyContact}
-            onChange={(e) =>
-              onEmergencyContactChange
-                ? onEmergencyContactChange(e.target.value)
-                : setEmergencyContact(e.target.value)
-            }
-            disabled={isLoading}
-            aria-invalid={!!errors.emergencyContact}
-            className={`${inputCls(!!errors.emergencyContact)} pl-10`}
-          />
-        </div>
+        <PhoneInputField
+          id="emergencyContact"
+          tone="register"
+          defaultCountry="PK"
+          value={emergencyContact}
+          onChange={(v) =>
+            onEmergencyContactChange
+              ? onEmergencyContactChange(v)
+              : setEmergencyContact(v)
+          }
+          disabled={isLoading}
+          invalid={!!errors.emergencyContact}
+          placeholder="300 1234567"
+        />
         {errors.emergencyContact && (
           <p className="text-xs text-red-400">{errors.emergencyContact}</p>
         )}

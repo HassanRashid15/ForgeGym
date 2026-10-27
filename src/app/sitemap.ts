@@ -10,9 +10,9 @@ const STATIC_ROUTES: Array<{ path: string; changeFrequency: MetadataRoute.Sitema
   { path: "/trainers", changeFrequency: "daily", priority: 0.9 },
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },
   { path: "/contact", changeFrequency: "monthly", priority: 0.6 },
-  { path: "/membership", changeFrequency: "weekly", priority: 0.5 },
-  { path: "/classes", changeFrequency: "weekly", priority: 0.4 },
-  { path: "/equipment", changeFrequency: "weekly", priority: 0.4 },
+  { path: "/exercises", changeFrequency: "weekly", priority: 0.55 },
+  { path: "/blog", changeFrequency: "weekly", priority: 0.5 },
+  // Soft launch: membership / classes / equipment stay reachable but de-emphasized in SEO
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { AdminTrialBanner } from "@/components/admin/AdminTrialBanner";
 import { PlatformMemberFeeCard } from "@/components/customer/PlatformMemberFeeCard";
+import { DashboardHeroMedia } from "@/components/layout/DashboardHeroMedia";
 
 /**
  * Self-training platform member dashboard — same full-bleed hero pattern as gym owner.
@@ -20,16 +21,14 @@ import { PlatformMemberFeeCard } from "@/components/customer/PlatformMemberFeeCa
 export function PlatformMemberDashboardHome() {
   const { user } = useAuth();
   const firstName = (user?.name || "there").trim().split(/\s+/)[0];
-  const heroImage = user?.gymMainImageUrl || "/images/hero-gym.jpg";
   const feeAccepted = user?.platformFeeStatus === "accepted";
   const accessActive = user?.trial?.status === "active";
   const hasAccess = feeAccepted && accessActive;
 
   return (
     <div className="relative min-h-full -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
-      <section className="relative isolate w-full overflow-hidden bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={heroImage} alt="" className="block h-[65vh] w-full object-cover" />
+      <section className="relative isolate w-full overflow-hidden bg-[#0D0D0D]">
+        <DashboardHeroMedia source={user} />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-background/10" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-transparent" />
 

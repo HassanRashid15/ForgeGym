@@ -13,16 +13,21 @@ async function requireGymOwner(request: Request) {
   const service = createSupabaseServiceClient();
   const db = service || supabase;
 
-  const { data: roles } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
+  const [{ data: roles }, { data: profile }] = await Promise.all([
+    db.from("user_roles").select("role").eq("user_id", user.id),
+    db
+      .from("profiles")
+      .select("is_super_admin")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   const isAdmin = (roles || []).some((r) => r.role === "admin");
-  if (!isAdmin) {
+  const isSuperAdmin = profile?.is_super_admin === true;
+  if (!isAdmin && !isSuperAdmin) {
     return {
       error: NextResponse.json(
-        { error: "Only gym owners can manage gym media" },
+        { error: "Only gym owners or platform owners can manage media" },
         { status: 403 },
       ),
     };

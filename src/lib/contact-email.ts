@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeHtml, getBrevoConfig, sendBrevoEmail } from "@/lib/brevo";
 import { getDefaultSiteContact } from "@/lib/site-contact";
+import { resolveSiteUrl } from "@/lib/site-url";
 
 function splitLines(raw: string | null | undefined): string[] {
   if (!raw?.trim()) return [];
@@ -60,7 +61,7 @@ export async function sendContactNotificationEmail(
   }
   if (to.length === 0) return false;
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "";
+  const site = resolveSiteUrl().replace(/\/$/, "");
   const inboxUrl = `${site}/dashboard`;
   const htmlContent = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">

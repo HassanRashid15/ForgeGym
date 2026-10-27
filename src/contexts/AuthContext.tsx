@@ -166,6 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         gymCity: me.gymCity || null,
         gymType: me.gymType || null,
         gymMainImageUrl: me.gymMainImageUrl || null,
+        dashboardHeroUrl: me.dashboardHeroUrl || null,
         membershipStatus: me.membershipStatus || null,
         membershipType: me.membershipType || null,
         featureClassesEnabled: me.featureClassesEnabled === true,
@@ -190,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         prev.gymCity === nextUser.gymCity &&
         prev.gymType === nextUser.gymType &&
         prev.gymMainImageUrl === nextUser.gymMainImageUrl &&
+        prev.dashboardHeroUrl === nextUser.dashboardHeroUrl &&
         prev.membershipStatus === nextUser.membershipStatus &&
         prev.membershipType === nextUser.membershipType &&
         prev.featureClassesEnabled === nextUser.featureClassesEnabled &&

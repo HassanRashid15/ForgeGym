@@ -3,7 +3,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
-import { findDuplicatePhone, isUsablePhone } from "@/lib/phone";
+import { findDuplicatePhone, isValidE164Phone } from "@/lib/phone";
 
 /** POST /api/auth/check-phone — duplicate phone across profiles */
 export async function POST(request: Request) {
@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ exists: false });
   }
 
-  if (!isUsablePhone(phone)) {
-    return NextResponse.json({ exists: false, reason: "too_short" });
+  if (!isValidE164Phone(phone)) {
+    return NextResponse.json({ exists: false, reason: "invalid" });
   }
 
   const service = createSupabaseServiceClient();

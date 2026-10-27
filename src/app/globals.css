@@ -853,3 +853,126 @@
   }
 }
 
+/* react-phone-number-input — flag + dial code overrides */
+.PhoneInputField {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border-radius: 0.375rem;
+  border-width: 1px;
+  padding-inline: 0.75rem;
+  min-height: 2.5rem;
+}
+.PhoneInputField .PhoneInputCountry {
+  margin-right: 0.15rem;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.PhoneInputField {
+  /* Thin flag outline (library default is a dark box-shadow “border”) */
+  --PhoneInputCountryFlag-borderWidth: 1px;
+  --PhoneInputCountryFlag-borderColor: rgb(255 255 255 / 0.22);
+  --PhoneInputCountryFlag-backgroundColor--loading: transparent;
+  /* Flag art is 3:2 — height must match width / 1.5 or you get empty bands */
+  --PhoneInputCountryFlag-height: 0.8rem;
+}
+.PhoneInputField .PhoneInputCountryIcon {
+  width: 1.2rem !important; /* 0.8rem × 1.5 */
+  height: 0.8rem !important;
+  aspect-ratio: 3 / 2;
+  border-radius: 2px;
+  overflow: hidden;
+  line-height: 0;
+  background-color: transparent !important;
+}
+.PhoneInputField .PhoneInputCountryIcon--border {
+  background-color: transparent !important;
+  /* Single hairline — not the library’s double inset+outset black frame */
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.22) !important;
+}
+.PhoneInputField .PhoneInputCountryIconImg {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  line-height: 0;
+}
+.PhoneInputField .PhoneInputCountryIconImg img,
+.PhoneInputField .PhoneInputCountryIconImg svg,
+.PhoneInputField .PhoneInputCountryIcon svg {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill;
+  max-width: none !important;
+}
+.PhoneInputField .PhoneInputCountrySelect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.PhoneInputField .PhoneInputCountrySelectArrow {
+  opacity: 0.7;
+  margin-left: 0.35rem;
+}
+.PhoneInputField .PhoneInputInput {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  height: auto !important;
+  font-size: 0.875rem;
+}
+
+.PhoneInputField--register {
+  border-color: rgb(63 63 70); /* zinc-700 */
+  background: rgb(24 24 27 / 0.8); /* zinc-900 */
+  color: rgb(244 244 245);
+}
+.PhoneInputField--register:focus-within {
+  border-color: rgb(244 244 245 / 0.35);
+  box-shadow: 0 0 0 1px rgb(244 244 245 / 0.2);
+}
+.PhoneInputField--register .PhoneInputInput {
+  color: rgb(244 244 245);
+}
+.PhoneInputField--register .PhoneInputInput::placeholder {
+  color: rgb(113 113 122);
+}
+.PhoneInputField--register .PhoneInputCountrySelectArrow {
+  color: rgb(161 161 170);
+}
+.PhoneInputField--register.PhoneInputField--invalid {
+  border-color: rgb(248 113 113);
+}
+
+.PhoneInputField--default {
+  border-color: hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+.PhoneInputField--default:focus-within {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
+}
+.PhoneInputField--default.PhoneInputField--invalid {
+  border-color: hsl(var(--destructive));
+}
+.PhoneInputField:has(:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+

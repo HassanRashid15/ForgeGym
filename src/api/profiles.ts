@@ -27,6 +27,7 @@ export type ProfileRecord = {
   join_date?: string | null;
   created_at?: string | null;
   avatar_url?: string | null;
+  dashboard_hero_url?: string | null;
   admin_approved?: boolean | null;
   is_super_admin?: boolean | null;
   admin_rejected_at?: string | null;
@@ -82,6 +83,7 @@ export type ProfileUpdatePayload = Partial<{
   workout_type: string | null;
   preferred_workout_time: string | null;
   avatar_url: string | null;
+  dashboard_hero_url: string | null;
   gym_name: string | null;
   gym_type: string | null;
   gym_city: string | null;
@@ -134,6 +136,23 @@ export async function uploadMyAvatar(file: File) {
   return apiRequest<{ avatar_url: string }>("profiles", "uploadAvatar", {
     body: form,
     timeoutMs: 30000,
+  });
+}
+
+/** POST profiles.uploadHero → /api/profiles/hero (any role) */
+export async function uploadMyDashboardHero(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest<{ dashboard_hero_url: string }>("profiles", "uploadHero", {
+    body: form,
+    timeoutMs: 30000,
+  });
+}
+
+/** DELETE profiles.clearHero → /api/profiles/hero */
+export async function clearMyDashboardHero() {
+  return apiRequest<{ dashboard_hero_url: null }>("profiles", "clearHero", {
+    body: {},
   });
 }
 

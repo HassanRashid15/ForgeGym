@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { resolveSiteUrl } from "@/lib/site-url";
 
 function secret() {
   return (
@@ -28,9 +29,7 @@ export function verifyNewsletterEmailToken(email: string, token: string): boolea
 }
 
 export function buildUnsubscribeUrl(email: string, siteBase?: string): string {
-  const site =
-    (siteBase || process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") ||
-    "https://forge.gym";
+  const site = (siteBase || resolveSiteUrl()).replace(/\/$/, "");
   const token = signNewsletterEmail(email);
   const params = new URLSearchParams({
     email: email.trim().toLowerCase(),

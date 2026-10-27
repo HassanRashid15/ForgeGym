@@ -35,7 +35,7 @@ async function fetchMeData(auth: { user: any; supabase: any }) {
     db.from("user_roles").select("role").eq("user_id", user.id),
     db.from("profiles")
       .select(
-        "full_name, email, admin_approved, avatar_url, is_super_admin, is_verified, gym_owner_id, membership_status, membership_type, is_visitor, trial_offered, trial_starts_at, trial_ends_at, platform_monthly_fee, platform_fee_status, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
+        "full_name, email, admin_approved, avatar_url, dashboard_hero_url, is_super_admin, is_verified, gym_owner_id, membership_status, membership_type, is_visitor, trial_offered, trial_starts_at, trial_ends_at, platform_monthly_fee, platform_fee_status, feature_classes_enabled, feature_schedule_enabled, feature_membership_enabled",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -58,6 +58,7 @@ async function fetchMeData(auth: { user: any; supabase: any }) {
   const profileRow = profile as {
     gym_owner_id?: string | null;
     avatar_url?: string | null;
+    dashboard_hero_url?: string | null;
     membership_status?: string | null;
     membership_type?: string | null;
     admin_approved?: boolean | null;
@@ -210,6 +211,7 @@ async function fetchMeData(auth: { user: any; supabase: any }) {
     gymCity,
     gymType,
     gymMainImageUrl,
+    dashboardHeroUrl: profileRow?.dashboard_hero_url || null,
     membershipStatus: profileRow?.membership_status || null,
     membershipType: profileRow?.membership_type || null,
     featureClassesEnabled,

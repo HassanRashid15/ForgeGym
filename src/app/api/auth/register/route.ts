@@ -3,7 +3,11 @@ import {
   createSupabaseServerClient,
   createSupabaseServiceClient,
 } from "@/lib/supabase/server";
-import { findDuplicatePhone, phonesMatch } from "@/lib/phone";
+import {
+  findDuplicatePhone,
+  isValidE164Phone,
+  phonesMatch,
+} from "@/lib/phone";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { rateLimitedResponse, getRequestId } from "@/lib/api/errors";
 import { trackEvent } from "@/lib/monitoring";
@@ -282,6 +286,24 @@ export async function POST(request: Request) {
 
   const phone = String(fitnessData.phone || "").trim();
   const emergency = String(fitnessData.emergency_contact || "").trim();
+  if (!phone || !isValidE164Phone(phone)) {
+    return NextResponse.json(
+      {
+        error: "Enter a valid phone number with country code (e.g. +92 …).",
+        code: "phone_invalid",
+      },
+      { status: 400 },
+    );
+  }
+  if (emergency && !isValidE164Phone(emergency)) {
+    return NextResponse.json(
+      {
+        error: "Enter a valid emergency contact with country code.",
+        code: "emergency_invalid",
+      },
+      { status: 400 },
+    );
+  }
   if (phonesMatch(phone, emergency)) {
     return NextResponse.json(
       {

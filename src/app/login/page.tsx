@@ -290,7 +290,7 @@ function LoginContent() {
 
       {/* ═══════════════ RIGHT — Form Panel ═══════════════ */}
       <section className="flex flex-col items-center justify-center bg-black overflow-y-auto px-8 py-12 sm:px-12">
-        <div className="w-full max-w-[420px] border border-red-500/30 rounded-2xl bg-zinc-900/50 backdrop-blur-sm p-8 shadow-2xl shadow-red-500/10">
+        <div className="w-full max-w-none overflow-x-hidden rounded-2xl border border-red-500/30 bg-zinc-900/50 p-8 shadow-2xl shadow-red-500/10 backdrop-blur-sm sm:p-7 lg:max-w-full">
           
           {/* Mobile logo */}
           <Link

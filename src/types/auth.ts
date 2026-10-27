@@ -14,6 +14,8 @@ export interface User {
   gymCity?: string | null;
   gymType?: string | null;
   gymMainImageUrl?: string | null;
+  /** Personal dashboard/profile hero (any role). Overrides gym main when set. */
+  dashboardHeroUrl?: string | null;
   membershipStatus?: string | null;
   membershipType?: string | null;
   /** Whether user is a visitor (trial user not yet converted to full member) */

@@ -5,8 +5,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureMyProfile, getMyProfile, updateMyProfile, uploadMyAvatar } from "@/api/profiles";
-import type { ProfileRecord } from "@/api/profiles";
+import {
+  ensureMyProfile,
+  getMyProfile,
+  updateMyProfile,
+  uploadMyAvatar,
+} from "@/api/profiles";
+import type { ProfileRecord, ProfileUpdatePayload } from "@/api/profiles";
 import { getGym, getGymTrainers } from "@/api/gyms";
 import { getMyMembership } from "@/api/membership";
 import { getNameInitials, formatRoleName, calculatePeakHours } from "@/lib/utils";
@@ -22,11 +27,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { AddressAutocomplete } from "@/components/forms/AddressAutocomplete";
+import { PhoneInputField } from "@/components/forms/PhoneInputField";
+import { isValidE164Phone, toE164 } from "@/lib/phone";
 import { geocodeAddressClient } from "@/lib/geo/geocode-client";
 import { startTopProgress, doneTopProgress } from "@/lib/top-progress";
 import { ProfileSettingsTab } from "@/components/profile/ProfileSettingsTab";
 import { GymMediaSection } from "@/components/profile/GymMediaSection";
 import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
+import { DashboardHeroMedia } from "@/components/layout/DashboardHeroMedia";
 import { formatMemberFee } from "@/lib/fees";
 import { computeBmi, bmiCategoryLabel } from "@/lib/bmi";
 import { ProfileSkeleton } from "@/components/loading/ProfileSkeleton";
@@ -104,6 +112,7 @@ export default function ProfilePage() {
     membershipType: "basic",
     joinDate: "",
     avatarUrl: "",
+    dashboardHeroUrl: "",
     gymName: "",
     gymType: "",
     gymCity: "",
@@ -196,7 +205,11 @@ export default function ProfilePage() {
         const mapped = {
           fullName: dbProfile?.full_name || user.name || meta.full_name || "",
           email: dbProfile?.email || user.email || "",
-          phone: dbProfile?.phone || meta.phone || "",
+          phone:
+            toE164(dbProfile?.phone || meta.phone || "") ||
+            dbProfile?.phone ||
+            meta.phone ||
+            "",
           address: dbProfile?.address || "",
           bio: dbProfile?.bio || meta.bio || (isAdmin ? "" : "Fitness enthusiast building strength and consistency."),
           dateOfBirth: dbProfile?.date_of_birth || meta.date_of_birth || "",
@@ -222,7 +235,13 @@ export default function ProfilePage() {
           workoutDuration: dbProfile?.workout_duration || meta.workout_duration || (isAdmin ? "" : "45 min"),
           workoutType: dbProfile?.workout_type || meta.workout_type || (isAdmin ? "" : "Weights"),
           preferredTime: dbProfile?.preferred_workout_time || meta.preferred_workout_time || (isAdmin ? "" : "Morning"),
-          emergencyContact: dbProfile?.emergency_contact || meta.emergency_contact || "",
+          emergencyContact:
+            toE164(
+              dbProfile?.emergency_contact || meta.emergency_contact || "",
+            ) ||
+            dbProfile?.emergency_contact ||
+            meta.emergency_contact ||
+            "",
           membershipStatus: dbProfile?.membership_status || "active",
           membershipType: dbProfile?.membership_type || "basic",
           // Prefer created_at so Member Since includes the real join time from DB
@@ -231,6 +250,7 @@ export default function ProfilePage() {
             dbProfile?.join_date ||
             new Date().toISOString(),
           avatarUrl: dbProfile?.avatar_url || "",
+          dashboardHeroUrl: dbProfile?.dashboard_hero_url || "",
           gymOwnerId: dbProfile?.gym_owner_id || meta.gym_owner_id || "",
           gymName: dbProfile?.gym_name || meta.gym_name || "",
           gymType: dbProfile?.gym_type || meta.gym_type || "",
@@ -396,6 +416,17 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!user?.id) {
       toast.error("You must be logged in to save changes");
+      return;
+    }
+
+    const phoneVal = profileData.phone.trim();
+    if (phoneVal && !isValidE164Phone(phoneVal)) {
+      toast.error("Enter a valid phone with country code (e.g. +92 …)");
+      return;
+    }
+    const emergencyVal = profileData.emergencyContact.trim();
+    if (emergencyVal && !isValidE164Phone(emergencyVal)) {
+      toast.error("Enter a valid emergency number with country code");
       return;
     }
 
@@ -592,6 +623,14 @@ export default function ProfilePage() {
     toast.info("Photo removed — click Save Changes to apply");
   };
 
+  const handleHeroChange = (url: string | null) => {
+    const next = url || "";
+    setProfileData((prev) => ({ ...prev, dashboardHeroUrl: next }));
+    setInitialData((prev) =>
+      prev ? { ...prev, dashboardHeroUrl: next } : prev,
+    );
+  };
+
   // Helper calculations
   const calculateBmi = () => {
     // Prefer persisted DB value when not actively editing height/weight
@@ -715,9 +754,6 @@ export default function ProfilePage() {
     return <ProfileSkeleton />;
   }
 
-  const heroImage =
-    profileData.gymMainImageUrl ||
-    "/images/hero-gym.jpg";
   const displayName =
     profileData.fullName ||
     user?.name ||
@@ -725,13 +761,16 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-full -mx-4 -mt-4 md:-mx-6 md:-mt-6 lg:-mx-8 lg:-mt-8">
-      {/* Profile hero */}
-      <section className="relative isolate w-full overflow-hidden bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={heroImage}
-          alt=""
-          className="block h-[42vh] w-full object-cover object-center sm:h-[46vh] md:h-[50vh]"
+      {/* Profile hero — any role can set personal background in Edit Profile */}
+      <section className="relative isolate w-full overflow-hidden bg-[#0D0D0D]">
+        <DashboardHeroMedia
+          height="profile"
+          source={{
+            dashboardHeroUrl: profileData.dashboardHeroUrl,
+            gymMainImageUrl: profileData.gymMainImageUrl,
+          }}
+          editable={isEditing}
+          onHeroChange={handleHeroChange}
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/20" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/80 via-background/30 to-transparent" />
@@ -1004,17 +1043,22 @@ export default function ProfilePage() {
 
                     <div className="space-y-2 md:col-span-2 lg:col-span-1">
                       <Label htmlFor="phone">Phone Number</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          id="phone"
-                          value={profileData.phone}
-                          onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                          disabled={!isEditing}
-                          placeholder={isEditing ? "+1 234 567 8900" : "Not specified"}
-                          className={isEditing ? "bg-zinc-900 border-zinc-700 pl-10" : "bg-zinc-950/50 pl-10"}
-                        />
-                      </div>
+                      <PhoneInputField
+                        id="phone"
+                        tone="default"
+                        defaultCountry="PK"
+                        value={profileData.phone}
+                        onChange={(v) =>
+                          setProfileData({ ...profileData, phone: v })
+                        }
+                        disabled={!isEditing}
+                        placeholder={isEditing ? "300 1234567" : "Not specified"}
+                        className={
+                          isEditing
+                            ? "!bg-zinc-900 !border-zinc-700"
+                            : "!bg-zinc-950/50"
+                        }
+                      />
                     </div>
 
                   {!isAdmin && (
@@ -1104,13 +1148,21 @@ export default function ProfilePage() {
 
                   <div className="space-y-2 md:col-span-2 lg:col-span-3">
                     <Label htmlFor="emergencyContact">Emergency Contact (Optional)</Label>
-                    <Input
+                    <PhoneInputField
                       id="emergencyContact"
+                      tone="default"
+                      defaultCountry="PK"
                       value={profileData.emergencyContact}
-                      onChange={(e) => setProfileData({ ...profileData, emergencyContact: e.target.value })}
+                      onChange={(v) =>
+                        setProfileData({ ...profileData, emergencyContact: v })
+                      }
                       disabled={!isEditing}
-                      placeholder="Name & Contact number"
-                      className={isEditing ? "bg-zinc-900 border-zinc-700" : "bg-zinc-950/50"}
+                      placeholder="300 1234567"
+                      className={
+                        isEditing
+                          ? "!bg-zinc-900 !border-zinc-700"
+                          : "!bg-zinc-950/50"
+                      }
                     />
                   </div>
 
@@ -1599,9 +1651,9 @@ export default function ProfilePage() {
 
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-base">Dashboard features</Label>
+                        <Label className="text-base">Coming-soon teasers</Label>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Control which optional links appear in your sidebar
+                          Show sidebar previews for next-phase features (not live booking yet)
                         </p>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1612,7 +1664,9 @@ export default function ProfilePage() {
                               <Label htmlFor="feature-classes" className="text-sm font-medium">
                                 Classes
                               </Label>
-                              <p className="text-xs text-muted-foreground">Show Classes in the sidebar</p>
+                              <p className="text-xs text-muted-foreground">
+                                Sidebar teaser — booking next phase
+                              </p>
                             </div>
                           </div>
                           <Switch
@@ -1631,7 +1685,9 @@ export default function ProfilePage() {
                               <Label htmlFor="feature-schedule" className="text-sm font-medium">
                                 Schedules
                               </Label>
-                              <p className="text-xs text-muted-foreground">Show Schedule in the sidebar</p>
+                              <p className="text-xs text-muted-foreground">
+                                Sidebar teaser — timetable next phase
+                              </p>
                             </div>
                           </div>
                           <Switch
@@ -1651,7 +1707,7 @@ export default function ProfilePage() {
                                 Memberships
                               </Label>
                               <p className="text-xs text-muted-foreground">
-                                Show Membership when you&apos;re ready for plans & billing
+                                Sidebar teaser — plans & billing next phase
                               </p>
                             </div>
                           </div>

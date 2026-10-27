@@ -23,12 +23,14 @@ const homePageFaqs: FaqItem[] = [
   {
     id: "home-2",
     question: "How do I get started?",
-    answer: "Simply create a free account to browse gyms and trainers in your area. Once you find a gym that suits your needs, you can sign up directly through our platform and start your fitness journey."
+    answer:
+      "Create a free account, browse partner gyms and trainers, then request to join a gym. After the gym approves you, you can use member tools like progress tracking. Class booking and online checkout are coming in a later phase.",
   },
   {
     id: "home-3",
     question: "Is Forge free to use?",
-    answer: "Yes! Browsing gyms, viewing trainer profiles, and creating an account are completely free. Membership fees are paid directly to the gym you choose to join."
+    answer:
+      "Browsing gyms, trainers, and creating an account are free. Membership fees are set by the partner gym you join and are usually paid at the gym during soft launch.",
   },
   {
     id: "home-4",
@@ -74,7 +76,8 @@ const trainersPageFaqs: FaqItem[] = [
   {
     id: "trainers-3",
     question: "How do I book a training session?",
-    answer: "Once you find a trainer you like, you can contact them directly through their profile to schedule sessions. Many trainers offer free initial consultations."
+    answer:
+      "Join the trainer's gym through Forge first. After you're a member, you can request that trainer from your dashboard. In-app session booking ships in a later phase.",
   },
   {
     id: "trainers-4",
@@ -87,28 +90,33 @@ const membershipPageFaqs: FaqItem[] = [
   {
     id: "membership-1",
     question: "Can I change my plan later?",
-    answer: "Yes. You can upgrade or downgrade your plan at any time. Changes typically take effect on your next billing cycle, and we'll prorate when that applies."
+    answer:
+      "Yes — plan changes are handled with your partner gym. During soft launch, talk to the gym desk or your gym owner on Forge; online plan switches ship in a later phase.",
   },
   {
     id: "membership-2",
     question: "Is there a contract or cancellation fee?",
-    answer: "No long-term contracts. You can cancel anytime. There are no cancellation fees on month-to-month memberships."
+    answer:
+      "Forge itself doesn’t lock you into a platform contract. Each partner gym sets its own membership terms — ask them before you join.",
   },
   {
     id: "membership-3",
     question: "What's included in every membership?",
-    answer: "All plans include gym floor access, locker rooms, free parking, towel service, water stations, WiFi, and the mobile app. Higher tiers add classes, training, spa access, and more."
+    answer:
+      "What’s included depends on the partner gym you join (floor access, trainers, classes, hours). Check the gym’s profile on Forge for facilities and fees.",
   },
   {
     id: "membership-4",
     question: "Do you offer yearly billing?",
-    answer: "Yes. Switch to yearly billing to save compared with paying month to month. You can toggle monthly or yearly on this page before you join."
+    answer:
+      "Some partner gyms offer monthly or longer plans. Choose a gym on Forge and confirm pricing with them — platform yearly checkout isn’t live yet.",
   },
   {
     id: "membership-5",
     question: "How do I pay and get started?",
-    answer: "Online checkout is coming soon. For now, pick a plan, join a partner gym through Forge, and complete payment at the front desk to activate your membership."
-  }
+    answer:
+      "Online checkout is coming soon. For now, pick a plan, join a partner gym through Forge, and complete payment at the front desk to activate your membership.",
+  },
 ];
 
 interface FaqSectionProps {

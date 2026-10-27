@@ -27,6 +27,7 @@ import { MemberBillingCard } from "@/components/customer/MemberBillingCard";
 import { PlatformMemberDashboardHome } from "@/components/customer/PlatformMemberDashboardHome";
 import { CheckInButton } from "@/components/customer/CheckInButton";
 import { VisitorCountdown } from "@/components/customer/VisitorCountdown";
+import { resolveDashboardHeroUrl } from "@/lib/dashboard-hero";
 
 interface AdminDashboardClientProps {
   initialWelcomeData: {
@@ -87,6 +88,7 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
   const membershipLabel = (user?.membershipStatus || "active").replace(/_/g, " ");
   const planLabel = user?.membershipType || "Basic";
   const gymHref = user?.gymOwnerId ? `/gyms/${user.gymOwnerId}` : null;
+  const heroUrl = resolveDashboardHeroUrl(user);
 
   return (
     <div className="relative min-h-full">
@@ -103,7 +105,7 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
           <div
             className="absolute inset-0 bg-cover bg-center opacity-20"
             style={{
-              backgroundImage: `url('${user?.gymMainImageUrl || "/images/hero-gym.jpg"}')`,
+              backgroundImage: heroUrl ? `url('${heroUrl}')` : "none",
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-card via-card/95 to-card/40" />
@@ -164,10 +166,10 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
           <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
             <div className="grid md:grid-cols-[minmax(0,280px)_1fr]">
               <div className="relative min-h-[160px] bg-muted/40 md:min-h-full">
-                {user?.gymMainImageUrl ? (
+                {heroUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={user.gymMainImageUrl}
+                    src={heroUrl}
                     alt={user?.gymName || "Gym"}
                     className="absolute inset-0 h-full w-full object-cover"
                   />
@@ -383,7 +385,7 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
           <section className="space-y-4">
             <div>
               <h2 className="font-display text-2xl tracking-wide text-foreground sm:text-3xl">
-                {isApprovedMember ? "WHAT&apos;S LIVE" : "GET STARTED"}
+                {isApprovedMember ? "WHAT'S LIVE" : "GET STARTED"}
               </h2>
               <p className="text-sm text-muted-foreground">
                 {isApprovedMember
@@ -403,9 +405,9 @@ export function AdminDashboardClient({ initialWelcomeData }: AdminDashboardClien
                   },
                   {
                     title: "Class booking",
-                    body: "Browse your gym's schedule and reserve a spot.",
+                    body: "Coming next — browse schedules and reserve a spot at your gym.",
                     href: "/dashboard/classes",
-                    badge: "Live",
+                    badge: "Soon",
                   },
                   {
                     title: "Daily check-in",

@@ -12,6 +12,7 @@ import { getNameInitials } from "@/lib/utils";
 import { AdminTrialBanner } from "@/components/admin/AdminTrialBanner";
 import { AdminPlatformFeeCard } from "@/components/admin/AdminPlatformFeeCard";
 import { AdminWelcomeModal } from "@/components/admin/AdminWelcomeModal";
+import { DashboardHeroMedia } from "@/components/layout/DashboardHeroMedia";
 import {
   ArrowRight,
   Building2,
@@ -160,7 +161,6 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
       setRenewingId(null);
     }
   };
-  const heroImage = user?.gymMainImageUrl || "/images/hero-gym.jpg";
   const gymLabel = stats.gymName || user?.gymName;
 
   return (
@@ -172,13 +172,8 @@ export function AdminDashboardHome({ initialWelcomeData }: AdminDashboardHomePro
         userName={initialWelcomeData?.userName || user?.name}
       />
 
-      <section className="relative isolate w-full overflow-hidden bg-muted">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={heroImage}
-          alt=""
-          className="block h-[65vh] w-full"
-        />
+      <section className="relative isolate w-full overflow-hidden bg-[#0D0D0D]">
+        <DashboardHeroMedia source={user} />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-background/10" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-transparent" />
 

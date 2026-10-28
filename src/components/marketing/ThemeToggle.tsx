@@ -13,14 +13,30 @@ type DocWithViewTransition = Document & {
 const ThemeToggle = () => {
   const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
-  const isHomePage = pathname === "/";
   const [mounted, setMounted] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 50);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const isDark = resolvedTheme === "dark";
+  const darkHeroRoute =
+    pathname === "/" ||
+    pathname === "/gyms" ||
+    pathname.startsWith("/gyms/") ||
+    pathname === "/trainers" ||
+    pathname.startsWith("/trainers/");
+  /** Over dark hero image — force light icons even if site theme is light */
+  const overDarkHero = darkHeroRoute && !scrolled;
+  const lightIconOnDark = isDark || overDarkHero;
 
   function toggle(e: React.MouseEvent<HTMLButtonElement>) {
     const next = isDark ? "light" : "dark";
@@ -69,7 +85,9 @@ const ThemeToggle = () => {
       variant="ghost"
       size="icon"
       onClick={toggle}
-      className={`relative ${isHomePage ? "hover:bg-white/10" : "hover:bg-black/10"}`}
+      className={`relative ${
+        lightIconOnDark ? "hover:bg-white/10" : "hover:bg-black/10"
+      }`}
       aria-label={mounted && isDark ? "Switch to light" : "Switch to dark"}
       title={mounted && isDark ? "Switch to light" : "Switch to dark"}
     >
@@ -82,7 +100,9 @@ const ThemeToggle = () => {
             <Sun className="h-5 w-5 text-yellow-300" aria-hidden />
           ) : (
             <Moon
-              className={`h-5 w-5 ${isHomePage ? "text-white" : "text-foreground"}`}
+              className={`h-5 w-5 ${
+                overDarkHero ? "text-white" : "text-foreground"
+              }`}
               aria-hidden
             />
           )}

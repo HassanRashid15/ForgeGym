@@ -67,7 +67,15 @@ export function GymReviewsSection({ gymOwnerId }: { gymOwnerId: string }) {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-display text-3xl tracking-normal">Reviews</h2>
+          <div className="mb-0 flex items-center gap-3">
+            <span
+              className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+              aria-hidden
+            />
+            <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+              <span className="inline-block pr-[0.1em] text-foreground">REVIEWS</span>
+            </h2>
+          </div>
           <p className="text-sm text-muted-foreground">
             {count > 0 && average != null
               ? `${average} / 5 · ${count} review${count === 1 ? "" : "s"}`

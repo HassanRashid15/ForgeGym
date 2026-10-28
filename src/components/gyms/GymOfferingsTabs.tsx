@@ -23,13 +23,20 @@ export function GymOfferingsTabs({
 }: GymOfferingsTabsProps) {
   return (
     <section className="py-20 md:py-28">
-      <div className="container mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4">
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
           Inside {gymName}
         </p>
-        <h2 className="font-display mb-8 text-4xl tracking-normal md:text-5xl">
-          What we offer
-        </h2>
+        <div className="mb-1 flex items-center gap-3">
+          <span
+            className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+            aria-hidden
+          />
+          <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+            <span className="text-foreground">WHAT WE </span>
+            <span className="inline-block pr-[0.1em] text-primary">OFFER</span>
+          </h2>
+        </div>
 
         <Tabs defaultValue="facilities" className="w-full">
           <TabsList className="mb-10 h-auto w-full flex-wrap justify-start gap-1 rounded-none border-b border-border bg-transparent p-0">
@@ -58,9 +65,15 @@ export function GymOfferingsTabs({
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Facilities
             </p>
-            <h3 className="font-display mb-6 text-3xl tracking-normal md:text-4xl">
-              What&apos;s inside
-            </h3>
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h3 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                What&apos;s inside
+              </h3>
+            </div>
             {facilities.length > 0 ? (
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {facilities.map((f) => (
@@ -84,9 +97,15 @@ export function GymOfferingsTabs({
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Services
             </p>
-            <h3 className="font-display mb-6 text-3xl tracking-normal md:text-4xl">
-              How you train
-            </h3>
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h3 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                How you train
+              </h3>
+            </div>
             {services.length > 0 ? (
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {services.map((s) => (
@@ -110,9 +129,15 @@ export function GymOfferingsTabs({
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Coaching
             </p>
-            <h3 className="font-display mb-6 text-3xl tracking-normal md:text-4xl">
-              Personal trainers
-            </h3>
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h3 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                Personal trainers
+              </h3>
+            </div>
             {trainers.length > 0 ? (
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {trainers.map((t) => (

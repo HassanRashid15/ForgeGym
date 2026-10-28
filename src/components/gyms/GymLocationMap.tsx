@@ -158,15 +158,19 @@ export function GymLocationMap({
 
   return (
     <section className="border-t border-border py-20 md:py-28">
-      <div className="container mx-auto px-4 md:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
-              Location
-            </p>
-            <h2 className="font-display text-4xl tracking-normal md:text-5xl">
-              Find us
-            </h2>
+            <div className="flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">FIND </span>
+                <span className="inline-block pr-[0.1em] text-primary">US</span>
+              </h2>
+            </div>
             {locationLabel ? (
               <p className="mt-3 flex items-start gap-2 text-sm text-muted-foreground sm:text-base">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />

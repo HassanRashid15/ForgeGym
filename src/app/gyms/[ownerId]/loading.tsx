@@ -6,7 +6,7 @@ export default function GymLoading() {
       <div className="relative min-h-[78vh] overflow-hidden md:min-h-[88vh]">
         <Skeleton className="absolute inset-0 h-full w-full" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/20" />
-        <div className="container relative z-10 mx-auto flex min-h-[78vh] flex-col justify-end px-4 pb-16 pt-32 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
+        <div className="relative z-10 mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-end px-4 pb-16 pt-32 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
           <div className="max-w-3xl space-y-4">
             <div className="flex gap-2">
               <Skeleton className="h-6 w-24 rounded-full" />
@@ -22,7 +22,7 @@ export default function GymLoading() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-16 md:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-16 md:px-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
             <Skeleton className="h-8 w-48" />

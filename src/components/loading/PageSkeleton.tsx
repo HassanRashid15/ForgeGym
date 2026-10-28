@@ -9,7 +9,7 @@ export function PageSkeleton({ variant = "default" }: PageSkeletonProps) {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <div className="relative overflow-hidden pt-32 pb-16 bg-card">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="space-y-4">
             <Skeleton className="h-8 w-32" />
             <Skeleton className="h-16 w-2/3" />
@@ -20,7 +20,7 @@ export function PageSkeleton({ variant = "default" }: PageSkeletonProps) {
 
       {/* Content Section */}
       <div className="py-16">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           {variant === "contact" ? (
             <div className="grid gap-8 lg:grid-cols-2">
               {/* Contact Info */}

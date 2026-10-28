@@ -177,7 +177,7 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
         </div>
 
-        <div className="container relative z-10 mx-auto px-4 pb-16 pt-28">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-28">
           <Link
             href={backHref}
             className="mb-8 inline-flex items-center gap-2 text-muted-foreground transition-colors hover:text-primary"
@@ -262,7 +262,7 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
       </section>
 
       <section className="border-t border-border py-16">
-        <div className="container mx-auto grid gap-12 px-4 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-7xl gap-12 px-4 lg:grid-cols-3">
           <div className="space-y-12 lg:col-span-2">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               {[
@@ -301,9 +301,15 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
                 About
               </p>
-              <h2 className="font-display mb-4 text-3xl tracking-normal md:text-4xl">
-                Meet {dbTrainer.fullName?.split(" ")[0] || "the trainer"}
-              </h2>
+              <div className="mb-4 flex items-center gap-3">
+                <span
+                  className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                  aria-hidden
+                />
+                <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                  Meet {dbTrainer.fullName?.split(" ")[0] || "the trainer"}
+                </h2>
+              </div>
               <p className="leading-relaxed text-muted-foreground">
                 {dbTrainer.bio ||
                   `${dbTrainer.fullName || "This trainer"} coaches at ${
@@ -320,7 +326,15 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
                 Coaching
               </p>
-              <h2 className="font-display mb-4 text-3xl tracking-normal">Public profile</h2>
+              <div className="mb-4 flex items-center gap-3">
+                <span
+                  className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                  aria-hidden
+                />
+                <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                  Public profile
+                </h2>
+              </div>
               <div className="space-y-0 overflow-hidden rounded-2xl border border-border bg-card text-sm">
                 {(
                   [
@@ -356,10 +370,16 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
                   Credentials
                 </p>
-                <h2 className="font-display mb-4 flex items-center gap-2 text-3xl tracking-normal">
-                  <Award className="h-7 w-7 text-primary" />
-                  Certifications
-                </h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display flex items-center gap-2 text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <Award className="h-7 w-7 text-primary" />
+                    Certifications
+                  </h2>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   {dbTrainer.certifications.map((c) => (
                     <span
@@ -378,7 +398,15 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
                   Focus
                 </p>
-                <h2 className="font-display mb-4 text-3xl tracking-normal">Specialties</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    Specialties
+                  </h2>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   {dbTrainer.skills.map((s) => (
                     <span
@@ -394,10 +422,16 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
 
             {dbTrainer.languages && dbTrainer.languages.length > 0 && (
               <div>
-                <h2 className="font-display mb-4 flex items-center gap-2 text-2xl tracking-normal">
-                  <Languages className="h-6 w-6 text-primary" />
-                  Languages
-                </h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display flex items-center gap-2 text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <Languages className="h-6 w-6 text-primary" />
+                    Languages
+                  </h2>
+                </div>
                 <p className="text-muted-foreground">{dbTrainer.languages.join(" · ")}</p>
               </div>
             )}
@@ -486,13 +520,19 @@ export default async function TrainerDetailPage({ params, searchParams }: PagePr
         </div>
 
         {related.length > 0 && (
-          <div className="container mx-auto mt-20 px-4">
+          <div className="mx-auto mt-20 max-w-7xl px-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Same gym
             </p>
-            <h2 className="font-display mb-8 text-3xl tracking-normal md:text-4xl">
-              Other trainers
-            </h2>
+            <div className="mb-1 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                Other trainers
+              </h2>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {related.map((rt) => (
                 <Link

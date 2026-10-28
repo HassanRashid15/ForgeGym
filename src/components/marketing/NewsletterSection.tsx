@@ -12,11 +12,13 @@ export default function NewsletterSection() {
   const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if authenticated user is already subscribed
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       if (!user?.email) {
@@ -26,8 +28,6 @@ export default function NewsletterSection() {
 
       try {
         const data = await checkNewsletter(user.email);
-
-        // If user is already subscribed, set the state
         if (data.success && data.is_subscribed && data.is_active) {
           setIsSubscribed(true);
           setEmail(user.email);
@@ -39,7 +39,7 @@ export default function NewsletterSection() {
       }
     };
 
-    checkSubscriptionStatus();
+    void checkSubscriptionStatus();
   }, [user?.email]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -100,83 +100,90 @@ export default function NewsletterSection() {
   };
 
   return (
-    <section className="py-24 bg-gradient-to-b from-card to-background">
-      <div className="container mx-auto px-4">
-        <ScrollAnimate animation="fade-up" className="max-w-4xl mx-auto">
-          <div className="glass-card relative overflow-hidden rounded-2xl p-6 text-center sm:p-8 md:p-12">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
-            
-            <div className="relative z-10">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                <Mail className="w-8 h-8 text-primary" />
-              </div>
-              
-              <h2 className="font-display text-4xl md:text-5xl mb-4">
+    <section className="border-t border-border bg-background py-16 md:py-20">
+      <div className="mx-auto max-w-7xl px-4">
+        <ScrollAnimate animation="fade-up">
+          <div className="rounded-2xl border border-border bg-card px-6 py-10 text-center sm:px-10 sm:py-12 md:px-14">
+            <div className="mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
+              <Mail className="h-5 w-5 text-primary" strokeWidth={1.75} />
+            </div>
+
+            <div className="mb-4 flex items-center justify-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
                 STAY <span className="text-primary">CONNECTED</span>
               </h2>
-              <p className="text-muted-foreground text-lg mb-8 max-w-2xl mx-auto">
-                Get exclusive fitness tips, workout plans, nutrition advice, and special offers delivered straight to your inbox.
-              </p>
-              
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span>Checking subscription status...</span>
-                </div>
-              ) : !isSubscribed ? (
-                <>
-                  <form
-                    onSubmit={handleSubmit}
-                    className="mx-auto flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3"
-                  >
-                    <input
-                      type="email"
-                      name="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      autoComplete="email"
-                      inputMode="email"
-                      enterKeyHint="send"
-                      className="box-border min-h-12 w-full flex-1 appearance-none rounded-full border border-border bg-background px-5 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 [-webkit-appearance:none]"
-                      required
-                      disabled={isSubmitting}
-                    />
-                    <Button
-                      type="submit"
-                      className="box-border inline-flex h-auto min-h-12 w-full shrink-0 items-center justify-center rounded-full bg-primary px-8 py-3 text-base font-semibold text-white transition hover:bg-primary/90 sm:w-auto"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? "Subscribing..." : "Subscribe"}
-                      {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
-                    </Button>
-                  </form>
-
-                  {message && (
-                    <div className={`mt-4 flex items-center justify-center gap-2 text-sm ${
-                      message.type === "success" ? "text-green-600" : "text-red-600"
-                    }`}>
-                      {message.type === "success" ? (
-                        <CheckCircle className="w-4 h-4" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4" />
-                      )}
-                      {message.text}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center justify-center gap-2 text-green-600">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-lg font-medium">You're already subscribed to our newsletter!</span>
-                </div>
-              )}
-              
-              <p className="text-xs text-muted-foreground mt-4">
-                No spam, unsubscribe anytime. Read our Privacy Policy.
-              </p>
             </div>
+            <p className="mx-auto mb-8 max-w-xl text-base text-muted-foreground sm:text-lg">
+              Fitness tips, workout plans, and partner-gym updates — no spam.
+            </p>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                <span>Checking subscription status...</span>
+              </div>
+            ) : !isSubscribed ? (
+              <>
+                <form
+                  onSubmit={(e) => void handleSubmit(e)}
+                  className="mx-auto flex w-full max-w-lg flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-3"
+                >
+                  <input
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    inputMode="email"
+                    enterKeyHint="send"
+                    className="box-border min-h-12 w-full flex-1 appearance-none rounded-full border border-border bg-background px-5 py-3 text-base leading-normal text-foreground placeholder:text-muted-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60 [-webkit-appearance:none]"
+                    required
+                    disabled={isSubmitting}
+                  />
+                  <Button
+                    type="submit"
+                    className="box-border inline-flex h-auto min-h-12 w-full shrink-0 items-center justify-center rounded-full bg-primary px-8 py-3 text-base font-semibold text-white transition hover:bg-primary/90 sm:w-auto"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Subscribing..." : "Subscribe"}
+                    {!isSubmitting && <ArrowRight className="ml-2 h-4 w-4" />}
+                  </Button>
+                </form>
+
+                {message && (
+                  <div
+                    className={`mt-4 flex items-center justify-center gap-2 text-sm ${
+                      message.type === "success"
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {message.type === "success" ? (
+                      <CheckCircle className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    {message.text}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-green-600">
+                <CheckCircle className="h-5 w-5" />
+                <span className="text-lg font-medium">
+                  You&apos;re already subscribed to our newsletter!
+                </span>
+              </div>
+            )}
+
+            <p className="mt-4 text-xs text-muted-foreground">
+              No spam, unsubscribe anytime. Read our Privacy Policy.
+            </p>
           </div>
         </ScrollAnimate>
       </div>

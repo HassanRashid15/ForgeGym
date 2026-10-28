@@ -126,13 +126,28 @@ interface FaqSectionProps {
 }
 
 export function FaqSection({ faqs, title = "Frequently Asked Questions", className = "" }: FaqSectionProps) {
+  const words = title.trim().toUpperCase().split(/\s+/);
+  const last = words.length > 1 ? words[words.length - 1] : "";
+  const lead = words.length > 1 ? words.slice(0, -1).join(" ") : words[0] || title;
+
   return (
     <section className={`bg-background py-16 md:py-24 ${className}`}>
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4">
         <ScrollAnimate animation="fade-up" className="max-w-7xl mx-auto">
-          <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-8 text-center">
-            {title}
-          </h2>
+          <div className="mb-8 flex items-center justify-start gap-3">
+            <span
+              className="h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)] -mt-[7px]"
+              aria-hidden
+            />
+            <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+              <span>{lead}{last ? " " : ""}</span>
+              {last ? (
+                <span className="inline-block pr-[0.1em] text-primary">
+                  {last}
+                </span>
+              ) : null}
+            </h2>
+          </div>
           <Accordion type="single" collapsible className="w-full">
             {faqs.map((item) => (
               <AccordionItem key={item.id} value={item.id} className="border-border">

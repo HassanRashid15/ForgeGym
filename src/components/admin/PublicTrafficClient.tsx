@@ -256,7 +256,7 @@ export function PublicTrafficClient({
                 <tr>
                   <td
                     colSpan={5}
-                    className="py-10 text-center text-muted-foreground"
+                    className="py-10 text-left text-muted-foreground"
                   >
                     No public approaches yet. Open the site home in another tab
                     to generate a hit.

@@ -211,7 +211,7 @@ export function BlogSection({
   if (loading) {
     return (
       <section className={`bg-background ${sectionPad}`}>
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           {!compact && (
             <div className="mb-12 space-y-3">
               <div className="h-4 w-16 animate-pulse rounded bg-muted" />
@@ -231,15 +231,22 @@ export function BlogSection({
 
   return (
     <section className={`bg-background ${sectionPad}`}>
-      <div className="container mx-auto px-4">
+      <div className="mx-auto max-w-7xl px-4">
         {!compact && (
           <ScrollAnimate animation="fade-up" className="mb-12">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
               Blog
             </p>
-            <h2 className="font-display mb-4 text-4xl md:text-5xl">
-              Latest Fitness Tips
-            </h2>
+            <div className="mb-1 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">LATEST FITNESS </span>
+                <span className="inline-block pr-[0.1em] text-primary">TIPS</span>
+              </h2>
+            </div>
             <p className="max-w-2xl text-lg text-muted-foreground">
               Stay updated with the latest fitness advice, nutrition tips, and
               workout strategies from our expert team.
@@ -248,7 +255,7 @@ export function BlogSection({
         )}
 
         {posts.length === 0 ? (
-          <p className="py-16 text-center text-muted-foreground">
+          <p className="py-16 text-left text-muted-foreground">
             No posts available right now. Check back soon.
           </p>
         ) : (

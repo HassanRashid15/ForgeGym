@@ -17,7 +17,7 @@ export default function BlogPageClient() {
         </div>
         <InteractiveBackground variant="gradient" />
 
-        <div className="container relative z-10 mx-auto px-4">
+        <div className="relative z-10 mx-auto max-w-7xl px-4">
           <ScrollAnimate animation="fade-up">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
               Insights

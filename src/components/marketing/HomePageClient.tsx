@@ -138,7 +138,7 @@ export default function HomePageClient({
           aria-hidden
         >
           <img
-            src="/hero_sectiona.png"
+            src="/images/home_herosection.png"
             alt=""
             className="forge-hero-bg absolute inset-0 h-full w-full max-w-none object-cover"
           />
@@ -227,7 +227,7 @@ export default function HomePageClient({
       {/* 1) Featured gyms — product first */}
       {gyms.length > 0 && (
         <section className="bg-gradient-to-b from-background to-card/50 py-24">
-          <div className="container mx-auto px-4">
+          <div className="mx-auto max-w-7xl px-4">
             <ScrollAnimate animation="fade-up">
               <div className="mb-8">
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -242,7 +242,18 @@ export default function HomePageClient({
                     <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </Link>
                 </div>
-                <h2 className="font-display text-3xl md:text-4xl">Discover Top Locations</h2>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <span className="text-foreground">DISCOVER TOP </span>
+                    <span className="inline-block pr-[0.1em] text-primary">LOCATIONS</span>
+                  </h2>
+                </div>
+                <p className=" max-w-full text-left text-lg text-muted-foreground"> Browse top gyms, connect with the fitness community, and take the
+                first step towards a healthier you.</p>
               </div>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -349,15 +360,22 @@ export default function HomePageClient({
       )}
 
       {/* 2) Soft launch — short context after product */}
-      <section className="py-12 md:py-14">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="mx-auto max-w-2xl text-center">
+      <section className="border-y border-border bg-card py-14 md:py-16">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="max-w-2xl text-left">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
               Soft launch
             </p>
-            <h2 className="font-display mb-3 text-3xl tracking-normal md:text-4xl">
-              Built with real gyms
-            </h2>
+            <div className="mb-3 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                Built with
+                <span className="text-primary"> REAL GYMS</span>
+              </h2>
+            </div>
             <p className="text-base text-muted-foreground md:text-lg">
               Forge is opening with partner gyms first — honest numbers, real coaches, and room to
               grow. Join early and help shape what comes next.
@@ -367,28 +385,42 @@ export default function HomePageClient({
       </section>
 
       {/* 3) Why Forge */}
-      <section id="features" className="scroll-mt-20 bg-background py-24">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="mb-16 text-center">
-            <h2 className="font-display mb-4 text-5xl md:text-6xl">WHY CHOOSE FORGE</h2>
-            <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-              We provide everything you need to achieve your fitness goals in one place.
+      <section id="features" className="scroll-mt-20 bg-background py-20 md:py-24">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="mb-12 text-left md:mb-14">
+            <div className="mb-2 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">WHY CHOOSE </span>
+                <span className="inline-block text-primary">FORGE</span>
+              </h2>
+            </div>
+            <p className="max-w-xl text-lg text-muted-foreground">
+              Everything you need to train — in one place, built for the floor.
             </p>
           </ScrollAnimate>
 
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 divide-y divide-border border border-border md:grid-cols-2 md:divide-x md:divide-y-0 lg:grid-cols-4">
             {features.map((feature, index) => (
               <ScrollAnimate
                 key={feature.title}
                 animation="fade-up"
-                delay={index * 0.1}
+                delay={index * 0.08}
+                className="flex h-full flex-col gap-4 bg-background px-5 py-8 sm:px-6 sm:py-10"
               >
-                <div className="glass-card hover-lift h-full rounded-xl p-8">
-                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10">
-                    <feature.icon className="h-7 w-7 text-primary" />
-                  </div>
-                  <h3 className="font-display mb-3 text-2xl">{feature.title}</h3>
-                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
+                  <feature.icon className="h-5 w-5 text-primary" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-display text-lg tracking-wide text-foreground sm:text-xl">
+                    {feature.title.toUpperCase()}
+                  </h3>
+                  <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                    {feature.description}
+                  </p>
                 </div>
               </ScrollAnimate>
             ))}
@@ -407,24 +439,26 @@ export default function HomePageClient({
       <HomePromotionsSection />
 
       {/* 7) Convert CTA */}
-      <section className="relative overflow-hidden bg-card py-24">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-primary blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-primary blur-3xl" />
-        </div>
-        <div className="container relative z-10 mx-auto px-4">
-          <ScrollAnimate animation="scale" className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display mb-6 text-5xl md:text-7xl">
-              READY TO <span className="text-gradient">TRANSFORM</span>?
-            </h2>
+      <section className="border-y border-border bg-card py-16 md:py-20">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="max-w-2xl text-left">
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                READY TO <span className="text-primary">TRANSFORM</span>?
+              </h2>
+            </div>
             <p className="mb-8 text-lg text-muted-foreground">
               Find a partner gym near you and start training with Forge. New members get a clear path
               from signup to approval — no inflated promises.
             </p>
-            <Button variant="hero" size="xl" asChild>
+            <Button variant="hero" asChild>
               <Link href="/gyms">
                 Browse gyms
-                <ArrowRight className="h-5 w-5" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </ScrollAnimate>
@@ -442,7 +476,7 @@ export default function HomePageClient({
 
       {/* 11) Classes coming soon — lowest priority */}
       <section className="py-24">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <ComingSoonOverlay
             mode="section"
             title="Classes coming soon"
@@ -452,7 +486,15 @@ export default function HomePageClient({
             <ScrollAnimate animation="fade-up">
               <div className="mb-12 flex flex-col items-start justify-between md:flex-row md:items-end">
                 <div>
-                  <h2 className="font-display mb-4 text-5xl md:text-6xl">POPULAR CLASSES</h2>
+                  <div className="mb-4 flex items-center gap-3">
+                    <span
+                      className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                      aria-hidden
+                    />
+                    <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                      POPULAR CLASSES
+                    </h2>
+                  </div>
                   <p className="max-w-xl text-lg text-muted-foreground">
                     Join our high-energy classes led by expert instructors.
                   </p>
@@ -473,7 +515,7 @@ export default function HomePageClient({
                   animation="scale"
                   delay={index * 0.15}
                 >
-                  <div className="group relative aspect-[4/5] overflow-hidden rounded-xl hover-lift">
+                  <div className="group relative aspect-[4/5] overflow-hidden rounded-2xl border border-border">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={classItem.image}

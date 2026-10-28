@@ -92,7 +92,7 @@ export default function MembershipPage() {
         </div>
         <InteractiveBackground variant="gradient" />
 
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="mx-auto max-w-7xl px-4 relative z-10">
           <ScrollAnimate animation="fade-up">
             <h1 className="font-display text-6xl md:text-8xl mb-4">
               MEMBERSHIP <span className="text-gradient">PLANS</span>
@@ -106,7 +106,7 @@ export default function MembershipPage() {
 
       {/* Billing Toggle */}
       <section className="py-8">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <ScrollAnimate animation="fade-up">
             <div className="flex items-center justify-center gap-4">
               <span className={billingPeriod === "monthly" ? "text-foreground" : "text-muted-foreground"}>
@@ -132,7 +132,7 @@ export default function MembershipPage() {
 
       {/* Pricing Cards */}
       <section className="py-16">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {plans.map((plan, index) => (
               <ScrollAnimate
@@ -195,12 +195,18 @@ export default function MembershipPage() {
 
       {/* Fitness Tools */}
       <section className="py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="text-center mb-12">
-            <h2 className="font-display text-5xl mb-4">
-              ASSESS YOUR <span className="text-gradient">FITNESS</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="mb-12 text-left">
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                ASSESS YOUR <span className="text-primary">FITNESS</span>
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg text-muted-foreground">
               Use our free tools to understand your current fitness level and find the perfect membership plan.
             </p>
           </ScrollAnimate>
@@ -217,9 +223,17 @@ export default function MembershipPage() {
 
       {/* Features */}
       <section className="py-24">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="text-center mb-16">
-            <h2 className="font-display text-5xl mb-4">ALL MEMBERS GET</h2>
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="mb-16 text-left">
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                ALL MEMBERS GET
+              </h2>
+            </div>
           </ScrollAnimate>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
             {["Free Towel Service", "Water Stations", "WiFi Access", "Mobile App"].map((item, index) => (
@@ -243,12 +257,18 @@ export default function MembershipPage() {
 
       {/* CTA */}
       <section className="py-24 bg-card">
-        <div className="container mx-auto px-4 text-center">
-          <ScrollAnimate animation="scale">
-            <h2 className="font-display text-5xl md:text-6xl mb-6">
-              STILL HAVE QUESTIONS?
-            </h2>
-            <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="scale" className="text-left">
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                STILL HAVE QUESTIONS?
+              </h2>
+            </div>
+            <p className="mb-8 max-w-xl text-lg text-muted-foreground">
               Our team is here to help you choose the right plan for your fitness goals.
             </p>
             <Button variant="hero" asChild>

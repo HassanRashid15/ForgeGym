@@ -521,7 +521,7 @@ export default function AISpeedPageClient({
           <CardContent>
             <div className="space-y-4">
               {configuredProviders.length === 0 ? (
-                <div className="text-center text-muted-foreground py-8">
+                <div className="text-left text-muted-foreground py-8">
                   No AI providers configured. Please set up API keys in your environment variables.
                 </div>
               ) : (

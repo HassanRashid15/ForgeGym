@@ -201,7 +201,7 @@ export default async function GymDetailPage({ params }: PageProps) {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background via-background/75 to-background/25" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/80 via-background/20 to-background/50" />
 
-        <div className="container relative z-10 mx-auto flex min-h-[78vh] flex-col justify-end px-4 pb-14 pt-28 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
+        <div className="relative z-10 mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-end px-4 pb-14 pt-28 md:min-h-[88vh] md:px-6 md:pb-20 lg:px-8">
           <div className="pointer-events-auto max-w-3xl">
             <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
             {gym.gymCity && (
@@ -315,13 +315,20 @@ export default async function GymDetailPage({ params }: PageProps) {
 
       {(gym.monthlyFee || gym.trainerFee) && (
         <section className="border-b border-border py-12 md:py-16">
-          <div className="container mx-auto px-4 md:px-6 lg:px-8">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+          {/* <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Pricing
-            </p>
-            <h2 className="font-display mb-8 text-3xl tracking-normal md:text-4xl">
-              Membership fees
-            </h2>
+            </p> */}
+            <div className="mb-1 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">MEMBERSHIP </span>
+                <span className="inline-block pr-[0.1em] text-primary">FEES</span>
+              </h2>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {gym.monthlyFee && (
                 <div className="flex items-start gap-4 rounded-2xl border border-border bg-card px-5 py-6">
@@ -370,13 +377,18 @@ export default async function GymDetailPage({ params }: PageProps) {
 
       {gallery.length > 0 && (
         <section className="border-t border-border py-20 md:py-28">
-          <div className="container mx-auto px-4 md:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Gallery
             </p>
-            <h2 className="font-display mb-10 text-4xl tracking-normal md:text-5xl">
-              See the space
-            </h2>
+            <div className="mb-1 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl"> <span className="text-foreground">SEE THE </span>
+              <span className="inline-block pr-[0.1em] text-primary">SPACE</span></h2>
+            </div>
             <GymGallery gymName={gym.gymName} images={gallery} />
           </div>
         </section>
@@ -384,13 +396,19 @@ export default async function GymDetailPage({ params }: PageProps) {
 
       {(gym.gymVideoFileUrl || embed || gym.gymVideoUrl) && (
         <section className="border-t border-border py-20 md:py-28">
-          <div className="container mx-auto px-4 md:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-primary">
               Tour
             </p>
-            <h2 className="font-display mb-10 text-4xl tracking-normal md:text-5xl">
-              Watch the gym
-            </h2>
+            <div className="mb-10 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                Watch the gym
+              </h2>
+            </div>
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
               {gym.gymVideoFileUrl ? (
                 <video
@@ -432,26 +450,57 @@ export default async function GymDetailPage({ params }: PageProps) {
       />
 
       <section className="border-t border-border py-20 md:py-28">
-        <div className="container mx-auto px-4 md:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
           <GymReviewsSection gymOwnerId={ownerId} />
         </div>
       </section>
 
-      <section className="border-t border-border bg-card/40 py-20">
-        <div className="container mx-auto px-4 text-center md:px-6 lg:px-8">
-          <h2 className="font-display text-4xl tracking-normal md:text-6xl">
-            Ready to join {gym.gymName}?
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Create a member account linked to this gym. After email verification, the owner
-            approves your membership.
+      <section className="relative isolate overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/contact_section.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/55 to-transparent sm:from-black/92 sm:via-black/40 sm:to-transparent" />
+        </div>
+
+        <div className="relative z-10 mx-auto flex min-h-[52svh] max-w-4xl flex-col items-center justify-center px-4 py-20 text-center sm:min-h-[48svh] sm:py-24">
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.28em] text-primary sm:text-xs">
+            Partner gym
+            <span className="mx-2 text-primary/70">/</span>
+            Soft launch
           </p>
-          <Button asChild size="lg" variant="hero" className="mt-8">
-            <Link href={registerHref}>
-              Start registration
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <h2 className="font-display text-[clamp(2.5rem,8vw,5rem)] leading-[0.92] tracking-wide text-white">
+            <span className="block">READY TO JOIN</span>
+            <span className="relative mt-[-0.04em] inline-block pb-[0.3em] pr-[0.08em] text-primary">
+              <span className="relative z-[1]">{gym.gymName.toUpperCase()}?</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/red_stroke.png"
+                alt=""
+                aria-hidden
+                className="pointer-events-none absolute left-[-3%] top-[72%] z-0 h-[0.34em] w-[108%] max-w-none select-none object-fill object-left sm:h-[0.3em]"
+              />
+            </span>
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/80 sm:mt-5 sm:text-base">
+            Create a member account linked to this gym. After email verification,
+            the owner approves your membership.
+          </p>
+          <div className="mt-8 flex justify-center sm:mt-10">
+            <Button
+              asChild
+              variant="hero"
+              className="h-12 rounded-full px-7 text-sm font-semibold"
+            >
+              <Link href={registerHref}>
+                Start registration
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 

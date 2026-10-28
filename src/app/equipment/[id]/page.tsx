@@ -21,7 +21,7 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="pt-32 pb-16 container mx-auto px-4 md:px-6 lg:px-8 text-center">
+        <div className="pt-32 pb-16 max-w-7xl mx-auto px-4 md:px-6 lg:px-8 text-center">
           <h1 className="font-display text-5xl mb-4">Equipment Not Found</h1>
           <p className="text-muted-foreground mb-8">The equipment you're looking for doesn't exist.</p>
           <Button asChild>
@@ -53,7 +53,7 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
 
-        <div className="container mx-auto px-4 md:px-6 lg:px-8 relative z-10 pt-32 pb-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 relative z-10 pt-32 pb-16">
           <Link
             href="/equipment"
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-8"
@@ -80,22 +80,36 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
 
       {/* Content */}
       <section className="py-16">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-12">
               {/* Description */}
               <div>
-                <h2 className="font-display text-3xl mb-4">ABOUT THIS EQUIPMENT</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    ABOUT THIS EQUIPMENT
+                  </h2>
+                </div>
                 <p className="text-muted-foreground leading-relaxed">{equipment.longDescription}</p>
               </div>
 
               {/* Muscle Groups */}
               <div>
-                <h2 className="font-display text-3xl mb-4 flex items-center gap-2">
-                  <Target className="w-8 h-8 text-primary" />
-                  MUSCLES TARGETED
-                </h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display flex items-center gap-2 text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <Target className="w-8 h-8 text-primary" />
+                    MUSCLES TARGETED
+                  </h2>
+                </div>
                 <div className="flex flex-wrap gap-3">
                   {equipment.muscleGroups.map((muscle, index) => (
                     <span
@@ -110,7 +124,15 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
 
               {/* Features */}
               <div>
-                <h2 className="font-display text-3xl mb-4">FEATURES</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    FEATURES
+                  </h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {equipment.features.map((feature, index) => (
                     <div key={index} className="flex items-start gap-3">
@@ -125,10 +147,16 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
 
               {/* How to Use */}
               <div>
-                <h2 className="font-display text-3xl mb-4 flex items-center gap-2">
-                  <AlertCircle className="w-8 h-8 text-primary" />
-                  HOW TO USE
-                </h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display flex items-center gap-2 text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <AlertCircle className="w-8 h-8 text-primary" />
+                    HOW TO USE
+                  </h2>
+                </div>
                 <div className="glass-card rounded-xl p-6">
                   <ol className="space-y-4">
                     {equipment.howToUse.map((step, index) => (
@@ -145,10 +173,16 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
 
               {/* Tips */}
               <div>
-                <h2 className="font-display text-3xl mb-4 flex items-center gap-2">
-                  <Lightbulb className="w-8 h-8 text-primary" />
-                  PRO TIPS
-                </h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display flex items-center gap-2 text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    <Lightbulb className="w-8 h-8 text-primary" />
+                    PRO TIPS
+                  </h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {equipment.tips.map((tip, index) => (
                     <div key={index} className="glass-card rounded-xl p-4 border-l-4 border-primary">
@@ -213,9 +247,15 @@ export default function EquipmentDetailPage({ params }: EquipmentDetailPageProps
             if (!related.length) return null;
             return (
               <div className="mt-24">
-                <h2 className="font-display text-4xl mb-8">
-                  RELATED <span className="text-gradient">EQUIPMENT</span>
-                </h2>
+                <div className="mb-1 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    RELATED <span className="text-primary">EQUIPMENT</span>
+                  </h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {related.map((re) => (
                     <div key={re.id} className="glass-card rounded-xl overflow-hidden hover-lift group flex flex-col">

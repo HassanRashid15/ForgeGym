@@ -24,7 +24,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="pt-32 pb-16 container mx-auto px-4 md:px-6 lg:px-8 text-center">
+        <div className="pt-32 pb-16 max-w-7xl mx-auto px-4 md:px-6 lg:px-8 text-center">
           <h1 className="font-display text-5xl mb-4">Class Not Found</h1>
           <p className="text-muted-foreground mb-8">The class you&apos;re looking for doesn&apos;t exist.</p>
           <Button asChild>
@@ -58,7 +58,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
 
-        <div className="container mx-auto px-4 md:px-6 lg:px-8 relative z-10 pt-32 pb-16">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 relative z-10 pt-32 pb-16">
           <Link
             href="/classes"
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-8"
@@ -86,7 +86,7 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
 
       {/* Content */}
       <section className="py-16">
-        <div className="container mx-auto px-4 md:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-12">
@@ -116,13 +116,29 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
 
               {/* Description */}
               <div>
-                <h2 className="font-display text-3xl mb-4">ABOUT THIS CLASS</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    ABOUT THIS CLASS
+                  </h2>
+                </div>
                 <p className="text-muted-foreground leading-relaxed">{gymClass.longDescription}</p>
               </div>
 
               {/* Benefits */}
               <div>
-                <h2 className="font-display text-3xl mb-4">BENEFITS</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    BENEFITS
+                  </h2>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {gymClass.benefits.map((benefit, index) => (
                     <div key={index} className="flex items-start gap-3">
@@ -137,7 +153,15 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
 
               {/* Requirements */}
               <div>
-                <h2 className="font-display text-3xl mb-4">WHAT TO BRING</h2>
+                <div className="mb-4 flex items-center gap-3">
+                  <span
+                    className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                    aria-hidden
+                  />
+                  <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                    WHAT TO BRING
+                  </h2>
+                </div>
                 <div className="glass-card rounded-xl p-6">
                   <ul className="space-y-3">
                     {gymClass.requirements.map((req, index) => (
@@ -225,9 +249,15 @@ export default function ClassDetailPage({ params }: ClassDetailPageProps) {
           {/* Related Classes */}
           {relatedClasses.length > 0 && (
             <div className="mt-24">
-              <h2 className="font-display text-4xl mb-8">
-                YOU MAY ALSO <span className="text-gradient">LIKE</span>
-              </h2>
+              <div className="mb-2 flex items-center gap-3">
+                <span
+                  className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                  aria-hidden
+                />
+                <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                  YOU MAY ALSO <span className="text-primary">LIKE</span>
+                </h2>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {relatedClasses.map((rc) => (
                   <div key={rc.id} className="glass-card rounded-xl overflow-hidden hover-lift group flex flex-col">

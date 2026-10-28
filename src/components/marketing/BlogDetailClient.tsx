@@ -83,7 +83,7 @@ export default function BlogDetailClient({ post }: BlogDetailClientProps) {
       )}
 
       {/* Content */}
-      <article className="container mx-auto px-4 py-12 md:py-20">
+      <article className="mx-auto max-w-7xl px-4 py-12 md:py-20">
         <div className="max-w-full">
           {/* Back Button */}
           <Link
@@ -148,7 +148,15 @@ export default function BlogDetailClient({ post }: BlogDetailClientProps) {
 
           {/* Related Posts */}
           <div className="mt-16 pt-12 border-t border-border">
-            <h2 className="font-display text-2xl mb-6">More Articles</h2>
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                More Articles
+              </h2>
+            </div>
 
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

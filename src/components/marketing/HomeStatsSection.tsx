@@ -82,14 +82,22 @@ export function HomeStatsSection({
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_55%)]"
       />
 
-      <div className="container relative mx-auto px-4">
+      <div className="relative mx-auto max-w-7xl px-4">
         <ScrollAnimate animation="fade-up" className="mb-12 max-w-xl md:mb-16">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
             Forge by the numbers
           </p>
-          <h2 className="font-display text-4xl tracking-normal text-foreground md:text-5xl">
-            Built for real results
-          </h2>
+          <div className="flex items-center gap-3">
+            <span
+              className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+              aria-hidden
+            />
+            <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+              <span className="text-foreground">BUILT FOR </span>
+              <span className="inline-block text-primary">REAL RESULTS</span>
+            </h2>
+          </div>
+          <p className=" max-w-full text-left text-lg text-muted-foreground"> We are committed to providing the best possible experience for our members.</p>
         </ScrollAnimate>
 
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">

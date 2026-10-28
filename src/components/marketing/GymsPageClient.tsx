@@ -7,9 +7,11 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  ArrowRight,
   Building2,
   ChevronDown,
   ChevronRight,
+  ListFilter,
   Loader2,
   LocateFixed,
   MapPin,
@@ -17,7 +19,6 @@ import {
   Users,
 } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import { GymsPageFaq } from "@/components/marketing/FaqAccordion";
 import type { GymListItem } from "@/lib/gyms";
 import { GymImageLightbox } from "@/components/gyms/GymImageLightbox";
@@ -178,119 +179,184 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <section className="relative overflow-hidden bg-card pb-16 pt-32">
-        <InteractiveBackground variant="gradient" />
-        <div className="container relative z-10 mx-auto px-4">
-          <ScrollAnimate animation="fade-up">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-primary">
-              Directory
-            </p>
-            <h1 className="font-display mb-4 text-6xl md:text-8xl">
-              FIND YOUR <span className="text-gradient">GYM</span>
+      <section className="relative isolate overflow-hidden bg-background">
+        <div
+          className="pointer-events-none absolute inset-0 forge-hero-media"
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/gym_hero.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-[72%_center] sm:object-[78%_center]"
+          />
+          {/* Left wash so copy stays readable; athlete stays visible on the right */}
+          {/* <div className="absolute inset-0 bg-gradient-to-r from-black via-black/75 to-transparent sm:from-black/95 sm:via-black/55 sm:to-transparent" /> */}
+          {/* <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-black/35" /> */}
+          {/* Red geometric accent (reference) */}
+        </div>
+
+        <div className="relative z-10 mx-auto flex min-h-[78svh] max-w-7xl flex-col justify-end px-4 pb-10 pt-28 sm:min-h-[72svh] sm:px-6 sm:pb-14 sm:pt-32 lg:px-2 lg:pb-16">
+          <ScrollAnimate animation="fade-up" className="max-w-xl md:max-w-4xl lg:max-w-5xl">
+            <span className="mb-4 inline-flex rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-primary sm:text-[11px]">
+              Discover
+            </span>
+            <h1 className="font-display text-[clamp(2.5rem,8vw,5.25rem)] leading-[0.9] tracking-wide text-white md:whitespace-nowrap">
+              <span>FIND YOUR </span>
+              <span className="relative inline-block pb-[0.35em] pr-[0.1em] italic text-primary">
+                <span className="relative z-[1]">GYM</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/red_stroke.png"
+                  alt=""
+                  aria-hidden
+                  className="pointer-events-none absolute left-[-4%] top-[70%] z-0 h-[0.36em] w-[112%] max-w-none select-none object-fill object-left sm:h-[0.32em]"
+                />
+              </span>
             </h1>
-            <p className="max-w-2xl text-lg text-muted-foreground">
-              Browse published gyms. Use Near me to sort by distance from your
-              location, or filter by city and type.
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80 sm:mt-0 sm:text-base">
+              Browse top gyms, connect with the fitness community, and take the
+              first step towards a healthier you.
             </p>
           </ScrollAnimate>
-        </div>
-      </section>
 
-      <section className="sticky top-16 z-40 border-b border-border bg-background/80 py-4 backdrop-blur-lg">
-        <div className="container mx-auto space-y-4 px-4">
-          <div className="relative mx-auto max-w-xl">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search gyms, cities, facilities…"
-              className="pl-9"
-            />
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
-            <Button
-              type="button"
-              variant={nearMe ? "default" : "outline"}
-              className="gap-2"
-              onClick={toggleNearMe}
-              disabled={locating}
-              aria-pressed={nearMe}
+          {/* Hero search bar — matches reference layout */}
+          <div className="mt-8 w-full sm:mt-10">
+            <form
+              className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/55 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-md sm:flex-row sm:items-center sm:gap-2 sm:rounded-full sm:p-2 sm:pl-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                document
+                  .getElementById("gyms-results")
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
             >
-              {locating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LocateFixed className="h-4 w-4" />
-              )}
-              {locating
-                ? "Locating…"
-                : nearMe
-                  ? "Near me · on"
-                  : "Near me"}
-            </Button>
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Search gyms</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search gyms, cities, trainers..."
+                  className="h-11 border-white/15 bg-white/5 pl-10 text-white placeholder:text-white/45 focus-visible:ring-primary sm:border-transparent sm:bg-transparent"
+                />
+              </label>
 
-            <label className="relative w-full max-w-[220px]">
-              <span className="mb-1.5 block text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                City
-              </span>
-              <div className="relative">
-                <select
-                  value={cityFilter}
-                  onChange={(e) => setCityFilter(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Filter by city"
-                >
-                  <option value="all">All cities</option>
-                  {cities.map((city) => (
-                    <option key={city} value={city}>
-                      {city}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-            </label>
+              <div className="hidden h-8 w-px shrink-0 bg-white/15 sm:block" />
 
-            <label className="relative w-full max-w-[220px]">
-              <span className="mb-1.5 block text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Type
-              </span>
-              <div className="relative">
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label="Filter by type"
-                >
-                  <option value="all">All types</option>
-                  {types.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-[200px]">
+                <MapPin className="ml-2 hidden h-4 w-4 shrink-0 text-white/50 sm:block" />
+                <label className="relative min-w-0 flex-1">
+                  <span className="sr-only">City</span>
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
+                    className="h-11 w-full appearance-none rounded-md border border-white/15 bg-white/5 px-3 pr-8 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-primary sm:border-0 sm:bg-transparent"
+                    aria-label="Filter by city"
+                  >
+                    <option value="all" className="bg-zinc-900 text-white">
+                      All cities
                     </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    {cities.map((city) => (
+                      <option
+                        key={city}
+                        value={city}
+                        className="bg-zinc-900 text-white"
+                      >
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                </label>
               </div>
-            </label>
+
+              <div className="hidden h-8 w-px shrink-0 bg-white/15 sm:block" />
+
+              <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-[200px]">
+                <ListFilter className="ml-2 hidden h-4 w-4 shrink-0 text-white/50 sm:block" />
+                <label className="relative min-w-0 flex-1">
+                  <span className="sr-only">Gym type</span>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                    className="h-11 w-full appearance-none rounded-md border border-white/15 bg-white/5 px-3 pr-8 text-sm text-white outline-none focus-visible:ring-2 focus-visible:ring-primary sm:border-0 sm:bg-transparent"
+                    aria-label="Filter by type"
+                  >
+                    <option value="all" className="bg-zinc-900 text-white">
+                      All types
+                    </option>
+                    {types.map((type) => (
+                      <option
+                        key={type}
+                        value={type}
+                        className="bg-zinc-900 text-white"
+                      >
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
+                </label>
+              </div>
+
+              <div className="flex gap-2 sm:shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 shrink-0 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                  onClick={toggleNearMe}
+                  disabled={locating}
+                  aria-pressed={nearMe}
+                  title={nearMe ? "Near me on" : "Near me"}
+                >
+                  {locating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LocateFixed
+                      className={`h-4 w-4 ${nearMe ? "text-primary" : ""}`}
+                    />
+                  )}
+                </Button>
+                <Button
+                  type="submit"
+                  className="h-11 flex-1 gap-2 rounded-full bg-primary px-6 font-semibold text-primary-foreground hover:bg-primary/90 sm:flex-none"
+                >
+                  Search
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+
+            {locationError ? (
+              <p className="mt-2 text-xs text-amber-400">{locationError}</p>
+            ) : null}
+            {nearMe && userCoords ? (
+              <p className="mt-2 text-xs text-white/55">
+                Sorted closest first. Gyms without a saved pin appear at the end.
+              </p>
+            ) : null}
           </div>
-
-          {locationError ? (
-            <p className="text-center text-xs text-amber-500">{locationError}</p>
-          ) : null}
-          {nearMe && userCoords ? (
-            <p className="text-center text-xs text-muted-foreground">
-              Sorted closest first. Gyms without a saved pin appear at the end.
-            </p>
-          ) : null}
         </div>
       </section>
 
-      <section className="py-16">
-        <div className="container mx-auto px-4">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              {filtered.length} gym{filtered.length === 1 ? "" : "s"}
-              {nearMe ? " · nearest first" : ""}
+      <section id="gyms-results" className="relative z-10 scroll-mt-24 pb-16 pt-8 sm:pt-10">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="mb-8">
+            <div className="flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">FEATURED </span>
+                <span className="inline-block pr-[0.1em] text-primary">GYM</span>
+              </h2>
+            </div>
+            <p className="mt-2 max-w-2xl text-left text-lg text-muted-foreground">
+              Browse top gyms, connect with the fitness community, and take the
+              first step towards a healthier you.
             </p>
           </div>
 
@@ -377,7 +443,7 @@ export default function GymsPageClient({ gyms }: GymsPageClientProps) {
                         href={`/gyms/${gym.ownerId}`}
                         className="group flex flex-1 flex-col p-6 outline-none [-webkit-tap-highlight-color:transparent]"
                       >
-                        <div className="mb-2 flex items-center gap-3">
+                        <div className="mb-0 flex items-center gap-3">
                           {gym.avatarUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img

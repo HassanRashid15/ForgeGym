@@ -7,7 +7,6 @@ import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Instagram, Mail, Award, ArrowRight, Building2, MapPin } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
-import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 import { TrainersPageFaq } from "@/components/marketing/FaqAccordion";
 import { getNameInitials } from "@/lib/utils";
 import type { PublicTrainerListItem } from "@/lib/gyms";
@@ -33,25 +32,62 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-card pb-16 pt-32">
-        <InteractiveBackground variant="gradient" />
-        <div className="container relative z-10 mx-auto px-4">
-          <ScrollAnimate animation="fade-up">
-            <h1 className="font-display mb-4 text-6xl md:text-8xl">
-              MEET OUR <span className="text-gradient">TRAINERS</span>
+      <section className="relative isolate overflow-hidden bg-background">
+        <div
+          className="pointer-events-none absolute inset-0 forge-hero-media"
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/gym_trainers.png"
+            alt=""
+            className="absolute inset-0 h-full w-full sm:object-[50%_top]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/55 to-transparent sm:from-black/92 sm:via-black/40 sm:to-transparent" />
+          {/* <div className="absolute inset-0 bg-gradient-to-t from-background/40 via-transparent to-black/25" /> */}
+        </div>
+
+        <div className="relative z-10 mx-auto flex min-h-[78svh] max-w-7xl flex-col justify-center px-4 pb-12 pt-28 sm:min-h-[75svh] sm:px-6 sm:pb-14 sm:pt-32 lg:px-8 lg:pb-16">
+          <ScrollAnimate animation="fade-up" className="max-w-xl md:max-w-4xl lg:max-w-5xl">
+            <span className="mb-4 inline-flex rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-primary sm:text-[11px]">
+              Coaches
+            </span>
+            <h1 className="font-display text-[clamp(2.5rem,8vw,5.25rem)] leading-[0.9] tracking-wide text-white md:whitespace-nowrap">
+              <span>MEET OUR </span>
+              <span className="relative inline-block pb-[0.35em] pr-[0.1em] italic text-primary">
+                <span className="relative z-[1]">TRAINERS</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/red_stroke.png"
+                  alt=""
+                  aria-hidden
+                  className="pointer-events-none absolute left-[-4%] top-[70%] z-0 h-[0.36em] w-[112%] max-w-none select-none object-fill object-left sm:h-[0.32em]"
+                />
+              </span>
             </h1>
-            <p className="max-w-2xl text-lg text-muted-foreground">
-              Our certified professionals are dedicated to helping you reach your fitness goals
-              with personalized guidance and support.
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-white/80 sm:mt-0 sm:text-base">
+              Our certified professionals are dedicated to helping you reach your
+              fitness goals with personalized guidance and support.
             </p>
           </ScrollAnimate>
         </div>
       </section>
 
       {/* Trainers Grid */}
-      <section className="py-16">
-        <div className="container mx-auto px-4">
+      <section className="relative z-10 scroll-mt-24 pb-16 pt-8 sm:pt-10">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="mb-1 flex items-center gap-3">
+            <span
+              className="h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)] -mt-[7px]"
+              aria-hidden
+            />
+            <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+              <span className="text-foreground">FEATURED </span>
+              <span className="inline-block pr-[0.1em] text-primary">
+                TRAINERS
+              </span>
+            </h2>
+          </div>
           {isLoading ? (
             <div className="grid grid-cols-1 gap-12 md:grid-cols-2">
               {[1, 2, 3, 4].map((i) => (
@@ -59,7 +95,7 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
               ))}
             </div>
           ) : trainers.length === 0 ? (
-            <p className="text-center text-muted-foreground">
+            <p className="text-left text-muted-foreground">
               Trainers from published gyms will appear here.
             </p>
           ) : (
@@ -212,12 +248,18 @@ export default function TrainersPageClient({ trainers }: TrainersPageClientProps
         </div>
       </section>    
       <section className="bg-card py-24">
-        <div className="container mx-auto px-4 text-center">
-          <ScrollAnimate animation="scale">
-            <h2 className="font-display mb-6 text-5xl md:text-6xl">
-              TRAIN WITH THE <span className="text-gradient">BEST</span>
-            </h2>
-            <p className="mx-auto mb-8 max-w-xl text-lg text-muted-foreground">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="scale" className="text-left">
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                TRAIN WITH THE <span className="text-primary">BEST</span>
+              </h2>
+            </div>
+            <p className="mb-8 max-w-xl text-lg text-muted-foreground">
               Book a free consultation with one of our trainers and start your personalized
               fitness journey.
             </p>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import { Barlow, Teko } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -31,10 +31,11 @@ const barlow = Barlow({
   display: "swap",
 });
 
-const barlowCondensed = Barlow_Condensed({
+/** Athletic display headlines (FIND YOUR GYM, WELCOME, etc.) */
+const teko = Teko({
   subsets: ["latin"],
   variable: "--font-display",
-  weight: ["600", "700", "800"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
@@ -239,7 +240,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={[barlow.variable, barlowCondensed.variable, "font-sans", "antialiased"].join(
+        className={[barlow.variable, teko.variable, "font-sans", "antialiased"].join(
           " ",
         )}
         suppressHydrationWarning

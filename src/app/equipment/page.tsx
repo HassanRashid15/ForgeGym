@@ -30,7 +30,7 @@ export default function EquipmentPage() {
       {/* Hero */}
       <section className="relative overflow-hidden pt-32 pb-16 bg-card">
         <InteractiveBackground variant="gradient" />
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="mx-auto max-w-7xl px-4 relative z-10">
 
           <ScrollAnimate animation="fade-up">
             <h1 className="font-display text-6xl md:text-8xl mb-4">
@@ -45,7 +45,7 @@ export default function EquipmentPage() {
 
       {/* Filters */}
       <section className="py-8 border-b border-border sticky top-16 bg-background/80 backdrop-blur-lg z-40">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="flex flex-wrap gap-2">
             {equipmentCategories.map((category) => (
               <Button
@@ -63,7 +63,7 @@ export default function EquipmentPage() {
 
       {/* Equipment Grid */}
       <section className="py-16">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredEquipment.map((equipment, index) => (
               <ScrollAnimate
@@ -129,13 +129,19 @@ export default function EquipmentPage() {
 
       {/* CTA */}
       <section className="py-24 bg-card">
-        <div className="container mx-auto px-4 text-center">
-          <ScrollAnimate animation="scale">
-            <Dumbbell className="w-16 h-16 text-primary mx-auto mb-6" />
-            <h2 className="font-display text-5xl md:text-6xl mb-6">
-              NEED <span className="text-gradient">GUIDANCE?</span>
-            </h2>
-            <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="scale" className="text-left">
+            <Dumbbell className="mb-6 h-16 w-16 text-primary" />
+            <div className="mb-6 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                NEED <span className="text-primary">GUIDANCE?</span>
+              </h2>
+            </div>
+            <p className="mb-8 max-w-xl text-lg text-muted-foreground">
               Our trainers can show you how to use any equipment safely and effectively. Book a free orientation session.
             </p>
             <Button variant="hero" asChild>

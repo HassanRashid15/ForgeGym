@@ -11,6 +11,64 @@ export interface Exercise {
   gifUrl: string;
 }
 
+type OssExercise = {
+  exerciseId?: string;
+  name?: string;
+  gifUrl?: string;
+  bodyParts?: string[];
+  equipments?: string[];
+  targetMuscles?: string[];
+};
+
+const OSS_BASE = "https://oss.exercisedb.dev/api/v1";
+
+/** Map UI / RapidAPI-style equipment labels → OSS filter values. */
+function toOssEquipment(value: string): string {
+  const v = value.trim().toLowerCase();
+  if (v === "body weight" || v === "bodyweight") return "bodyweight";
+  return v;
+}
+
+function mapExercise(row: OssExercise): Exercise | null {
+  if (!row?.exerciseId || !row?.name) return null;
+  return {
+    id: row.exerciseId,
+    name: row.name,
+    bodyPart: row.bodyParts?.[0] || "",
+    equipment: row.equipments?.[0] || "",
+    target: row.targetMuscles?.[0] || "",
+    gifUrl: row.gifUrl || "",
+  };
+}
+
+async function fetchOssExercises(params: {
+  bodyPart?: string | null;
+  equipment?: string | null;
+  target?: string | null;
+  limit: string;
+}): Promise<Exercise[]> {
+  const qs = new URLSearchParams();
+  qs.set("offset", "0");
+  qs.set("limit", params.limit);
+
+  if (params.bodyPart) qs.set("bodyParts", params.bodyPart);
+  if (params.equipment) qs.set("equipments", toOssEquipment(params.equipment));
+  if (params.target) qs.set("targetMuscles", params.target);
+
+  const res = await fetch(`${OSS_BASE}/exercises?${qs.toString()}`, {
+    headers: { Accept: "application/json" },
+    next: { revalidate: 3600 },
+  });
+
+  if (!res.ok) {
+    throw new Error(`ExerciseDB OSS failed (${res.status})`);
+  }
+
+  const json = (await res.json()) as { success?: boolean; data?: OssExercise[] };
+  const rows = Array.isArray(json?.data) ? json.data : [];
+  return rows.map(mapExercise).filter((e): e is Exercise => Boolean(e));
+}
+
 export async function GET(request: Request) {
   const requestId = getRequestId(request);
   const limited = await rateLimit(clientKey(request, "public:exercises"), 120, 60_000);
@@ -25,80 +83,64 @@ export async function GET(request: Request) {
   const limit = searchParams.get("limit") || "50";
 
   try {
-    let url = `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=0`;
-
-    if (bodyPart) {
-      url = `https://exercisedb.p.rapidapi.com/exercises/bodyPart/${bodyPart}?limit=${limit}`;
-    } else if (equipment) {
-      url = `https://exercisedb.p.rapidapi.com/exercises/equipment/${equipment}?limit=${limit}`;
-    } else if (target) {
-      url = `https://exercisedb.p.rapidapi.com/exercises/target/${target}?limit=${limit}`;
-    }
-
-    const response = await fetch(url, {
-      headers: {
-        "X-RapidAPI-Key": process.env.EXERCISEDB_RAPIDAPI_KEY || "",
-        "X-RapidAPI-Host": "exercisedb.p.rapidapi.com",
-      },
+    const exercises = await fetchOssExercises({
+      bodyPart: bodyPart && bodyPart !== "all" ? bodyPart : null,
+      equipment: equipment && equipment !== "all" ? equipment : null,
+      target: target && target !== "all" ? target : null,
+      limit,
     });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch exercises from ExerciseDB");
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(exercises);
   } catch (error) {
-    console.error("Error fetching exercises:", error);
-    // Return sample data if API fails or no key is configured
+    console.error("Error fetching exercises:", error, { requestId });
+    // Fallback without broken RapidAPI gif URLs (those need auth headers in <img>).
     const sampleExercises: Exercise[] = [
       {
-        id: "1",
+        id: "sample-1",
         name: "Bench Press",
         bodyPart: "chest",
         equipment: "barbell",
         target: "pectorals",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0001.gif",
+        gifUrl: "",
       },
       {
-        id: "2",
+        id: "sample-2",
         name: "Incline Dumbbell Press",
         bodyPart: "chest",
         equipment: "dumbbell",
         target: "pectorals",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0002.gif",
+        gifUrl: "",
       },
       {
-        id: "3",
+        id: "sample-3",
         name: "Push-ups",
         bodyPart: "chest",
-        equipment: "body weight",
+        equipment: "bodyweight",
         target: "pectorals",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0003.gif",
+        gifUrl: "",
       },
       {
-        id: "4",
+        id: "sample-4",
         name: "Squats",
-        bodyPart: "legs",
+        bodyPart: "upper legs",
         equipment: "barbell",
         target: "quadriceps",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0004.gif",
+        gifUrl: "",
       },
       {
-        id: "5",
+        id: "sample-5",
         name: "Deadlift",
-        bodyPart: "legs",
+        bodyPart: "upper legs",
         equipment: "barbell",
         target: "hamstrings",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0005.gif",
+        gifUrl: "",
       },
       {
-        id: "6",
+        id: "sample-6",
         name: "Pull-ups",
         bodyPart: "back",
-        equipment: "body weight",
+        equipment: "bodyweight",
         target: "lats",
-        gifUrl: "https://exercisedb.p.rapidapi.com/exercise/0006.gif",
+        gifUrl: "",
       },
     ];
     return NextResponse.json(sampleExercises);

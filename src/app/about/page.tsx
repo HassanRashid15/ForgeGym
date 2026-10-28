@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Target, Heart, Users, Award, ArrowRight } from "lucide-react";
 import { ScrollAnimate } from "@/hooks/useScrollAnimation";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
-import InteractiveBackground from "@/components/marketing/InteractiveBackground";
 
 const values = [
   {
@@ -72,30 +71,65 @@ export default function AboutPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden pt-32 pb-16 bg-card">
-        <InteractiveBackground variant="gradient" />
-        <div className="container mx-auto px-4 relative z-10">
+      <section className="relative isolate overflow-hidden bg-background">
+        <div
+          className="pointer-events-none absolute inset-0 forge-hero-media"
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/gym_about.png"
+            alt=""
+            className="absolute inset-0 h-full w-full"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/55 to-transparent sm:from-black/92 sm:via-black/40 sm:to-transparent" />
+        </div>
 
-          <ScrollAnimate animation="fade-up">
-            <h1 className="font-display text-6xl md:text-8xl mb-4">
-              OUR <span className="text-gradient">STORY</span>
-            </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl">
-              More than a gym — we're a community dedicated to transforming lives through fitness.
-            </p>
+        <div className="relative z-10 mx-auto flex min-h-[78svh] max-w-7xl flex-col justify-center px-4 pb-10 pt-28 sm:min-h-[72svh] sm:px-6 sm:pb-14 sm:pt-32 lg:px-2 lg:pb-16">
+          <ScrollAnimate animation="fade-up" className="max-w-xl md:max-w-2xl">
+            <div className="flex gap-4 sm:gap-5">
+              {/* <span
+                className="mt-1.5 w-1 shrink-0 self-start rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)] sm:mt-2 sm:w-1.5"
+                style={{ height: "clamp(2.4rem, 7vw, 4.2rem)" }}
+                aria-hidden
+              /> */}
+              <div>
+                <h1 className="font-display text-[clamp(2.75rem,9vw,5.5rem)] leading-[0.9] tracking-wide text-white">
+                  <span>OUR </span>
+                  <span className="relative inline-block pb-[0.35em] pr-[0.1em] text-primary">
+                    <span className="relative z-[1]">STORY</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/images/red_stroke.png"
+                      alt=""
+                      aria-hidden
+                      className="pointer-events-none absolute left-[-4%] top-[70%] z-0 h-[0.36em] w-[112%] max-w-none select-none object-fill object-left sm:h-[0.32em]"
+                    />
+                  </span>
+                </h1>
+                <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/75 sm:mt-0 sm:text-base">
+                  Built on passion. Driven by people. Shaping stronger tomorrows.
+                </p>
+              </div>
+            </div>
           </ScrollAnimate>
         </div>
       </section>
 
       {/* Mission Section */}
       <section className="py-24">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <ScrollAnimate animation="fade-right">
-              <h2 className="font-display text-5xl mb-6">
-                FORGING STRONGER <span className="text-gradient">FUTURES</span>
-              </h2>
+              <div className="mb-6 flex items-center gap-3">
+                <span
+                  className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                  aria-hidden
+                />
+                <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                  FORGING STRONGER <span className="text-primary">FUTURES</span>
+                </h2>
+              </div>
               <p className="text-muted-foreground mb-6">
                 Forge was born from a simple belief: gyms deserve software that helps people train —
                 not just sell memberships. We saw too many tools that looked big on paper and broke
@@ -137,10 +171,19 @@ export default function AboutPage() {
 
       {/* Values */}
       <section className="py-24 bg-card">
-        <div className="container mx-auto px-4">
-          <ScrollAnimate animation="fade-up" className="text-center mb-16">
-            <h2 className="font-display text-5xl mb-4">OUR VALUES</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+        <div className="mx-auto max-w-7xl px-4">
+          <ScrollAnimate animation="fade-up" className="mb-16 text-left">
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">OUR </span>
+                <span className="inline-block pr-[0.1em] text-primary">VALUES</span>
+              </h2>
+            </div>
+            <p className="max-w-2xl text-lg text-muted-foreground">
               These core values guide everything we do at Forge.
             </p>
           </ScrollAnimate>
@@ -165,9 +208,18 @@ export default function AboutPage() {
 
       {/* Timeline */}
       <section className="py-24">
-        <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-7xl px-4">
           <ScrollAnimate animation="fade-up">
-            <h2 className="font-display text-5xl text-center mb-16">OUR JOURNEY</h2>
+            <div className="mb-16 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                <span className="text-foreground">OUR </span>
+                <span className="inline-block pr-[0.1em] text-primary">JOURNEY</span>
+              </h2>
+            </div>
           </ScrollAnimate>
           <div className="max-w-7xl mx-auto">
             {timeline.map((item, index) => (
@@ -198,14 +250,21 @@ export default function AboutPage() {
 
       {/* Soft launch note */}
       <section className="border-y border-border bg-card py-20">
-        <div className="container mx-auto max-w-2xl px-4 text-center">
+        <div className=" mx-auto max-w-7xl px-4 text-left">
           <ScrollAnimate animation="fade-up">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-primary">
               Soft launch
             </p>
-            <h2 className="font-display mb-4 text-4xl tracking-normal md:text-5xl">
-              Honest numbers only
-            </h2>
+            <div className="mb-4 flex items-center gap-3">
+              <span
+                className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+                aria-hidden
+              />
+              <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+                Honest members, 
+                <span className="inline-block pr-[0.1em] text-primary">trainers</span> and <span className="inline-block pr-[0.1em] text-primary">gyms</span> only
+              </h2>
+            </div>
             <p className="text-muted-foreground">
               Member, trainer, and gym counts on Forge update from live data. We&apos;re growing with
               real partners — check the home page for current figures.
@@ -215,22 +274,53 @@ export default function AboutPage() {
       </section>
 
       {/* CTA */}
-      <section className="py-24">
-        <div className="container mx-auto px-4 text-center">
-          <ScrollAnimate animation="scale">
-            <h2 className="font-display text-5xl md:text-6xl mb-6">
-              BECOME PART OF <span className="text-gradient">OUR STORY</span>
-            </h2>
-            <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-              Join a partner gym on Forge and train with a platform built for the floor — not
-              marketing fiction.
+      <section className="relative isolate overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/contact_section.png"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-black/55 to-transparent sm:from-black/92 sm:via-black/40 sm:to-transparent" />
+        </div>
+
+        <div className="relative z-10 mx-auto flex min-h-[52svh] max-w-4xl flex-col items-center justify-center px-4 py-20 text-center sm:min-h-[48svh] sm:py-24">
+          <ScrollAnimate animation="scale" className="w-full">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.28em] text-primary sm:text-xs">
+              Soft launch
+              <span className="mx-2 text-primary/70">/</span>
+              Real partners
             </p>
-            <Button variant="hero" asChild>
-              <Link href="/gyms">
-                Find a gym
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-            </Button>
+            <h2 className="font-display text-[clamp(2.5rem,8vw,5rem)] leading-[0.92] tracking-wide text-white">
+              <span className="block">BECOME PART OF</span>
+              <span className="relative mt-[-0.04em] inline-block pb-[0.3em] pr-[0.08em] text-primary">
+                <span className="relative z-[1]">OUR STORY</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/red_stroke.png"
+                  alt=""
+                  aria-hidden
+                  className="pointer-events-none absolute left-[-3%] top-[72%] z-0 h-[0.34em] w-[108%] max-w-none select-none object-fill object-left sm:h-[0.3em]"
+                />
+              </span>
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-white/80 sm:mt-5 sm:text-base">
+              Join a partner gym on Forge and train with a platform built for the
+              floor — not marketing fiction.
+            </p>
+            <div className="mt-8 flex justify-center sm:mt-10">
+              <Button
+                asChild
+                variant="hero"
+                className="h-12 rounded-full px-7 text-sm font-semibold"
+              >
+                <Link href="/gyms">
+                  Find a gym
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
           </ScrollAnimate>
         </div>
       </section>

@@ -86,16 +86,23 @@ export function ReviewSection() {
   };
 
   return (
-    <section className="bg-gradient-to-b from-background to-card/50 py-24">
-      <div className="container mx-auto px-4">
-        <ScrollAnimate animation="fade-up" className="mb-16 text-center">
+    <section className="border-t border-border bg-background py-16 md:py-20">
+      <div className="mx-auto max-w-7xl px-4">
+        <ScrollAnimate animation="fade-up" className="mb-10 text-left md:mb-12">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-primary">
             Testimonials
           </p>
-          <h2 className="mb-4 font-display text-5xl md:text-6xl">
-            What Our Members Say
-          </h2>
-          <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              className="-mt-[7px] h-2 w-8 shrink-0 rounded-xs bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.85)]"
+              aria-hidden
+            />
+            <h2 className="font-display text-2xl italic leading-normal tracking-wide text-foreground sm:text-3xl md:text-4xl">
+              <span className="text-foreground">What Our </span>
+              <span className="inline-block pr-[0.1em] text-primary">Members Say</span>
+            </h2>
+          </div>
+          <p className="max-w-2xl text-lg text-muted-foreground">
             Real stories from real members who transformed their fitness journey
             with Forge.
           </p>
@@ -112,7 +119,7 @@ export function ReviewSection() {
               <div className="hidden md:block">
                 <ScrollAnimate animation="fade-up" delay={0.1}>
                   <div className="mx-auto max-w-2xl">
-                    <Card className="border-border/50 bg-card/50 backdrop-blur-sm p-8">
+                    <Card className="border-border bg-card p-8 shadow-none">
                       <div className="mb-6 flex items-center gap-4">
                         <Avatar className="h-12 w-12">
                           <AvatarFallback className="bg-primary/10 text-primary">
